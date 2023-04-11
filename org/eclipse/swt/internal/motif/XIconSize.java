@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -11,10 +11,12 @@
 package org.eclipse.swt.internal.motif;
 
  
-public abstract class XWindowEvent extends XEvent {
-	public int root;	        /* root window that the event occured on */
-	public int subwindow;	/* child window */
-	public int time;		/* milliseconds */
-	public int x, y;		/* pointer x, y coordinates in event window */
-	public int x_root, y_root;	/* coordinates relative to root */
+public class XIconSize {
+	public int min_width;
+	public int min_height;
+	public int max_width;
+	public int max_height;
+	public int width_inc;
+	public int height_inc;
+	public static final int sizeof = 24;
 }

@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -15,7 +15,7 @@ import java.io.*;
 import org.eclipse.swt.*;
 import org.eclipse.swt.graphics.*;
 
-public class PNGFileFormat extends FileFormat {
+final class PNGFileFormat extends FileFormat {
 	static final int SIGNATURE_LENGTH = 8;
 	PngDecodingDataStream decodingStream;
 	PngIhdrChunk headerChunk;
@@ -63,7 +63,7 @@ ImageData[] loadFromByteStream() {
 			
 		if (headerChunk.usesDirectColor()) {
 			imageData.palette = headerChunk.getPaletteData();
-		};
+		}
 		
 		// Read and process chunks until the IEND chunk is encountered.
 		while (chunkReader.hasMoreChunks()) {
@@ -89,7 +89,7 @@ void readNextChunk(PngChunkReader chunkReader) {
 			if (!headerChunk.usesDirectColor()) {
 				paletteChunk = (PngPlteChunk) chunk;
 				imageData.palette = paletteChunk.getPaletteData();						
-			};					
+			}			
 			break;
 		case PngChunk.CHUNK_tRNS:
 			PngTrnsChunk trnsChunk = (PngTrnsChunk) chunk;
@@ -100,6 +100,19 @@ void readNextChunk(PngChunkReader chunkReader) {
 					trnsChunk.getSwtTransparentPixel(headerChunk);
 			} else {
 				alphaPalette = trnsChunk.getAlphaValues(headerChunk, paletteChunk);
+				int transparentCount = 0, transparentPixel = -1;
+				for (int i = 0; i < alphaPalette.length; i++) {
+					if ((alphaPalette[i] & 0xFF) != 255) {
+						transparentCount++;
+						transparentPixel = i;
+					}
+				}
+				if (transparentCount == 0) {
+					alphaPalette = null;
+				} else if (transparentCount == 1 && alphaPalette[transparentPixel] == 0) {
+					alphaPalette = null;
+					imageData.transparentPixel = transparentPixel;
+				}
 			}
 			break;
 		case PngChunk.CHUNK_IDAT:

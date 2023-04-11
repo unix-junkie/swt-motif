@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -51,6 +51,7 @@ void addLast (RunnableLock lock) {
 			messages = newMessages;
 		}
 		messages [messageCount++] = lock;
+		if (messageCount == 1) display.wakeThread ();
 	}
 }
 
@@ -66,8 +67,15 @@ void addLast (RunnableLock lock) {
  * @see #syncExec
  */
 protected void asyncExec (Runnable runnable) {
-	if (runnable != null) addLast (new RunnableLock (runnable));
-	display.wake ();
+	if (runnable == null) {
+		display.wake ();
+		return;
+	}
+	addLast (new RunnableLock (runnable));
+}
+
+int getMessageCount () {
+	return messageCount;
 }
 
 void releaseSynchronizer () {
@@ -138,7 +146,6 @@ protected void syncExec (Runnable runnable) {
 	lock.thread = Thread.currentThread();
 	synchronized (lock) {
 		addLast (lock);
-		display.wake ();
 		boolean interrupted = false;
 		while (!lock.done ()) {
 			try {

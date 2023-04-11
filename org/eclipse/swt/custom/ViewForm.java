@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -14,7 +14,6 @@ package org.eclipse.swt.custom;
 import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.widgets.*;
 import org.eclipse.swt.*;
-import org.eclipse.swt.events.*;
 
 /**
  * Instances of this class implement a Composite that lays out three
@@ -52,17 +51,47 @@ public class ViewForm extends Composite {
 	 * The default value is 0.
 	 */
  	public int marginHeight = 0;
+ 	/**
+	 * horizontalSpacing specifies the number of pixels between the right
+	 * edge of one cell and the left edge of its neighbouring cell to
+	 * the right.
+	 *
+	 * The default value is 1.
+	 */
+ 	public int horizontalSpacing = 1;
+	/**
+	 * verticalSpacing specifies the number of pixels between the bottom
+	 * edge of one cell and the top edge of its neighbouring cell underneath.
+	 *
+	 * The default value is 1.
+	 */
+ 	public int verticalSpacing = 1;
 	
 	/**
 	 * Color of innermost line of drop shadow border.
+	 * 
+	 * NOTE This field is badly named and can not be fixed for backwards compatability.
+	 * It should be capitalized.
+	 * 
+	 * @deprecated
 	 */
 	public static RGB borderInsideRGB  = new RGB (132, 130, 132);
 	/**
 	 * Color of middle line of drop shadow border.
+	 * 
+	 * NOTE This field is badly named and can not be fixed for backwards compatability.
+	 * It should be capitalized.
+	 * 
+	 * @deprecated
 	 */
 	public static RGB borderMiddleRGB  = new RGB (143, 141, 138);
 	/**
 	 * Color of outermost line of drop shadow border.
+	 * 
+	 * NOTE This field is badly named and can not be fixed for backwards compatability.
+	 * It should be capitalized.
+	 * 
+	 * @deprecated
 	 */
 	public static RGB borderOutsideRGB = new RGB (171, 168, 165);
 	
@@ -74,22 +103,21 @@ public class ViewForm extends Composite {
 	
 	// Configuration and state info
 	private boolean separateTopCenter = false;
-	private int drawLine1 = -1;
-	private int drawLine2 = -1;
-	
 	private boolean showBorder = false;
 	
-	private int BORDER_TOP = 0;
-	private int BORDER_BOTTOM = 0;
-	private int BORDER_LEFT = 0;
-	private int BORDER_RIGHT = 0;
-	
-	private Color borderColor1;
-	private Color borderColor2;
-	private Color borderColor3;
-	
+	private int separator = -1;
+	private int borderTop = 0;
+	private int borderBottom = 0;
+	private int borderLeft = 0;
+	private int borderRight = 0;
+	private int highlight = 0;
 	private Rectangle oldArea;
-	private static final int OFFSCREEN = -200;
+	
+	private Color selectionBackground;
+	
+	static final int OFFSCREEN = -200;
+	static final int BORDER1_COLOR = SWT.COLOR_WIDGET_NORMAL_SHADOW;
+	static final int SELECTION_BACKGROUND = SWT.COLOR_LIST_BACKGROUND;
 /**
  * Constructs a new instance of this class given its parent
  * and a style value describing its behavior and appearance.
@@ -115,48 +143,49 @@ public class ViewForm extends Composite {
  *
  * @see SWT#BORDER
  * @see SWT#FLAT
- * @see #getStyle
+ * @see #getStyle()
  */		
 public ViewForm(Composite parent, int style) {
 	super(parent, checkStyle(style));
 	
-	borderColor1 = new Color(getDisplay(), borderInsideRGB);
-	borderColor2 = new Color(getDisplay(), borderMiddleRGB);
-	borderColor3 = new Color(getDisplay(), borderOutsideRGB);
 	setBorderVisible((style & SWT.BORDER) != 0);
-
-	addPaintListener(new PaintListener() {
-		public void paintControl(PaintEvent event) {
-			onPaint(event.gc);
-		}
-	});
-	addControlListener(new ControlAdapter(){
-		public void controlResized(ControlEvent e) {
-			onResize();
-		}
-	});
 	
-	addListener(SWT.Dispose, new Listener() {
+	Listener listener = new Listener() {
 		public void handleEvent(Event e) {
-			onDispose();
+			switch (e.type) {
+				case SWT.Dispose: onDispose(); break;
+				case SWT.Paint: onPaint(e.gc); break;
+				case SWT.Resize: onResize(); break;
+			}
 		}
-	});	
+	};
+	
+	int[] events = new int[] {SWT.Dispose, SWT.Paint, SWT.Resize};
+	
+	for (int i = 0; i < events.length; i++) {
+		addListener(events[i], listener);
+	}
 }
-/**
- * Check the style bits to ensure that no invalid styles are applied.
- * @private
- */
-private static int checkStyle (int style) {
+
+static int checkStyle (int style) {
 	int mask = SWT.FLAT | SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT;
 	return style & mask | SWT.NO_REDRAW_RESIZE;
 }
+
+//protected void checkSubclass () {
+//	String name = getClass().getName ();
+//	String validName = ViewForm.class.getName();
+//	if (!validName.equals(name)) {
+//		SWT.error (SWT.ERROR_INVALID_SUBCLASS);
+//	}
+//}
+
 public Point computeSize(int wHint, int hHint, boolean changed) {
 	checkWidget();
 	// size of title bar area
 	Point leftSize = new Point(0, 0);
 	if (topLeft != null) {
 		leftSize = topLeft.computeSize(SWT.DEFAULT, SWT.DEFAULT);
-		leftSize.x += 1; // +1 for highlight line
 	}
 	Point centerSize = new Point(0, 0);
 	if (topCenter != null) {
@@ -171,25 +200,34 @@ public Point computeSize(int wHint, int hHint, boolean changed) {
 	if (separateTopCenter ||
 	    (wHint != SWT.DEFAULT &&  leftSize.x + centerSize.x + rightSize.x > wHint)) {
 		size.x = leftSize.x + rightSize.x;
+		if (leftSize.x > 0 && rightSize.x > 0) size.x += horizontalSpacing;
 		size.x = Math.max(centerSize.x, size.x);
-		size.y = Math.max(leftSize.y, rightSize.y) + 1; // +1 for highlight line
+		size.y = Math.max(leftSize.y, rightSize.y);
 		if (topCenter != null){
 			size.y += centerSize.y;
-		}
+			if (topLeft != null ||topRight != null)size.y += verticalSpacing;
+		}	
 	} else {
 		size.x = leftSize.x + centerSize.x + rightSize.x;
-		size.y = Math.max(leftSize.y, Math.max(centerSize.y, rightSize.y)) + 1; // +1 for highlight line
+		int count = -1;
+		if (leftSize.x > 0) count++;
+		if (centerSize.x > 0) count++;
+		if (rightSize.x > 0) count++;
+		if (count > 0) size.x += count * horizontalSpacing;
+		size.y = Math.max(leftSize.y, Math.max(centerSize.y, rightSize.y));
 	}
 	
 	if (content != null) {
+		if (topLeft != null || topRight != null || topCenter != null) size.y += 1; // allow space for a vertical separator
 		Point contentSize = new Point(0, 0);
 		contentSize = content.computeSize(SWT.DEFAULT, SWT.DEFAULT); 
 		size.x = Math.max (size.x, contentSize.x);
-		size.y += contentSize.y + 1; // +1 for line bewteen content and header
+		size.y += contentSize.y;
+		if (size.y > contentSize.y) size.y += verticalSpacing;
 	}
 	
-	size.x += 2 * marginWidth;
-	size.y += 2 * marginHeight;
+	size.x += 2*marginWidth;
+	size.y += 2*marginHeight;
 	
 	if (wHint != SWT.DEFAULT) size.x  = wHint;
 	if (hHint != SWT.DEFAULT) size.y = hHint;
@@ -199,19 +237,19 @@ public Point computeSize(int wHint, int hHint, boolean changed) {
 }
 public Rectangle computeTrim (int x, int y, int width, int height) {
 	checkWidget ();
-	int trimX = x - BORDER_LEFT;
-	int trimY = y - BORDER_TOP;
-	int trimWidth = width + BORDER_LEFT + BORDER_RIGHT;
-	int trimHeight = height + BORDER_TOP + BORDER_BOTTOM;
+	int trimX = x - borderLeft - highlight;
+	int trimY = y - borderTop - highlight;
+	int trimWidth = width + borderLeft + borderRight + 2*highlight;
+	int trimHeight = height + borderTop + borderBottom + 2*highlight;
 	return new Rectangle(trimX, trimY, trimWidth, trimHeight);
 }
 public Rectangle getClientArea() {
 	checkWidget();
 	Rectangle clientArea = super.getClientArea();
-	clientArea.x += BORDER_LEFT;
-	clientArea.y += BORDER_TOP;
-	clientArea.width -= BORDER_LEFT + BORDER_RIGHT;
-	clientArea.height -= BORDER_TOP + BORDER_BOTTOM;
+	clientArea.x += borderLeft;
+	clientArea.y += borderTop;
+	clientArea.width -= borderLeft + borderRight;
+	clientArea.height -= borderTop + borderBottom;
 	return clientArea;
 }
 /**
@@ -257,9 +295,6 @@ public void layout (boolean changed) {
 	checkWidget();
 	Rectangle rect = getClientArea();
 	
-	drawLine1 = -1;
-	drawLine2 = -1;
-	
 	Point leftSize = new Point(0, 0);
 	if (topLeft != null && !topLeft.isDisposed()) {
 		leftSize = topLeft.computeSize(SWT.DEFAULT, SWT.DEFAULT);
@@ -273,149 +308,110 @@ public void layout (boolean changed) {
 		 rightSize = topRight.computeSize(SWT.DEFAULT, SWT.DEFAULT);
 	}
 	
-	int minTopWidth = leftSize.x + centerSize.x + rightSize.x + 2*marginWidth + 1; // +1 for highlight line	
-	int height = rect.y + marginHeight;
+	int minTopWidth = leftSize.x + centerSize.x + rightSize.x + 2*marginWidth + 2*highlight;
+	int count = -1;
+	if (leftSize.x > 0) count++;
+	if (centerSize.x > 0) count++;
+	if (rightSize.x > 0) count++;
+	if (count > 0) minTopWidth += count * horizontalSpacing;
+		
+	int x = rect.x + rect.width - marginWidth - highlight;
+	int y = rect.y + marginHeight + highlight;
 	
 	boolean top = false;
-	if (separateTopCenter || minTopWidth > rect.width) {;
+	if (separateTopCenter || minTopWidth > rect.width) {
 		int topHeight = Math.max(rightSize.y, leftSize.y);
 		if (topRight != null && !topRight.isDisposed()) {
 			top = true;
-			topRight.setBounds(rect.x + rect.width - marginWidth - rightSize.x, 
-			                   rect.y + 1 + marginHeight, 
-			                   rightSize.x, topHeight);
-			height += 1 + topHeight; // +1 for highlight line
+			x -= rightSize.x;
+			topRight.setBounds(x, y, rightSize.x, topHeight);
+			x -= horizontalSpacing;
 		}
 		if (topLeft != null && !topLeft.isDisposed()) {
 			top = true;
-			leftSize = topLeft.computeSize(rect.width - 2* marginWidth - rightSize.x - 1, SWT.DEFAULT);
-			topLeft.setBounds(rect.x + 1 + marginWidth, 
-			                  rect.y + 1 + marginHeight, 
-			                  leftSize.x, topHeight);
-			height = Math.max(height, rect.y + marginHeight + 1 + topHeight); // +1 for highlight line
+			leftSize = topLeft.computeSize(x - rect.x - marginWidth - highlight, SWT.DEFAULT);
+			topLeft.setBounds(rect.x + marginWidth + highlight, y, leftSize.x, topHeight);
 		}
+		if (top) y += topHeight + verticalSpacing;
 		if (topCenter != null && !topCenter.isDisposed()) {
 			top = true;
-			if (height > rect.y + marginHeight) {
-				drawLine1 = height;
-				height += 1; // +1 for divider line
-			}
-			centerSize = topCenter.computeSize(rect.width - 2 * marginWidth, SWT.DEFAULT);
-			topCenter.setBounds(rect.x + rect.width - marginWidth - centerSize.x, 
-			                    height, 
-			                    centerSize.x, centerSize.y);
-			height += centerSize.y;
-
+			int w = rect.width - 2*marginWidth - 2*highlight;
+			int trim = topCenter.computeSize(w, SWT.DEFAULT).x - w;
+			centerSize = topCenter.computeSize(w - trim, SWT.DEFAULT);
+			topCenter.setBounds(rect.x + rect.width - marginWidth - highlight - centerSize.x, y, centerSize.x, centerSize.y);
+			y += centerSize.y + verticalSpacing;
 		}		
 	} else {
 		int topHeight = Math.max(rightSize.y, Math.max(centerSize.y, leftSize.y));
 		if (topRight != null && !topRight.isDisposed()) {
 			top = true;
-			topRight.setBounds(rect.x + rect.width - marginWidth - rightSize.x, 
-			                   rect.y + marginHeight + 1, // +1 for highlight line
-			                   rightSize.x, topHeight);
-			height += 1 + topHeight; // +1 for highlight line
+			x -= rightSize.x;
+			topRight.setBounds(x, y, rightSize.x, topHeight);
+			x -= horizontalSpacing;
 		}
 		if (topCenter != null && !topCenter.isDisposed()) {
 			top = true;
-			topCenter.setBounds(rect.x + rect.width - marginWidth - rightSize.x - centerSize.x, 
-			                    rect.y + marginHeight + 1, // +1 for highlight line
-			                    centerSize.x, topHeight);
-			height = Math.max(height, rect.y + marginHeight + 1 + topHeight); // +1 for highlight line                    
+			x -= centerSize.x;
+			topCenter.setBounds(x, y, centerSize.x, topHeight);
+			x -= horizontalSpacing;
 		}
 		if (topLeft != null && !topLeft.isDisposed()) {
 			top = true;
-			leftSize = topLeft.computeSize(rect.width - 2 * marginWidth - rightSize.x - centerSize.x - 1, topHeight);
-			topLeft.setBounds(rect.x + marginWidth + 1, // +1 for highlight line
-			                  rect.y + marginHeight + 1, // +1 for highlight line
-			                  leftSize.x, topHeight);
-			height = Math.max(height, rect.y + marginHeight + 1 + topHeight); // +1 for highlight line
+			leftSize = topLeft.computeSize(x - rect.x - marginWidth - highlight, topHeight);
+			topLeft.setBounds(rect.x + marginWidth + highlight, y, leftSize.x, topHeight);
 		}
+		if (top)y += topHeight + verticalSpacing;
 	}
-
+	int oldSeperator = separator;
+	separator = -1;
 	if (content != null && !content.isDisposed()) {
-		if (top) {
-			drawLine2 = height;
-			height += 1; // +1 for divider line
+		if (topLeft != null || topRight!= null || topCenter != null){
+			separator = y;
+			y++;
 		}
-		 content.setBounds(rect.x + marginWidth, 
-		                   height, 
-		                   rect.width - 2 * marginWidth, 
-		                   rect.y + rect.height - height - marginHeight);
+		 content.setBounds(rect.x + marginWidth + highlight, y, rect.width - 2 * marginWidth - 2*highlight, rect.y + rect.height - y - marginHeight - highlight);
+	}
+	if (oldSeperator != -1 && separator != -1) {
+		int t = Math.min(separator, oldSeperator);
+		int b = Math.max(separator, oldSeperator);
+		redraw(borderLeft, t, getSize().x - borderLeft - borderRight, b - t, false);
 	}
 }
-private void onDispose() {
-	if (borderColor1 != null) {
-		borderColor1.dispose();
-	}
-	borderColor1 = null;
-	
-	if (borderColor2 != null) {
-		borderColor2.dispose();
-	}
-	borderColor2 = null;
-	
-	if (borderColor3 != null) {
-		borderColor3.dispose();
-	}
-	borderColor3 = null;
-	
+void onDispose() {
 	topLeft = null;
 	topCenter = null;
 	topRight = null;
 	content = null;
 	oldArea = null;
+	selectionBackground = null;
 }
-/**
-* Draws the focus border.
-*/
-private void onPaint(GC gc) {
-	Rectangle d = super.getClientArea();
-	
+void onPaint(GC gc) {
+	Color gcForeground = gc.getForeground();
+	Point size = getSize();
+	Color border = getDisplay().getSystemColor(BORDER1_COLOR);
 	if (showBorder) {
-		if ((getStyle() & SWT.FLAT) !=0) {
-			gc.setForeground(borderColor1);
-			gc.drawRectangle(d.x, d.y, d.x + d.width - 1, d.y + d.height - 1);
-		} else {
-			gc.setForeground(borderColor1);
-			gc.drawRectangle(d.x, d.y, d.x + d.width - 3, d.y + d.height - 3);
-		
-			gc.setForeground(borderColor2);
-			gc.drawLine(d.x + 1,           d.y + d.height - 2, d.x + d.width - 1, d.y + d.height - 2);
-			gc.drawLine(d.x + d.width - 2, d.y + 1,            d.x + d.width - 2, d.y + d.height - 1);
-		
-			gc.setForeground(borderColor3);
-			gc.drawLine(d.x + 2,           d.y + d.height - 1, d.x + d.width - 2, d.y + d.height - 1);
-			gc.drawLine(d.x + d.width - 1, d.y + 2,            d.x + d.width - 1, d.y + d.height - 2);
+		gc.setForeground(border);
+		gc.drawRectangle(0, 0, size.x - 1, size.y - 1);
+		if (highlight > 0) {
+			int x1 = 1;
+			int y1 = 1;
+			int x2 = size.x - 1;
+			int y2 = size.y - 1;
+			int[] shape = new int[] {x1,y1, x2,y1, x2,y2, x1,y2, x1,y1+highlight,
+					           x1+highlight,y1+highlight, x1+highlight,y2-highlight, 
+							   x2-highlight,y2-highlight, x2-highlight,y1+highlight, x1,y1+highlight};
+			Color highlightColor = getDisplay().getSystemColor(SWT.COLOR_LIST_SELECTION);
+			gc.setBackground(highlightColor);
+			gc.fillPolygon(shape);
 		}
 	}
-		
-	if (drawLine1 != -1) {
-		// top seperator line
-		gc.setForeground(borderColor1);
-		gc.drawLine(d.x + BORDER_LEFT, drawLine1, d.x + d.width - BORDER_RIGHT, drawLine1);	
+	if (separator > -1) {
+		gc.setForeground(border);
+		gc.drawLine(borderLeft + highlight, separator, size.x - borderLeft - borderRight - highlight, separator);
 	}
-	if (drawLine2 != -1) {
-		// content separator line
-		gc.setForeground(borderColor1);
-		gc.drawLine(d.x + BORDER_LEFT, drawLine2, d.x + d.width - BORDER_RIGHT, drawLine2);
-	}
-	// highlight on top
-	int y = drawLine1;
-	if (y == -1){
-		y = drawLine2;
-	}
-	if (y != -1) {
-		gc.setForeground(getDisplay().getSystemColor(SWT.COLOR_WIDGET_HIGHLIGHT_SHADOW));
-		gc.drawLine(d.x + BORDER_LEFT + marginWidth, d.y + BORDER_TOP + marginHeight, 
-		            d.x + BORDER_LEFT + marginWidth, y - 1);
-		gc.drawLine(d.x + BORDER_LEFT + marginWidth, d.y + BORDER_TOP + marginHeight,
-		            d.x + d.width - BORDER_RIGHT - marginWidth - 1, d.y + BORDER_TOP + marginHeight);
-	}
-
-	gc.setForeground(getForeground());
+	gc.setForeground(gcForeground);
 }
-private void onResize() {
+void onResize() {
 	layout();
 	
 	Rectangle area = super.getClientArea();
@@ -424,18 +420,18 @@ private void onResize() {
 	} else {
 		int width = 0;
 		if (oldArea.width < area.width) {
-			width = area.width - oldArea.width + BORDER_RIGHT;
+			width = area.width - oldArea.width + borderRight + highlight;
 		} else if (oldArea.width > area.width) {
-			width = BORDER_RIGHT;			
+			width = borderRight + highlight;			
 		}
 		redraw(area.x + area.width - width, area.y, width, area.height, false);
 		
 		int height = 0;
 		if (oldArea.height < area.height) {
-			height = area.height - oldArea.height + BORDER_BOTTOM;		
+			height = area.height - oldArea.height + borderBottom + highlight;		
 		}
 		if (oldArea.height > area.height) {
-			height = BORDER_BOTTOM;		
+			height = borderBottom + highlight;		
 		}
 		redraw(area.x, area.y + area.height - height, area.width, height, false);
 	}
@@ -446,11 +442,12 @@ private void onResize() {
 * Setting the content to null will remove it from 
 * the pane - however, the creator of the content must dispose of the content.
 * 
-* @param c the control to be displayed in the content area or null
+* @param content the control to be displayed in the content area or null
 * 
 * @exception SWTException <ul>
 *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
 *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+*    <li>ERROR_INVALID_ARGUMENT - if the control is not a child of this ViewForm</li>
 * </ul>
 */
 public void setContent(Control content) {
@@ -465,16 +462,11 @@ public void setContent(Control content) {
 	layout();
 }
 
-/**
-* Set the widget font.
-* This will apply the font to the topLeft, topRight and topCenter widgets.
-*/
 public void setFont(Font f) {
 	super.setFont(f);
 	if (topLeft != null && !topLeft.isDisposed()) topLeft.setFont(f);
 	if (topCenter != null && !topCenter.isDisposed()) topCenter.setFont(f);
 	if (topRight != null && !topRight.isDisposed()) topRight.setFont(f);
-	
 	layout();
 }
 /**
@@ -484,7 +476,7 @@ public void setFont(Font f) {
  * Note : ViewForm does not use a layout class to size and position its children.
  * </p>
  *
- * @param the receiver's new layout or null
+ * @param layout the receiver's new layout or null
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -495,17 +487,25 @@ public void setLayout (Layout layout) {
 	checkWidget();
 	return;
 }
+void setSelectionBackground (Color color) {
+	checkWidget();
+	if (selectionBackground == color) return;
+	if (color == null) color = getDisplay().getSystemColor(SELECTION_BACKGROUND);
+	selectionBackground = color;
+	redraw();
+}
 /**
 * Set the control that appears in the top center of the pane.
 * Typically this is a toolbar.
 * The topCenter is optional.  Setting the topCenter to null will remove it from 
 * the pane - however, the creator of the topCenter must dispose of the topCenter.
 * 
-* @param c the control to be displayed in the top center or null
+* @param topCenter the control to be displayed in the top center or null
 * 
 * @exception SWTException <ul>
 *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
 *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+*    <li>ERROR_INVALID_ARGUMENT - if the control is not a child of this ViewForm</li>
 * </ul>
 */
 public void setTopCenter(Control topCenter) {
@@ -514,7 +514,8 @@ public void setTopCenter(Control topCenter) {
 		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
 	if (this.topCenter != null && !this.topCenter.isDisposed()) {
-		this.topCenter.setBounds(OFFSCREEN, OFFSCREEN, 0, 0);
+		Point size = this.topCenter.getSize();
+		this.topCenter.setLocation(OFFSCREEN - size.x, OFFSCREEN - size.y);
 	}
 	this.topCenter = topCenter;
 	layout();
@@ -530,6 +531,7 @@ public void setTopCenter(Control topCenter) {
 * @exception SWTException <ul>
 *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
 *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+*    <li>ERROR_INVALID_ARGUMENT - if the control is not a child of this ViewForm</li>
 * </ul>
 */
 public void setTopLeft(Control c) {
@@ -538,7 +540,8 @@ public void setTopLeft(Control c) {
 		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
 	if (this.topLeft != null && !this.topLeft.isDisposed()) {
-		this.topLeft.setBounds(OFFSCREEN, OFFSCREEN, 0, 0);
+		Point size = this.topLeft.getSize();
+		this.topLeft.setLocation(OFFSCREEN - size.x, OFFSCREEN - size.y);
 	}
 	this.topLeft = c;
 	layout();
@@ -563,7 +566,8 @@ public void setTopRight(Control c) {
 		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
 	if (this.topRight != null && !this.topRight.isDisposed()) {
-		this.topRight.setBounds(OFFSCREEN, OFFSCREEN, 0, 0);
+		Point size = this.topRight.getSize();
+		this.topRight.setLocation(OFFSCREEN - size.x, OFFSCREEN - size.y);
 	}
 	this.topRight = c;
 	layout();
@@ -584,16 +588,12 @@ public void setBorderVisible(boolean show) {
 	
 	showBorder = show;
 	if (showBorder) {
-		if ((getStyle() & SWT.FLAT)!= 0) {
-			BORDER_LEFT = BORDER_TOP = BORDER_RIGHT = BORDER_BOTTOM = 1;
-		} else {
-			BORDER_LEFT = BORDER_TOP = 1;
-			BORDER_RIGHT = BORDER_BOTTOM = 3;
-		}
+		borderLeft = borderTop = borderRight = borderBottom = 1;
+		if ((getStyle() & SWT.FLAT)== 0) highlight = 2;
 	} else {
-		BORDER_BOTTOM = BORDER_TOP = BORDER_LEFT = BORDER_RIGHT = 0;
+		borderBottom = borderTop = borderLeft = borderRight = 0;
+		highlight = 0;
 	}
-
 	layout();
 	redraw();
 }

@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -211,7 +211,6 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 }
 public Rectangle computeTrim (int x, int y, int width, int height) {
 	checkWidget();
-	Display display = getDisplay ();
 	int border = getBorderWidth ();
 	int trimX = x - border;
 	int trimY = y - border;
@@ -291,18 +290,22 @@ void createHandle (int index) {
 		if (handle == 0) error (SWT.ERROR_NO_HANDLES);
 		scrolledHandle = OS.XtParent (handle);
 	}
+	if ((style & SWT.BORDER) == 0) {
+		int [] argList3 = new int [] {OS.XmNshadowThickness, 0};
+		OS.XtSetValues (handle, argList3, argList3.length / 2);
+	}
 }
 ScrollBar createScrollBar (int type) {
 	return createStandardBar (type);
 }
 int defaultBackground () {
-	return getDisplay ().listBackground;
+	return display.listBackground;
 }
 Font defaultFont () {
-	return getDisplay ().listFont;
+	return display.listFont;
 }
 int defaultForeground () {
-	return getDisplay ().listForeground;
+	return display.listForeground;
 }
 /**
  * Deselects the item at the given zero-relative index in the receiver.
@@ -361,7 +364,7 @@ public void deselect (int start, int end) {
  * @param indices the array of indices for the items to deselect
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the set of indices is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -393,8 +396,8 @@ public void deselectAll () {
 	OS.XmListDeselectAllItems (handle);
 }
 /**
- * Returns the zero-relative index of the item which is currently
- * has the focus in the receiver, or -1 if no item is has focus.
+ * Returns the zero-relative index of the item which currently
+ * has the focus in the receiver, or -1 if no item has focus.
  *
  * @return the index of the selected item
  *
@@ -437,13 +440,14 @@ public String getItem (int index) {
 	int [] buffer1 = new int [1]; 
 	OS.memmove (buffer1, ptr, 4);
 	ptr = buffer1 [0];
+	int [] table = new int [] {display.tabMapping, display.crMapping};
 	int address = OS.XmStringUnparse (
 		ptr,
 		null,
 		OS.XmCHARSET_TEXT,
 		OS.XmCHARSET_TEXT,
-		null,
-		0,
+		table,
+		table.length,
 		OS.XmOUTPUT_ALL);
 	if (address == 0) error (SWT.ERROR_CANNOT_GET_ITEM);
 	int length = OS.strlen (address);
@@ -495,7 +499,7 @@ public int getItemHeight () {
 	int spacing = argList [1], highlight = argList [3];
 
 	/* Result is from empirical analysis on Linux and AIX */
-	return getFontHeight () + spacing + highlight + 1;
+	return getFontHeight (font.handle) + spacing + highlight + 1;
 }
 /**
  * Returns an array of <code>String</code>s which are the items
@@ -528,13 +532,14 @@ public String [] getItems () {
 	for (int i=0; i<itemCount; i++) {
 		OS.memmove (buffer1, items, 4);
 		int ptr = buffer1 [0];
+		int [] table = new int [] {display.tabMapping, display.crMapping};
 		int address = OS.XmStringUnparse (
 			ptr,
 			null,
 			OS.XmCHARSET_TEXT,
 			OS.XmCHARSET_TEXT,
-			null,
-			0,
+			table,
+			table.length,
 			OS.XmOUTPUT_ALL);
 		if (address == 0) error (SWT.ERROR_CANNOT_GET_ITEM);
 		int length = OS.strlen (address);
@@ -577,13 +582,14 @@ public String [] getSelection () {
 	for (int i=0; i<itemCount; i++) {
 		OS.memmove (buffer1, items, 4);
 		int ptr = buffer1 [0];
+		int[] table = new int[] {display.tabMapping, display.crMapping};
 		int address = OS.XmStringUnparse (
 			ptr,
 			null,
 			OS.XmCHARSET_TEXT,
 			OS.XmCHARSET_TEXT,
-			null,
-			0,
+			table,
+			table.length,
 			OS.XmOUTPUT_ALL);
 		if (address == 0) error (SWT.ERROR_CANNOT_GET_ITEM);
 		int length = OS.strlen (address);
@@ -689,9 +695,10 @@ public int getTopIndex () {
 }
 void hookEvents () {
 	super.hookEvents ();
-	int windowProc = getDisplay ().windowProc;
+	int windowProc = display.windowProc;
 	OS.XtAddCallback (handle, OS.XmNbrowseSelectionCallback, windowProc, BROWSE_SELECTION_CALLBACK);
 	OS.XtAddCallback (handle, OS.XmNextendedSelectionCallback, windowProc, EXTENDED_SELECTION_CALLBACK);
+	OS.XtAddCallback (handle, OS.XmNmultipleSelectionCallback, windowProc, MULTIPLE_SELECTION_CALLBACK);
 	OS.XtAddCallback (handle, OS.XmNdefaultActionCallback, windowProc, DEFAULT_ACTION_CALLBACK);
 }
 /**
@@ -731,6 +738,7 @@ public int indexOf (String string) {
  * returns -1.
  *
  * @param string the search item
+ * @param start the zero-relative index at which to start the search
  * @return the index of the item
  *
  * @exception IllegalArgumentException <ul>
@@ -786,7 +794,6 @@ public boolean isSelected (int index) {
 	return OS.XmListPosSelected (handle, index + 1);
 }
 void overrideTranslations () {
-	Display display = getDisplay ();
 	OS.XtOverrideTranslations (handle, display.tabTranslations);
 }
 /**
@@ -844,20 +851,13 @@ public void remove (int index) {
 public void remove (int start, int end) {
 	checkWidget();
 	if (start > end) return;
-	int count = end - start + 1;
-	/*
-	* Feature in Motif.  An index out of range is handled
-	* correctly by the list widget but causes an unwanted
-	* Xm warning.  The fix is to check the range before
-	* deleting an item.
-	*/
 	int [] argList = {OS.XmNitemCount, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
-	if (!(0 <= start && start < argList [1])) {
+	if (!(0 <= start && start <= end && end < argList [1])) {
 		error (SWT.ERROR_INVALID_RANGE);
 	}
+	int count = end - start + 1;
 	OS.XmListDeleteItemsPos (handle, count, start + 1);
-	if (end >= argList [1]) error (SWT.ERROR_INVALID_RANGE);
 }
 /**
  * Searches the receiver's list starting at the first item
@@ -910,23 +910,17 @@ public void remove (String string) {
 public void remove (int [] indices) {
 	checkWidget();
 	if (indices == null) error (SWT.ERROR_NULL_ARGUMENT);
-	/*
-	* Feature in Motif.  An index out of range handled
-	* correctly by the list widget but causes an unwanted
-	* Xm Warning.  The fix is to check the range before
-	* deleting an item.
-	*/
+	if (indices.length == 0) return;
 	int [] argList = {OS.XmNitemCount, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
-	int length = 0, count = argList [1];
 	int [] newIndices = new int [indices.length];
 	for (int i=0; i<indices.length; i++) {
-		int index = indices [i];
-		if (!(0 <= index && index < count)) break;
-		newIndices [length++] = index + 1;
+		if (!(0 <= indices [i] && indices [i] < argList [1])) {
+			error (SWT.ERROR_INVALID_RANGE);
+		}
+		newIndices [i] = indices [i] + 1;
 	}
-	OS.XmListDeletePositions (handle, newIndices, length);
-	if (length < indices.length) error (SWT.ERROR_INVALID_RANGE);
+	OS.XmListDeletePositions (handle, newIndices, newIndices.length);
 }
 /**
  * Removes all of the items from the receiver.
@@ -1016,11 +1010,16 @@ public void select (int index) {
 	}
 }
 /**
- * Selects the items at the given zero-relative indices in the receiver.
- * If the item at the index was already selected, it remains
- * selected. The range of the indices is inclusive. Indices that are
- * out of range are ignored and no items will be selected if start is
- * greater than end.
+ * Selects the items in the range specified by the given zero-relative
+ * indices in the receiver. The range of indices is inclusive.
+ * The current selection is not cleared before the new items are selected.
+ * <p>
+ * If an item in the given range is not selected, it is selected.
+ * If an item in the given range was already selected, it remains selected.
+ * Indices that are out of range are ignored and no items will be selected
+ * if start is greater than end.
+ * If the receiver is single-select and there is more than one item in the
+ * given range, then all indices are ignored.
  *
  * @param start the start of the range
  * @param end the end of the range
@@ -1029,15 +1028,20 @@ public void select (int index) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @see List#setSelection(int,int)
  */
 public void select (int start, int end) {
-	checkWidget();
-	if (start > end) return;
+	checkWidget ();
+	if (end < 0 || start > end || ((style & SWT.SINGLE) != 0 && start != end)) return;
+	int [] argList = {OS.XmNitemCount, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	int count = argList[1];
+	if (count == 0 || start >= count) return;
+	start = Math.max (0, start);
+	end = Math.min (end, count - 1);
 	if ((style & SWT.SINGLE) != 0) {
-		int [] argList = {OS.XmNitemCount, 0};
-		OS.XtGetValues (handle, argList, argList.length / 2);
-		int index = Math.min (argList[1] - 1, end) + 1;
-		if (index != 0 && index >= start + 1) OS.XmListSelectPos (handle, index, false);
+		OS.XmListSelectPos (handle, start + 1, false);
 		return;
 	}
 	/*
@@ -1048,7 +1052,7 @@ public void select (int start, int end) {
 	* and then switch it back because XmListSelectPos () works as specified
 	* for XmMULTIPLE_SELECT list widgets.
 	*/
-	int [] argList = {OS.XmNselectionPolicy, 0};
+	argList = new int[] {OS.XmNselectionPolicy, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	int oldPolicy = argList [1];
 	if (oldPolicy == OS.XmEXTENDED_SELECT) {
@@ -1056,12 +1060,11 @@ public void select (int start, int end) {
 		OS.XtSetValues (handle, argList, argList.length / 2);
 	}
 	/*
-	* Note:  We rely on the fact that XmListSelectPos ()
-	* fails silently when the indices are out of range.
+	* Note: XmListSelectPos () fails silently when the indices are out of range.
 	*/
 	for (int i=start; i<=end; i++) {
 		int index = i + 1;
-		if ((index != 0) && !OS.XmListPosSelected (handle, index)) {
+		if (!OS.XmListPosSelected (handle, index)) {
 			OS.XmListSelectPos (handle, index, false);
 		}
 	}
@@ -1072,34 +1075,38 @@ public void select (int start, int end) {
 }
 /**
  * Selects the items at the given zero-relative indices in the receiver.
- * If the item at the given zero-relative index in the receiver 
- * is not selected, it is selected.  If the item at the index
- * was selected, it remains selected. Indices that are out
- * of range and duplicate indices are ignored.
+ * The current selection is not cleared before the new items are selected.
+ * <p>
+ * If the item at a given index is not selected, it is selected.
+ * If the item at a given index was already selected, it remains selected.
+ * Indices that are out of range and duplicate indices are ignored.
+ * If the receiver is single-select and multiple indices are specified,
+ * then all indices are ignored.
  *
  * @param indices the array of indices for the items to select
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the array of indices is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @see List#setSelection(int[])
  */
 public void select (int [] indices) {
-	checkWidget();
+	checkWidget ();
 	if (indices == null) error (SWT.ERROR_NULL_ARGUMENT);
+	int length = indices.length;
+	if (length == 0 || ((style & SWT.SINGLE) != 0 && length > 1)) return;
 	if ((style & SWT.SINGLE) != 0) {
 		int [] argList = {OS.XmNitemCount, 0};
 		OS.XtGetValues (handle, argList, argList.length / 2);
 		int count = argList [1];
-		for (int i = 0; i < indices.length; i++) {
-			int index = indices [i];
-			if (0 <= index && index < count) {
-				select (index);
-				return;
-			}
+		int index = indices [0];
+		if (0 <= index && index < count) {
+			select (index);
 		}
 		return;
 	}
@@ -1122,7 +1129,7 @@ public void select (int [] indices) {
 	* Note:  We rely on the fact that XmListSelectPos ()
 	* fails silently when the indices are out of range.
 	*/
-	for (int i=0; i<indices.length; i++) {
+	for (int i=0; i<length; i++) {
 		int index = indices [i] + 1;
 		if ((index != 0) && !OS.XmListPosSelected (handle, index)) {
 			OS.XmListSelectPos (handle, index, false);
@@ -1152,7 +1159,9 @@ void select (String [] items) {
 	OS.XmListUpdateSelectedList (handle);
 }
 /**
- * Selects all the items in the receiver.
+ * Selects all of the items in the receiver.
+ * <p>
+ * If the receiver is single-select, do nothing.
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1218,7 +1227,32 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
 	return changed;
 }
 void setFocusIndex (int index) {
+	int [] argList = {OS.XmNitemCount, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	int count = argList [1];
+	if (!(0 <= index && index < count))  return;
 	OS.XmListSetKbdItemPos (handle, index + 1);
+}
+public void setFont (Font font) {
+	checkWidget ();
+	
+	/*
+	* Bug in Motif. Setting the font in a list widget that does
+	* not have any items causes a GP on UTF-8 locale.
+	* The fix is to add an item, change the font, then
+	* remove the added item at the end. 
+	*/
+	int [] argList1 = {OS.XmNitems, 0, OS.XmNitemCount, 0,};
+	OS.XtGetValues (handle, argList1, argList1.length / 2);
+	boolean fixString = OS.IsDBLocale && argList1 [3] == 0;
+	if (fixString) {
+		byte [] buffer = Converter.wcsToMbcs (getCodePage (), "string", true);
+		int xmString = OS.XmStringCreateLocalized (buffer);
+		OS.XmListAddItemUnselected (handle, xmString, -1);
+		OS.XmStringFree (xmString);
+	}
+	super.setFont (font);
+	if (fixString) OS.XtSetValues (handle, argList1, argList1.length / 2);
 }
 /**
  * Sets the text of the item in the receiver's list at the given
@@ -1339,12 +1373,19 @@ public void setSelection (int index) {
 	if ((style & SWT.MULTI) != 0) deselectAll ();
 	select (index);
 	showSelection ();
+	if ((style & SWT.MULTI) != 0) {
+		if (0 <= index) setFocusIndex (index);
+	}
 }
 /**
- * Selects the items at the given zero-relative indices in the receiver. 
- * The current selection is first cleared, then the new items are selected.
+ * Selects the items in the range specified by the given zero-relative
+ * indices in the receiver. The range of indices is inclusive.
+ * The current selection is cleared before the new items are selected.
+ * <p>
  * Indices that are out of range are ignored and no items will be selected
  * if start is greater than end.
+ * If the receiver is single-select and there is more than one item in the
+ * given range, then all indices are ignored.
  *
  * @param start the start index of the items to select
  * @param end the end index of the items to select
@@ -1354,23 +1395,43 @@ public void setSelection (int index) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  *
- * @see Table#deselectAll()
- * @see Table#select(int,int)
+ * @see List#deselectAll()
+ * @see List#select(int,int)
  */
 public void setSelection (int start, int end) {
-	checkWidget();
+	checkWidget ();
+	if (end < 0 || start > end || ((style & SWT.SINGLE) != 0 && start != end)) {
+		deselectAll ();
+		return;
+	}
+	int [] argList = {OS.XmNitemCount, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	int count = argList[1];
+	if (count == 0 || start >= count) {
+		deselectAll ();
+		return;
+	}
+	start = Math.max (0, start);
+	end = Math.min (end, count - 1);
 	if ((style & SWT.MULTI) != 0) deselectAll ();
 	select (start, end);
 	showSelection ();
+	if ((style & SWT.MULTI) != 0) {
+		setFocusIndex (start);
+	}
 }
 /**
- * Selects the items at the given zero-relative indices in the receiver. 
- * The current selection is first cleared, then the new items are selected.
+ * Selects the items at the given zero-relative indices in the receiver.
+ * The current selection is cleared before the new items are selected.
+ * <p>
+ * Indices that are out of range and duplicate indices are ignored.
+ * If the receiver is single-select and multiple indices are specified,
+ * then all indices are ignored.
  *
  * @param indices the indices of the items to select
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the array of indices is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1381,21 +1442,30 @@ public void setSelection (int start, int end) {
  * @see List#select(int[])
  */
 public void setSelection(int[] indices) {
-	checkWidget();
+	checkWidget ();
 	if (indices == null) error (SWT.ERROR_NULL_ARGUMENT);
 	deselectAll ();
+	int length = indices.length;
+	if (length == 0 || ((style & SWT.SINGLE) != 0 && length > 1)) return;
 	select (indices);
 	showSelection ();
+	if ((style & SWT.MULTI) != 0) {
+		int focusIndex = indices [0];
+		if (0 <= focusIndex) setFocusIndex (focusIndex);
+	}
 }
 /**
  * Sets the receiver's selection to be the given array of items.
- * The current selected is first cleared, then the new items are
- * selected.
+ * The current selection is cleared before the new items are selected.
+ * <p>
+ * Items that are not in the receiver are ignored.
+ * If the receiver is single-select and multiple items are specified,
+ * then all items are ignored.
  *
  * @param items the array of items
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the array of items is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1403,48 +1473,62 @@ public void setSelection(int[] indices) {
  * </ul>
  *
  * @see List#deselectAll()
- * @see List#select(int)
+ * @see List#select(int[])
+ * @see List#setSelection(int[])
  */
 public void setSelection (String [] items) {
-	checkWidget();
+	checkWidget ();
 	if (items == null) error (SWT.ERROR_NULL_ARGUMENT);
+	int length = items.length;
+	if (length == 0 || ((style & SWT.SINGLE) != 0 && length > 1)) {
+		deselectAll ();
+		return;
+	}
 	String codePage = getCodePage ();
 	if ((style & SWT.SINGLE) != 0) {
-		for (int i=items.length-1; i>=0; --i) {
-			String string = items [i];
-			if (string != null) {
-				byte [] buffer = Converter.wcsToMbcs (codePage, string, true);
-				int xmString = OS.XmStringCreateLocalized (buffer);
-				if (xmString != 0) {
-					int index = OS.XmListItemPos (handle, xmString);
-					if (index != 0) OS.XmListSelectPos (handle, index, false);
-					OS.XmStringFree (xmString);
-					if (index != 0 && OS.XmListPosSelected (handle, index)) {
-						showSelection ();
-						return;
-					}
+		String string = items [0];
+		if (string != null) {
+			byte [] buffer = Converter.wcsToMbcs (codePage, string, true);
+			int xmString = OS.XmStringCreateLocalized (buffer);
+			if (xmString != 0) {
+				int index = OS.XmListItemPos (handle, xmString);
+				if (index != 0) OS.XmListSelectPos (handle, index, false);
+				OS.XmStringFree (xmString);
+				if (index != 0 && OS.XmListPosSelected (handle, index)) {
+					showSelection ();
+					return;
 				}
 			}
 		}
-		OS.XmListDeselectAllItems (handle);
+		deselectAll ();
 		return;
 	}
-	OS.XmListDeselectAllItems (handle);
-	int length = 0;
-	int [] table = new int [items.length];
-	for (int i=0; i<items.length; i++) {
+	deselectAll ();
+	int count = 0;
+	int [] table = new int [length];
+	for (int i=0; i<length; i++) {
 		String string = items [i];
 		if (string != null) {
 			byte [] buffer = Converter.wcsToMbcs (codePage, string, true);
 			int xmString = OS.XmStringCreateLocalized (buffer);
-			if (xmString != 0) table [length++] = xmString;
+			if (xmString != 0) table [count++] = xmString;
 		}
 	}
-	int ptr = OS.XtMalloc (length * 4);
-	OS.memmove (ptr, table, length * 4);
-	int [] argList = {OS.XmNselectedItems, ptr, OS.XmNselectedItemCount, length};
+	int ptr = OS.XtMalloc (count * 4);
+	OS.memmove (ptr, table, count * 4);
+	int [] argList = {OS.XmNselectedItems, ptr, OS.XmNselectedItemCount, count};
 	OS.XtSetValues (handle, argList, argList.length / 2);
-	for (int i=0; i<length; i++) OS.XmStringFree (table [i]);
+	boolean focusSet = false;
+	for (int i = 0; i < count; i++) {
+		if (!focusSet) {
+			int index = OS.XmListItemPos (handle, table [i]);
+			if (index > 0) {
+				focusSet = true;
+				setFocusIndex (index - 1);
+			}
+		}
+		OS.XmStringFree (table [i]);
+	}
 	OS.XtFree (ptr);
 	OS.XmListUpdateSelectedList (handle);
 	showSelection ();
@@ -1523,6 +1607,10 @@ int XmNdefaultActionCallback (int w, int client_data, int call_data) {
 	return 0;
 }
 int XmNextendedSelectionCallback (int w, int client_data, int call_data) {
+	postEvent (SWT.Selection);
+	return 0;
+}
+int XmNmultipleSelectionCallback (int w, int client_data, int call_data) {
 	postEvent (SWT.Selection);
 	return 0;
 }

@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -43,33 +43,25 @@ import org.eclipse.swt.events.*;
  * @see #checkSubclass
  */
 public abstract class Widget {
+	/**
+	 * the handle to the OS resource
+	 * (WARNING: This field is platform dependend)
+	 */
 	public int handle;
 	int style, state;
+	Display display;
 	EventTable eventTable;
 	Object data;
-	String [] keys;
-	Object [] values;
 	
 	/* Global state flags */
-//	static final int AUTOMATIC		= 0x00000001;
-//	static final int ACTIVE			= 0x00000002;
-//	static final int AUTOGRAB		= 0x00000004;
-//	static final int MULTIEXPOSE	= 0x00000008;
-//	static final int RESIZEREDRAW	= 0x00000010;
-//	static final int WRAP			= 0x00000020;
-//	static final int DISABLED		= 0x00000040;
-//	static final int HIDDEN			= 0x00000080;
-//	static final int FOREGROUND		= 0x00000100;
-//	static final int BACKGROUND		= 0x00000200;
-	static final int DISPOSED		= 0x00000400;
-	static final int HANDLE			= 0x00000800;
-	static final int CANVAS			= 0x00001000;
+	static final int DISPOSED		= 1<<0;
+	static final int CANVAS			= 1<<1;
+	static final int KEYED_DATA		= 1<<2;
+	static final int HANDLE			= 1<<3;
+	static final int FOCUS_FORCED	= 1<<4;
 	
 	static final int DEFAULT_WIDTH	= 64;
 	static final int DEFAULT_HEIGHT	= 64;
-	
-	/* Global widget variables */
-	static final char Mnemonic = '&';
 	
 	/* Events and Callback constants */		
 	static final int BUTTON_PRESS = 1;
@@ -103,7 +95,9 @@ public abstract class Widget {
 	static final int MAP_CALLBACK = 29;
 	static final int UNMAP_CALLBACK  = 30;
 	static final int DELETE_WINDOW = 31;
-	static final int EXPOSURE_CALLBACK  = 32;	
+	static final int EXPOSURE_CALLBACK  = 32;
+	static final int MULTIPLE_SELECTION_CALLBACK  = 33;
+	static final int PROPERTY_CHANGE = 34;
 
 Widget () {
 	/* Do nothing */
@@ -140,6 +134,7 @@ public Widget (Widget parent, int style) {
 	checkSubclass ();
 	checkParent (parent);
 	this.style = style;
+	display = parent.display;
 }
 /**
  * Adds the listener to the collection of listeners who will
@@ -215,8 +210,7 @@ void checkOrientation (Widget parent) {
 }
 void checkParent (Widget parent) {
 	if (parent == null) error (SWT.ERROR_NULL_ARGUMENT);
-	if (!parent.isValidThread ()) error (SWT.ERROR_THREAD_INVALID_ACCESS);
-	if (parent.isDisposed()) error (SWT.ERROR_INVALID_ARGUMENT);
+	parent.checkWidget ();
 }
 /**
  * Checks that this class can be subclassed.
@@ -273,8 +267,10 @@ protected void checkSubclass () {
  * </ul>
  */
 protected void checkWidget () {
-	if (!isValidThread ()) error (SWT.ERROR_THREAD_INVALID_ACCESS);
-	if (isDisposed ()) error (SWT.ERROR_WIDGET_DISPOSED);
+	Display display = this.display;
+	if (display == null) error (SWT.ERROR_WIDGET_DISPOSED);
+	if (display.thread != Thread.currentThread ()) error (SWT.ERROR_THREAD_INVALID_ACCESS);
+	if ((state & DISPOSED) != 0) error (SWT.ERROR_WIDGET_DISPOSED);
 }
 void createHandle (int index) {
 	/* Do nothing */
@@ -287,7 +283,7 @@ void createWidget (int index) {
 }
 void deregister () {
 	if (handle == 0) return;
-	WidgetTable.remove (handle);
+	display.removeWidget (handle);
 }
 void destroyWidget () {
 	int topHandle = topHandle ();
@@ -338,8 +334,24 @@ void error (int code) {
 	SWT.error(code);
 }
 boolean filters (int eventType) {
-	Display display = getDisplay ();
 	return display.filters (eventType);
+}
+char fixMnemonic (char [] buffer) {
+	int i=0, j=0;
+	char mnemonic=0;
+	while (i < buffer.length) {
+		if ((buffer [j++] = buffer [i++]) == '&') {
+			if (i == buffer.length) {continue;}
+			if (buffer [i] == '&') {i++; continue;}
+			if (mnemonic == 0) mnemonic = buffer [i];
+			j--;
+		}
+	}
+	while (j < buffer.length) buffer [j++] = 0;
+	return mnemonic;
+}
+int focusProc (int w, int client_data, int call_data, int continue_to_dispatch) {
+	return 0;
 }
 /**
  * Returns the application defined widget data associated
@@ -365,7 +377,7 @@ boolean filters (int eventType) {
  */
 public Object getData () {
 	checkWidget();
-	return data;
+	return (state & KEYED_DATA) != 0 ? ((Object []) data) [0] : data;
 }
 
 /**
@@ -395,9 +407,11 @@ public Object getData () {
 public Object getData (String key) {
 	checkWidget();
 	if (key == null) error (SWT.ERROR_NULL_ARGUMENT);
-	if (keys == null) return null;
-	for (int i=0; i<keys.length; i++) {
-		if (keys [i].equals (key)) return values [i];
+	if ((state & KEYED_DATA) != 0) {
+		Object [] table = (Object []) data;
+		for (int i=1; i<table.length; i+=2) {
+			if (key.equals (table [i])) return table [i+1];
+		}
 	}
 	return null;
 }
@@ -418,7 +432,11 @@ public Object getData (String key) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public abstract Display getDisplay ();
+public Display getDisplay () {
+	Display display = this.display;
+	if (display == null) error (SWT.ERROR_WIDGET_DISPOSED);
+	return display;
+}
 String getName () {
 	String string = getClass ().getName ();
 	int index = string.lastIndexOf ('.');
@@ -501,25 +519,6 @@ boolean isValidThread () {
 void manageChildren () {
 	/* Do nothing */
 }
-char mbcsToWcs (int ch) {
-	return mbcsToWcs (ch, null);
-}
-char mbcsToWcs (int ch, String codePage) {
-	int key = ch & 0xFFFF;
-	if (key <= 0x7F) return (char) ch;
-	byte [] buffer;
-	if (key <= 0xFF) {
-		buffer = new byte [1];
-		buffer [0] = (byte) key;
-	} else {
-		buffer = new byte [2];
-		buffer [0] = (byte) ((key >> 8) & 0xFF);
-		buffer [1] = (byte) (key & 0xFF);
-	}
-	char [] result = Converter.mbcsToWcs (codePage, buffer);
-	if (result.length == 0) return 0;
-	return result [0];
-}
 /**
  * Notifies all of the receiver's listeners for events
  * of the given type that one such event has occurred by
@@ -528,9 +527,6 @@ char mbcsToWcs (int ch, String codePage) {
  * @param eventType the type of event which has occurred
  * @param event the event data
  *
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the event is null</li>
- * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -538,7 +534,7 @@ char mbcsToWcs (int ch, String codePage) {
  */
 public void notifyListeners (int eventType, Event event) {
 	checkWidget();
-	if (event == null) error (SWT.ERROR_NULL_ARGUMENT);
+	if (event == null) event = new Event ();
 	sendEvent (eventType, event);
 }
 void postEvent (int eventType) {
@@ -547,7 +543,7 @@ void postEvent (int eventType) {
 void postEvent (int eventType, Event event) {
 	sendEvent (eventType, event, false);
 }
-void propagateHandle (boolean enabled, int widgetHandle) {
+void propagateHandle (boolean enabled, int widgetHandle, int cursor) {
 	int xDisplay = OS.XtDisplay (widgetHandle);
 	if (xDisplay == 0) return;
 	int xWindow = OS.XtWindow (widgetHandle);
@@ -571,10 +567,12 @@ void propagateHandle (boolean enabled, int widgetHandle) {
 		event_mask &= ~(do_not_propagate_mask | OS.EnterWindowMask | OS.LeaveWindowMask);
 		do_not_propagate_mask = 0;
 	}
+	int mask = OS.CWDontPropagate | OS.CWEventMask | OS.CWCursor;
 	XSetWindowAttributes attributes = new XSetWindowAttributes ();
 	attributes.event_mask = event_mask;
 	attributes.do_not_propagate_mask = do_not_propagate_mask;
-	OS.XChangeWindowAttributes (xDisplay, xWindow, OS.CWDontPropagate | OS.CWEventMask, attributes);
+	attributes.cursor = cursor;
+	OS.XChangeWindowAttributes (xDisplay, xWindow, mask, attributes);
 }
 void redrawHandle (int x, int y, int width, int height, int widgetHandle) {
 	int display = OS.XtDisplay (widgetHandle);
@@ -591,7 +589,7 @@ void redrawHandle (int x, int y, int width, int height, int widgetHandle) {
 }
 void register () {
 	if (handle == 0) return;
-	WidgetTable.put (handle, this);
+	display.addWidget (handle, this);
 }
 void releaseChild () {
 	/* Do nothing */
@@ -599,6 +597,7 @@ void releaseChild () {
 void releaseHandle () {
 	handle = 0;
 	state |= DISPOSED;
+	display = null;
 }
 void releaseResources () {
 	releaseWidget ();
@@ -609,8 +608,6 @@ void releaseWidget () {
 	deregister ();
 	eventTable = null;
 	data = null;
-	keys = null;
-	values = null;
 }
 /**
  * Removes the listener from the collection of listeners who will
@@ -689,120 +686,44 @@ public void removeDisposeListener (DisposeListener listener) {
 	if (eventTable == null) return;
 	eventTable.unhook (SWT.Dispose, listener);
 }
-void setInputState (Event event, int state) {
+boolean setInputState (Event event, int state) {
 	if ((state & OS.Mod1Mask) != 0) event.stateMask |= SWT.ALT;
 	if ((state & OS.ShiftMask) != 0) event.stateMask |= SWT.SHIFT;
 	if ((state & OS.ControlMask) != 0) event.stateMask |= SWT.CONTROL;
 	if ((state & OS.Button1Mask) != 0) event.stateMask |= SWT.BUTTON1;
 	if ((state & OS.Button2Mask) != 0) event.stateMask |= SWT.BUTTON2;
-	if ((state & OS.Button3Mask) != 0) event.stateMask |= SWT.BUTTON3;	
+	if ((state & OS.Button3Mask) != 0) event.stateMask |= SWT.BUTTON3;
+	return true;
 }
-void setInputState (Event event, XInputEvent xEvent) {
-	setInputState (event, xEvent.state);	
-}
-void setKeyState (Event event, XKeyEvent xEvent) {
-	if (xEvent.keycode != 0) {
-		byte [] buffer = new byte [5];
-		int [] keysym = new int [1];
-		OS.XLookupString (xEvent, buffer, buffer.length, keysym, null);
-		
-		/*
-		* Bug in MOTIF.  On Solaris only, XK_F11 and XK_F12 are not
-		* translated correctly by XLookupString().  They are mapped
-		* to 0x1005FF10 and 0x1005FF11 respectively.  The fix is to
-		* look for these values explicitly and correct them.
-		*/
-		if (OS.IsSunOS && keysym [0] != 0) {
-			switch (keysym [0]) {
-				case 0x1005FF10: 
-					keysym [0] = OS.XK_F11;
-					buffer [0] = 0;
-					break;
-				case 0x1005FF11:
-					keysym [0] = OS.XK_F12;
-					buffer [0] = 0;
-					break;
-			}
-			/*
-			* Bug in MOTIF.  On Solaris only, there is garbage in the
-			* high 16-bits for Keysyms such as XK_Down.  Since Keysyms
-			* must be 16-bits to fit into a Character, mask away the
-			* high 16-bits on all platforms.
-			*/
-			keysym [0] &= 0xFFFF;
-		}
-		
-		/*
-		* Feature in MOTIF. For some reason, XLookupString() fails 
-		* to translate both the keysym and the character when the
-		* control key is down.  For example, Ctrl+2 has the correct
-		* keysym value (50) but no character value, while Ctrl+/ has
-		* the keysym value (2F) but an invalid character value
-		* (1F).  It seems that Motif is applying the algorithm to
-		* convert a character to a control character for characters
-		* that are not valid control characters.  The fix is to test
-		* for 7-bit ASCII keysym values that fall outside of the
-		* the valid control character range and use the keysym value
-		* as the character, not the incorrect value that XLookupString()
-		* returns.  Even though lower case values are not strictly
-		* valid control characters, they are included in the range.
-		* 
-		* Some other cases include Ctrl+3..Ctr+8, Ctrl+[.
-		*/
-		if ((xEvent.state & OS.ControlMask) != 0) {
-			int key = keysym [0];
-			if (0 <= key && key <= 0x7F) {
-				if ('a' <= key && key <= 'z') {
-					key -= 'a' - 'A';
-				}
-				if (!(64 <= key && key <= 95)) {
-					buffer [0] = (byte) key;
-				}
-			}
-		}
-		
-		/*
-		* Bug in Motif.  On HP-UX only, Shift+F9, Shift+F10, Shift+F11
-		* and Shift+F12 are not translated correctly by XLookupString.
-		* The fix is to look for these values explicitly and correct them.
-		*/
-		if (OS.IsHPUX && keysym [0] != 0) {
-			switch (keysym [0]) {
-				case 0xFF91:
-					keysym [0] = OS.XK_F9;
-					break;
-				case 0xFF92:
-					keysym [0] = OS.XK_F10;
-					break;
-				case 0xFF93:
-					keysym [0] = OS.XK_F11;
-					break;
-				case 0xFF94:
-					keysym [0] = OS.XK_F12;
-					break;
-			}
-		}
-		
-		/*
-		* Bug in Motif.  There are some keycodes for which 
-		* XLookupString() does not translate the character.
-		* Some of examples are Shift+Tab and Ctrl+Space.
-		*/
-		switch (keysym [0]) {
-			case OS.XK_ISO_Left_Tab: buffer [0] = '\t'; break;
-			case OS.XK_space: buffer [0] = ' '; break;
-		}
-			
-		/* Fill in the event keyCode or character */
-		if (keysym [0] != 0) {
-			event.keyCode = Display.translateKey (keysym [0]);
-		}
-		if (buffer [0] != 0) {
-			char [] result = Converter.mbcsToWcs (null, buffer);
-			if (result.length != 0) event.character = result [0];
+boolean setKeyState (Event event, XKeyEvent xEvent) {
+	if (xEvent.keycode == 0) return false;
+	byte [] buffer = new byte [5];
+	int [] keysym = new int [1];
+	OS.XLookupString (xEvent, buffer, buffer.length, keysym, null);
+	boolean isNull = display.fixKey (keysym, buffer, xEvent.state);
+	if (keysym [0] != 0) {
+		event.keyCode = Display.translateKey (keysym [0]);
+	}
+	if (event.keyCode == 0) {
+		byte [] buffer1 = new byte [5];
+		int [] keysym1 = new int [1];
+		int oldState = xEvent.state;
+		xEvent.state = 0;
+		OS.XLookupString (xEvent, buffer1, buffer1.length, keysym1, null);
+		xEvent.state = oldState;
+		if (buffer1 [0] != 0) {
+			char [] result = Converter.mbcsToWcs (null, buffer1);
+			if (result.length != 0) event.keyCode = result [0];
 		}
 	}
-	setInputState (event, xEvent);
+	if (buffer [0] != 0) {
+		char [] result = Converter.mbcsToWcs (null, buffer);
+		if (result.length != 0) event.character = result [0];
+	}
+	if (event.keyCode == 0 && event.character == 0) {
+		if (!isNull) return false;
+	}
+	return setInputState (event, xEvent.state);
 }
 void sendEvent (Event event) {
 	Display display = event.display;
@@ -817,7 +738,6 @@ void sendEvent (int eventType, Event event) {
 	sendEvent (eventType, event, true);
 }
 void sendEvent (int eventType, Event event, boolean send) {
-	Display display = getDisplay ();
 	if (eventTable == null && !display.filters (eventType)) {
 		return;
 	}
@@ -856,7 +776,11 @@ void sendEvent (int eventType, Event event, boolean send) {
  */
 public void setData (Object data) {
 	checkWidget();
-	this.data = data;
+	if ((state & KEYED_DATA) != 0) {
+		((Object []) this.data) [0] = data;
+	} else {
+		this.data = data;
+	}
 }
 
 /**
@@ -886,49 +810,46 @@ public void setData (Object data) {
 public void setData (String key, Object value) {
 	checkWidget();
 	if (key == null) error (SWT.ERROR_NULL_ARGUMENT);
-	
-	/* Remove the key/value pair */
-	if (value == null) {
-		if (keys == null) return;
-		int index = 0;
-		while (index < keys.length && !keys [index].equals (key)) index++;
-		if (index == keys.length) return;
-		if (keys.length == 1) {
-			keys = null;
-			values = null;
+	int index = 1;
+	Object [] table = null;
+	if ((state & KEYED_DATA) != 0) {
+		table = (Object []) data;
+		while (index < table.length) {
+			if (key.equals (table [index])) break;
+			index += 2;
+		}
+	}
+	if (value != null) {
+		if ((state & KEYED_DATA) != 0) {
+			if (index == table.length) {
+				Object [] newTable = new Object [table.length + 2];
+				System.arraycopy (table, 0, newTable, 0, table.length);
+				data = table = newTable;
+			}
 		} else {
-			String [] newKeys = new String [keys.length - 1];
-			Object [] newValues = new Object [values.length - 1];
-			System.arraycopy (keys, 0, newKeys, 0, index);
-			System.arraycopy (keys, index + 1, newKeys, index, newKeys.length - index);
-			System.arraycopy (values, 0, newValues, 0, index);
-			System.arraycopy (values, index + 1, newValues, index, newValues.length - index);
-			keys = newKeys;
-			values = newValues;
+			table = new Object [3];
+			table [0] = data;
+			data = table;
+			state |= KEYED_DATA;
 		}
-		return;
-	}
-	
-	/* Add the key/value pair */
-	if (keys == null) {
-		keys = new String [] {key};
-		values = new Object [] {value};
-		return;
-	}
-	for (int i=0; i<keys.length; i++) {
-		if (keys [i].equals (key)) {
-			values [i] = value;
-			return;
+		table [index] = key;
+		table [index + 1] = value;
+	} else {
+		if ((state & KEYED_DATA) != 0) {
+			if (index != table.length) {
+				int length = table.length - 2;
+				if (length == 1) {
+					data = table [0];
+					state &= ~KEYED_DATA;
+				} else {
+					Object [] newTable = new Object [length];
+					System.arraycopy (table, 0, newTable, 0, index);
+					System.arraycopy (table, index + 2, newTable, index, length - index);
+					data = newTable;
+				}
+			}
 		}
 	}
-	String [] newKeys = new String [keys.length + 1];
-	Object [] newValues = new Object [values.length + 1];
-	System.arraycopy (keys, 0, newKeys, 0, keys.length);
-	System.arraycopy (values, 0, newValues, 0, values.length);
-	newKeys [keys.length] = key;
-	newValues [values.length] = value;
-	keys = newKeys;
-	values = newValues;
 }
 
 /**
@@ -948,10 +869,10 @@ public String toString () {
 int topHandle () {
 	return handle;
 }
-boolean translateAccelerator (int key, int keysym, XKeyEvent xEvent) {
+boolean translateAccelerator (char key, int keysym, XKeyEvent xEvent, boolean doit) {
 	return false;
 }
-boolean translateMnemonic (int key, XKeyEvent xEvent) {
+boolean translateMnemonic (char key, int keysym, XKeyEvent xEvent) {
 	return false;
 }
 boolean translateTraversal (int key, XKeyEvent xEvent) {
@@ -964,26 +885,12 @@ boolean XmProcessTraversal (int widget, int direction) {
 	* is to post focus events and run them when the handler
 	* has returned.
 	*/
-	Display display = getDisplay ();
 	boolean oldFocusOut = display.postFocusOut;
 	display.postFocusOut = true;
 	boolean result = OS.XmProcessTraversal (widget, direction);
 	display.postFocusOut = oldFocusOut;
 	if (!display.postFocusOut) display.runFocusOutEvents ();
 	return result;
-}
-int wcsToMbcs (char ch) {
-	return wcsToMbcs (ch, null);
-}
-int wcsToMbcs (char ch, String codePage) {
-	int key = ch & 0xFFFF;
-	if (key <= 0x7F) return ch;
-	byte [] buffer = Converter.wcsToMbcs (codePage, new char [] {ch}, false);
-	if (buffer.length == 1) return (char) buffer [0];
-	if (buffer.length == 2) {
-		return (char) (((buffer [0] & 0xFF) << 8) | (buffer [1] & 0xFF));
-	}
-	return 0;
 }
 int hoverProc (int widget) {
 	return 0;
@@ -1001,6 +908,7 @@ int windowProc (int w, int client_data, int call_data, int continue_to_dispatch)
 		case KEY_PRESS:					return XKeyPress (w, client_data, call_data, continue_to_dispatch);
 		case KEY_RELEASE:					return XKeyRelease (w, client_data, call_data, continue_to_dispatch);
 		case LEAVE_WINDOW:					return XLeaveWindow (w, client_data, call_data, continue_to_dispatch);
+		case PROPERTY_CHANGE:				return XPropertyChange (w, client_data, call_data, continue_to_dispatch);
 		case ACTIVATE_CALLBACK:			return XmNactivateCallback (w, client_data, call_data);
 		case ARM_CALLBACK:					return XmNarmCallback (w, client_data, call_data);
 		case BROWSE_SELECTION_CALLBACK:	return XmNbrowseSelectionCallback (w, client_data, call_data);
@@ -1012,6 +920,7 @@ int windowProc (int w, int client_data, int call_data, int continue_to_dispatch)
 		case HELP_CALLBACK:				return XmNhelpCallback (w, client_data, call_data);
 		case INCREMENT_CALLBACK:			return XmNincrementCallback (w, client_data, call_data);
 		case MODIFY_VERIFY_CALLBACK:		return XmNmodifyVerifyCallback (w, client_data, call_data);
+		case MULTIPLE_SELECTION_CALLBACK:		return XmNmultipleSelectionCallback (w, client_data, call_data);
 		case PAGE_DECREMENT_CALLBACK:		return XmNpageDecrementCallback (w, client_data, call_data);
 		case PAGE_INCREMENT_CALLBACK:		return XmNpageIncrementCallback (w, client_data, call_data);
 		case SELECTION_CALLBACK:			return XmNselectionCallback (w, client_data, call_data);
@@ -1058,6 +967,9 @@ int XLeaveWindow (int w, int client_data, int call_data, int continue_to_dispatc
 int XPointerMotion (int w, int client_data, int call_data, int continue_to_dispatch) {
 	return 0;
 }
+int XPropertyChange (int w, int client_data, int call_data, int continue_to_dispatch) {
+	return 0;
+}
 int XmNactivateCallback (int w, int client_data, int call_data) {
 	return 0;
 }
@@ -1095,6 +1007,9 @@ int XmNmapCallback (int w, int client_data, int call_data) {
 	return 0;
 }
 int XmNmodifyVerifyCallback (int w, int client_data, int call_data) {
+	return 0;
+}
+int XmNmultipleSelectionCallback (int w, int client_data, int call_data) {
 	return 0;
 }
 int XmNpageDecrementCallback (int w, int client_data, int call_data) {

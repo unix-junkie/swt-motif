@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -75,7 +75,7 @@ void drawHighlightShadow(GC gc, int itemIndex) {
 	Rectangle bounds = getBounds(itemIndex);
 	Color oldForeground = getForeground();
 
-	gc.setForeground(getDisplay().getSystemColor(SWT.COLOR_WIDGET_HIGHLIGHT_SHADOW));	
+	gc.setForeground(display.getSystemColor(SWT.COLOR_WIDGET_HIGHLIGHT_SHADOW));	
 	// draw top horizontal line
 	gc.drawLine(bounds.x, bounds.y, bounds.x + bounds.width - 1, bounds.y);
 	// draw left vertical line
@@ -93,7 +93,6 @@ void drawLowlightShadows(GC gc, int itemIndex) {
 	Point bottomShadowStop = new Point(bottomShadowStart.x + bounds.width - 2, bottomShadowStart.y);	
 	Point rightShadowStart = null;
 	Point rightShadowStop = null;
-	Display display = getDisplay();
 	Color oldForeground = getForeground();	
 
 	// light inner shadow
@@ -205,7 +204,7 @@ int getPreferredWidth(int index) {
 		headerWidth += getImageExtent().x + HORIZONTAL_MARGIN;
 	}
 	if (text != null) {
-		headerWidth += parent.getTextWidth(text) + HORIZONTAL_MARGIN;
+		headerWidth += getTextWidth(text) + HORIZONTAL_MARGIN;
 	}	
 	return headerWidth;
 }
@@ -221,11 +220,26 @@ String getText(int itemIndex) {
 	return itemLabel;
 }
 /**
+ * Answer the width of 'text' in pixel.
+ * Answer 0 if 'text' is null.
+ */
+int getTextWidth(String text) {
+	int textWidth = 0;
+	if (text != null) {
+		GC gc = new GC(parent);
+		//gc.setFont(parent.getFont());
+		textWidth = gc.stringExtent(text).x;
+		gc.dispose();
+	}
+	return textWidth;
+}
+/**
  * Draw the header item identified by 'itemIndex'.
  * @param gc - GC to draw on
  * @param itemIndex - item that should be drawn
  */
 void paint(GC gc, int itemIndex) {
+	gc.setFont(parent.getFont());
 	Rectangle bounds = getBounds(itemIndex);
 	// draw header background
 	gc.fillRectangle(bounds.x, bounds.y + 1, bounds.width, bounds.height - 3);
@@ -296,7 +310,7 @@ void redraw(int itemIndex) {
 public void setFont(Font font) {
 	checkWidget();
 
-	if (font == null || font.equals(getFont()) == true) {
+	if (font != null && font.equals(getFont()) == true) {
 		return;
 	}
 	super.setFont(font);

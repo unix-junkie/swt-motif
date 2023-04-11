@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -123,7 +123,7 @@ abstract protected Object nativeToJava(TransferData transferData);
  *
  * @param formatName the name of a data type
  *
- * @return the unique identifier associated with htis data type
+ * @return the unique identifier associated with this data type
  */
 public static int registerType(String formatName){
 	// Use default display because we don't have a particular widget

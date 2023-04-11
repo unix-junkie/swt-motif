@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -22,6 +22,7 @@ public class BusyIndicator {
 
 	static int nextBusyId = 1;
 	static final String BUSYID_NAME = "SWT BusyIndicator"; //$NON-NLS-1$
+	static final String BUSY_CURSOR = "SWT BusyIndicator Cursor"; //$NON-NLS-1$
 
 /**
  * Runs the given <code>Runnable</code> while providing
@@ -54,8 +55,7 @@ public static void showWhile(Display display, Runnable runnable) {
 	
 	Integer busyId = new Integer(nextBusyId);
 	nextBusyId++;
-	Cursor cursor = new Cursor(display, SWT.CURSOR_WAIT);
-	
+	Cursor cursor = display.getSystemCursor(SWT.CURSOR_WAIT);
 	Shell[] shells = display.getShells();
 	for (int i = 0; i < shells.length; i++) {
 		Integer id = (Integer)shells[i].getData(BUSYID_NAME);
@@ -75,9 +75,6 @@ public static void showWhile(Display display, Runnable runnable) {
 				shells[i].setCursor(null);
 				shells[i].setData(BUSYID_NAME, null);
 			}
-		}
-		if (cursor != null && !cursor.isDisposed()) {
-			cursor.dispose();
 		}
 	}
 }

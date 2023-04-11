@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -81,6 +81,10 @@ public Scrollable (Composite parent, int style) {
  * receiver's parent).
  * </p>
  * 
+ * @param x the desired x coordinate of the client area
+ * @param y the desired y coordinate of the client area
+ * @param width the desired width of the client area
+ * @param height the desired height of the client area
  * @return the required bounds to produce the given client area
  *
  * @exception SWTException <ul>
@@ -96,7 +100,6 @@ public Rectangle computeTrim (int x, int y, int width, int height) {
 	int trimX = x - border, trimY = y - border;
 	int trimWidth = width + (border * 2), trimHeight = height + (border * 2);
 	if (horizontalBar != null) {
-		Display display = getDisplay ();
 		trimY -= display.scrolledInsetY;
 		trimHeight += display.scrolledInsetY + display.scrolledMarginY;
 		if (verticalBar == null) {
@@ -106,7 +109,6 @@ public Rectangle computeTrim (int x, int y, int width, int height) {
 		}
 	}
 	if (verticalBar != null) {
-		Display display = getDisplay ();
 		trimX -= display.scrolledInsetX;
 		trimWidth += display.scrolledInsetX + display.scrolledMarginX;
 		if (horizontalBar == null) {
@@ -125,6 +127,7 @@ ScrollBar createStandardBar (int style) {
 	ScrollBar bar = new ScrollBar ();
 	bar.parent = this;
 	bar.style = style;
+	bar.display = display;
 	bar.state |= HANDLE;
 	int [] argList = {OS.XmNhorizontalScrollBar, 0, OS.XmNverticalScrollBar, 0};
 	OS.XtGetValues (scrolledHandle, argList, argList.length / 2);
@@ -141,22 +144,13 @@ void createWidget (int index) {
 }
 void deregister () {
 	super.deregister ();
-	if (formHandle != 0) WidgetTable.remove (formHandle);
-	if (scrolledHandle != 0) WidgetTable.remove (scrolledHandle);
+	if (formHandle != 0) display.removeWidget (formHandle);
+	if (scrolledHandle != 0) display.removeWidget (scrolledHandle);
 }
 void enableWidget (boolean enabled) {
 	super.enableWidget (enabled);
 	if (formHandle != 0) enableHandle (enabled, formHandle);
-	if (scrolledHandle != 0) {
-		enableHandle (enabled, scrolledHandle);
-		int [] argList = {
-			OS.XmNhorizontalScrollBar, 0,
-			OS.XmNverticalScrollBar, 0,
-		};
-		OS.XtGetValues (scrolledHandle, argList, argList.length / 2);
-		if (argList [1] != 0) enableHandle (enabled, argList [1]);
-		if (argList [3] != 0) enableHandle (enabled, argList [3]);
-	}
+	if (scrolledHandle != 0) enableHandle (enabled, scrolledHandle);
 }
 /**
  * Returns a rectangle which describes the area of the
@@ -208,10 +202,6 @@ public ScrollBar getVerticalBar () {
 	checkWidget();
 	return verticalBar;
 }
-boolean isTabGroup () {
-	if ((state & CANVAS) != 0) return true;
-	return super.isTabGroup ();
-}
 void manageChildren () {
 	if (scrolledHandle != 0) {	
 		OS.XtSetMappedWhenManaged (scrolledHandle, false);
@@ -237,9 +227,9 @@ void manageChildren () {
 }
 void propagateWidget (boolean enabled) {
 	super.propagateWidget (enabled);
-	if (formHandle != 0) propagateHandle (enabled, formHandle);
+	if (formHandle != 0) propagateHandle (enabled, formHandle, OS.None);
 	if (scrolledHandle != 0) {
-		propagateHandle (enabled, scrolledHandle);
+		propagateHandle (enabled, scrolledHandle, OS.None);
 		if (horizontalBar != null) horizontalBar.propagateWidget (enabled);
 		if (verticalBar != null) verticalBar.propagateWidget (enabled);
 	}
@@ -277,8 +267,8 @@ void redrawWidget (int x, int y, int width, int height, boolean all) {
 }
 void register () {
 	super.register ();
-	if (formHandle != 0) WidgetTable.put (formHandle, this);
-	if (scrolledHandle != 0) WidgetTable.put (scrolledHandle, this);
+	if (formHandle != 0) display.addWidget (formHandle, this);
+	if (scrolledHandle != 0) display.addWidget (scrolledHandle, this);
 }
 void releaseHandle () {
 	super.releaseHandle ();
@@ -302,8 +292,12 @@ void setBackgroundPixel (int pixel) {
 		if (argList1 [3] != 0) OS.XmChangeColor (argList1 [3], pixel);
 	}
 }
-void setScrollbarVisible (int barHandle, boolean visible) {
+void setScrollbarVisible (ScrollBar bar, boolean visible) {
 	if (scrolledHandle == 0) return;
+	int barHandle = bar.handle;
+	boolean managed = OS.XtIsManaged (barHandle);
+	if (managed == visible) return;
+
 	/*
 	* Feature in Motif.  Hiding or showing a scroll bar
 	* can cause the widget to automatically resize in
@@ -324,6 +318,7 @@ void setScrollbarVisible (int barHandle, boolean visible) {
 	OS.XtSetValues (scrolledHandle, argList, argList.length / 2);
 
 	sendEvent (SWT.Resize);
+	bar.sendEvent (visible ? SWT.Show : SWT.Hide);
 }
 int topHandle () {
 	if (scrolledHandle != 0) return scrolledHandle;

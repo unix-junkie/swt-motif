@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -52,6 +52,7 @@ abstract class SelectableItemWidget extends Composite {
 														// selected using the Ctrl modifier key
 	private boolean isRemovingAll = false;				// true=all items are removed. Used to optimize screen updates and to control item selection on dispose.
 	private boolean hasFocus;					// workaround for 1FMITIE
+	private boolean ignoreDoubleClick;					// don't fire DefaultSelection if second click changes selected item
 	private Image uncheckedImage;					// deselected check box
 	private Image grayUncheckedImage;						// grayed check box
 	private Image checkMarkImage;					// check mark for selected check box
@@ -95,6 +96,7 @@ void addingItem(SelectableItem item, int index) {
  * has changed.
  */
 void calculateHorizontalScrollbar() {
+	if (drawCount != 0) return;
 	int newMaximum = getContentWidth();
 	ScrollBar horizontalBar = getHorizontalBar();
 
@@ -129,6 +131,7 @@ void calculateItemHeight(SelectableItem item) {
 	itemText = item.getText();
 	if (itemText != null && textHeight == -1) {
 		gc = new GC(this);
+		gc.setFont(item.getFont());
 		itemHeight = gc.stringExtent(itemText).y;
 		textHeight = itemHeight;
 		gc.dispose();
@@ -188,6 +191,7 @@ int [] calculateShiftSelectionRange(int hitItemIndex) {
  * has changed.
  */
 void calculateVerticalScrollbar() {
+	if (drawCount != 0) return;
 	int newMaximum = getVisibleItemCount();
 	ScrollBar verticalBar = getVerticalBar();
 
@@ -351,16 +355,23 @@ void deselectAllExcept(Vector keepSelected) {
  * Deselect 'item'. Notify listeners.
  * @param item - item that should be deselected
  */
-void deselectNotify(SelectableItem item) {
-	Event event = new Event();
-
+void deselectNotify(final SelectableItem item) {
 	if (item.isSelected() == true) {
 		deselect(item);
 		setLastSelection(item, true);		
 		update();												// looks better when event notification takes long to return
 	}
-	event.item = item;
-	notifyListeners(SWT.Selection, event);
+	display.asyncExec(new Runnable() {
+		public void run() {
+			// Only send a selection event when the item has not been disposed.
+			// Fixes 1GE6XQA
+			if (item.isDisposed() == false) {
+				Event event = new Event();
+				event.item = item;
+				notifyListeners(SWT.Selection, event);
+			}
+		}
+	});
 }
 /**
  * Deselect all items starting at and including 'fromIndex'
@@ -587,6 +598,7 @@ void doHome(int keyMask) {
  * @param button - the mouse button that was pressed
  */
 void doMouseSelect(SelectableItem item, int itemIndex, int eventStateMask, int button) {
+	ignoreDoubleClick = item != lastSelectedItem;
 	if (button != 1 && item.isSelected() == true) {
 		// If the item is already selected, do not change the selection when using 
 		// button 2 or 3.  These buttons may invoke drag and drop or open the 
@@ -875,7 +887,7 @@ Point getCheckBoxExtent() {
 Image getCheckMarkImage() {
 	
 	if (checkMarkImage == null) {
-		checkMarkImage = new Image(getDisplay(), CheckMarkImageData);
+		checkMarkImage = new Image(display, CheckMarkImageData);
 	}
 	return checkMarkImage;
 }
@@ -895,7 +907,12 @@ int getContentWidth() {
 int getHorizontalOffset() {
 	return horizontalOffset;
 }
-
+/**
+ * Answer whether a double click should be ignored.
+ */
+boolean getIgnoreDoubleClick() {
+	return ignoreDoubleClick; 
+}
 /**
  * Answer the size of item images. Calculated during the item 
  * height calculation.
@@ -994,7 +1011,7 @@ public int getItemHeight() {
  * Answer the number of pixels that should be added to the item height.
  */
 int getItemPadding() {
-	return 2 + getDisplay().textHighlightThickness;
+	return 2 + display.textHighlightThickness;
 }
 /**
  * Answer the item that most recently received the input focus.
@@ -1048,21 +1065,6 @@ Vector getSelectionVector() {
 	return selectedItems;
 }
 /**
- * Answer the width of 'text' in pixel.
- * Answer 0 if 'text' is null.
- */
-int getTextWidth(String text) {
-	int textWidth = 0;
-	GC gc;
-
-	if (text != null) {
-		gc = new GC(this);
-		textWidth = gc.stringExtent(text).x;
-		gc.dispose();
-	}
-	return textWidth;
-}
-/**
  * Answer the index of the first visible item in the receiver's 
  * client area.
  * @return 0-based index of the first visible item in the 
@@ -1077,7 +1079,7 @@ int getTopIndex() {
 Image getUncheckedImage() {
 	
 	if (uncheckedImage == null) {
-		uncheckedImage = new Image(getDisplay(), UncheckedImageData);
+		uncheckedImage = new Image(display, UncheckedImageData);
 	}
 	return uncheckedImage;
 }
@@ -1088,7 +1090,7 @@ Image getUncheckedImage() {
 Image getGrayUncheckedImage() {
 	
 	if (grayUncheckedImage == null) {
-		grayUncheckedImage = new Image(getDisplay(), GrayUncheckedImageData);
+		grayUncheckedImage = new Image(display, GrayUncheckedImageData);
 	}
 	return grayUncheckedImage;
 }
@@ -1167,6 +1169,8 @@ void handleEvents(Event event) {
 				case SWT.TRAVERSE_RETURN:
 				case SWT.TRAVERSE_TAB_NEXT:
 				case SWT.TRAVERSE_TAB_PREVIOUS:
+				case SWT.TRAVERSE_PAGE_NEXT:
+				case SWT.TRAVERSE_PAGE_PREVIOUS:
 					event.doit = true;
 					break;
 			}
@@ -1187,7 +1191,6 @@ boolean hasFocus(SelectableItem item) {
  * colors.
  */
 void initialize() {
-	Display display = getDisplay();	
 	ScrollBar horizontalBar = getHorizontalBar();
 	ScrollBar verticalBar = getVerticalBar();
 
@@ -1426,6 +1429,7 @@ public void redraw (int x, int y, int width, int height, boolean all) {
  * @param item - SelectableItem that should have the selection redrawn.
  */
 void redrawSelection(SelectableItem item) {
+	if (item.isDisposed()) return;
 	int redrawPosition = getVisibleRedrawY(item);
 	if (redrawPosition != -1) {
 		item.redrawSelection(redrawPosition);
@@ -1500,6 +1504,9 @@ void resetItemData() {
  * make sure that new space is being occupied by items.
  */
 void resize(Event event) {
+	resize();
+}
+void resize() {
 	int horizontalPageSize = getHorizontalBar().getPageIncrement();
 
 	resizeHorizontalScrollbar();
@@ -1683,23 +1690,12 @@ void selectNotify(final SelectableItem item, boolean asyncNotify) {
 			setLastSelection(item, true);
 			update();												// looks better when event notification takes long to return
 		}
-		if (asyncNotify == false) {
-			Event event = new Event();
-			event.item = item;
-			notifyListeners(SWT.Selection, event);
-		}
-		else {
-			getDisplay().asyncExec(new Runnable() {
-				public void run() {
-					// Only send a selection event when the item has not been disposed.
-					// Fixes 1GE6XQA
-					if (item.isDisposed() == false) {
-						Event event = new Event();
-						event.item = item;
-						notifyListeners(SWT.Selection, event);
-					}
-				}
-			});
+		Event event = new Event();
+		event.item = item;
+		if (asyncNotify) {
+			postEvent(SWT.Selection, event);
+		} else {
+			sendEvent(SWT.Selection, event);
 		}
 	}
 }
@@ -1709,7 +1705,7 @@ void selectNotify(final SelectableItem item, boolean asyncNotify) {
  * @param item - item that should be selected
  */
 void selectNotify(SelectableItem item) {
-	selectNotify(item, false);
+	selectNotify(item, true);
 }
 /**
  * Select all items of the receiver starting at 'fromIndex' 
@@ -1851,7 +1847,12 @@ void setLastSelection(SelectableItem selectedItem, boolean showItem) {
 public void setRedraw (boolean redraw) {
 	checkWidget();
 	if (redraw) {
-		if (--drawCount == 0) redraw();
+		if (--drawCount == 0) {
+			calculateVerticalScrollbar();
+			calculateHorizontalScrollbar();
+			resize();
+			redraw();
+		}
 	} else {
 		drawCount++;
 	}

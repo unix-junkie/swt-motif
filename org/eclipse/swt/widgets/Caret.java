@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -103,14 +103,15 @@ boolean drawCaret () {
 	}
 	OS.XSetForeground (xDisplay, gc, color);
 	OS.XSetFunction (xDisplay, gc, OS.GXxor);
-	int nWidth = width, nHeight = height;
-	if (image != null) {
-		Rectangle rect = image.getBounds ();
-		nWidth = rect.width;
-		nHeight = rect.height;
+	if (image != null && !image.isDisposed() && image.mask == 0) {
+		int [] unused = new int [1];  int [] width = new int [1];  int [] height = new int [1];
+		OS.XGetGeometry (xDisplay, image.pixmap, unused, unused, unused, width, height, unused, unused);
+		OS.XCopyArea(xDisplay, image.pixmap, window, gc, 0, 0, width[0], height[0], x, y);
+	} else {
+		int nWidth = width, nHeight = height;
+		if (nWidth <= 0) nWidth = 1;
+		OS.XFillRectangle (xDisplay, window, gc, x, y, nWidth, nHeight);
 	}
-	if (nWidth <= 0) nWidth = 2;
-	OS.XFillRectangle (xDisplay, window, gc, x, y, nWidth, nHeight);
 	OS.XFreeGC (xDisplay, gc);
 	return true;
 }
@@ -132,11 +133,6 @@ public Rectangle getBounds () {
 		return new Rectangle (x, y, rect.width, rect.height);
 	}
 	return new Rectangle (x, y, width, height);
-}
-public Display getDisplay () {
-	Composite parent = this.parent;
-	if (parent == null) error (SWT.ERROR_WIDGET_DISPOSED);
-	return parent.getDisplay ();
 }
 /**
  * Returns the font that the receiver will use to paint textual information.
@@ -259,11 +255,9 @@ public boolean isVisible () {
 	return isVisible && parent.isVisible () && parent.hasFocus ();
 }
 boolean isFocusCaret () {
-	Display display = getDisplay ();
 	return this == display.currentCaret;
 }
 void killFocus () {
-	Display display = getDisplay ();
 	if (display.currentCaret != this) return;
 	display.setCurrentCaret (null);
 	if (isVisible) hideCaret ();
@@ -274,7 +268,6 @@ void releaseChild () {
 }
 void releaseWidget () {
 	super.releaseWidget ();
-	Display display = getDisplay ();
 	if (display.currentCaret == this) {
 		hideCaret ();
 		display.setCurrentCaret (null);
@@ -327,7 +320,6 @@ public void setBounds (Rectangle rect) {
 	setBounds (rect.x, rect.y, rect.width, rect.height);
 }
 void setFocus () {
-	Display display = getDisplay ();
 	if (display.currentCaret == this) return;
 	display.setCurrentCaret (this);
 	if (isVisible) showCaret ();
@@ -360,7 +352,7 @@ public void setFont (Font font) {
  * to the image specified by the argument, or to the default
  * which is a filled rectangle if the argument is null
  *
- * @param font the new font (or null)
+ * @param image the new image (or null)
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_INVALID_ARGUMENT - if the image has been disposed</li>
@@ -433,7 +425,6 @@ public void setSize (int width, int height) {
  * Sets the receiver's size to the point specified by the argument.
  *
  * @param size the new extent for the receiver
- * @param height the new height for the receiver
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the point is null</li>

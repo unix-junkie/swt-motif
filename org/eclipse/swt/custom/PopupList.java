@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -24,11 +24,13 @@ import org.eclipse.swt.widgets.*;
 * are to the edge of the screen.
 */
 public class PopupList {
-	private Shell  shell;
-	private List   list;
-	private int    minimumWidth;
+	Shell  shell;
+	List   list;
+	int    minimumWidth;
 /** 
 * Creates a PopupList above the specified shell.
+* 
+* @param parent a Shell control which will be the parent of the new instance (cannot be null)
 */
 public PopupList(Shell parent) {
 	this (parent, 0);
@@ -39,7 +41,7 @@ public PopupList(Shell parent) {
 * @param parent a widget which will be the parent of the new instance (cannot be null)
 * @param style the style of widget to construct
 * 
-* @since 2.1.2 
+* @since 3.0 
 */
 public PopupList(Shell parent, int style) {
 	shell = new Shell(parent, checkStyle(style));
@@ -50,7 +52,7 @@ public PopupList(Shell parent, int style) {
 	shell.addListener(SWT.Deactivate, new Listener() {
 		public void handleEvent(Event e){	
 			shell.setVisible (false);
-		};
+		}
 	});
 	
 	// resize shell when list resizes
@@ -64,19 +66,19 @@ public PopupList(Shell parent, int style) {
 	
 	// return list selection on Mouse Up or Carriage Return
 	list.addMouseListener(new MouseListener() {
-		public void mouseDoubleClick(MouseEvent e){};
-		public void mouseDown(MouseEvent e){};
+		public void mouseDoubleClick(MouseEvent e){}
+		public void mouseDown(MouseEvent e){}
 		public void mouseUp(MouseEvent e){
 			shell.setVisible (false);
-		};
+		}
 	});
 	list.addKeyListener(new KeyListener() {
-		public void keyReleased(KeyEvent e){};
+		public void keyReleased(KeyEvent e){}
 		public void keyPressed(KeyEvent e){
 			if (e.character == '\r'){
 				shell.setVisible (false);
 			}
-		};
+		}
 	});
 	
 }
@@ -239,7 +241,7 @@ public void setFont (Font font) {
 * The new items are added.
 * The top index is set to 0.
 *
-* @param items the array of items
+* @param strings the array of items
 *
 * This operation will fail when an item is null
 * or could not be added in the OS.
@@ -261,7 +263,7 @@ public void setItems (String[] strings) {
 */
 public void setMinimumWidth (int width) {
 	if (width < 0)
-		throw new SWTError(SWT.ERROR_INVALID_ARGUMENT);
+		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 		
 	minimumWidth = width;
 }

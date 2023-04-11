@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -24,6 +24,12 @@ import org.eclipse.swt.*;
  * to have increasing values downward and to the right from its
  * origin making this the normal, computer graphics oriented notion
  * of (x, y) coordinates rather than the strict mathematical one.
+ * </p>
+ * <p>
+ * The hashCode() method in this class uses the values of the public
+ * fields to compute the hash value. When storing instances of the
+ * class in hashed collections, do not modify these fields after the
+ * object has been inserted.  
  * </p>
  * <p>
  * Application code does <em>not</em> need to explicitly release the
@@ -139,7 +145,7 @@ public boolean contains (Point pt) {
  * @param object the object to compare with this object
  * @return <code>true</code> if the object is the same as this object and <code>false</code> otherwise
  *
- * @see #hashCode
+ * @see #hashCode()
  */
 public boolean equals (Object object) {
 	if (object == this) return true;
@@ -156,10 +162,40 @@ public boolean equals (Object object) {
  *
  * @return the receiver's hash
  *
- * @see #equals
+ * @see #equals(Object)
  */
 public int hashCode () {
 	return x ^ y ^ width ^ height;
+}
+
+/**
+ * Destructively replaces the x, y, width and height values
+ * in the receiver with ones which represent the intersection of the
+ * rectangles specified by the receiver and the given rectangle.
+ *
+ * @param rect the rectangle to intersect with the receiver
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the argument is null</li>
+ * </ul>
+ * 
+ * since 3.0
+ */
+public void intersect (Rectangle rect) {
+	if (rect == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
+	if (this == rect) return;
+	int left = x > rect.x ? x : rect.x;
+	int top = y > rect.y ? y : rect.y;
+	int lhs = x + width;
+	int rhs = rect.x + rect.width;
+	int right = lhs < rhs ? lhs : rhs;
+	lhs = y + height;
+	rhs = rect.y + rect.height;
+	int bottom = lhs < rhs ? lhs : rhs;
+	x = right < left ? 0 : left;
+	y = bottom < top ? 0 : top;
+	width = right < left ? 0 : right - left;
+	height = bottom < top ? 0 : bottom - top;
 }
 
 /**
@@ -196,6 +232,35 @@ public Rectangle intersection (Rectangle rect) {
 }
 
 /**
+ * Returns <code>true</code> if the rectangle described by the
+ * arguments intersects with the receiver and <code>false</code>
+ * otherwise.
+ * <p>
+ * Two rectangles intersect if the area of the rectangle
+ * representing their intersection is not empty.
+ * </p>
+ *
+ * @param x the x coordinate of the origin of the rectangle
+ * @param y the y coordinate of the origin of the rectangle
+ * @param width the width of the rectangle
+ * @param height the height of the rectangle
+ * @return <code>true</code> if the rectangle intersects with the receiver, and <code>false</code> otherwise
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the argument is null</li>
+ * </ul>
+ *
+ * @see #intersection(Rectangle)
+ * @see #isEmpty()
+ * 
+ * @since 3.0
+ */
+public boolean intersects (int x, int y, int width, int height) {
+	return (x < this.x + this.width) && (y < this.y + this.height) &&
+		(x + width > this.x) && (y + height > this.y);
+}
+
+/**
  * Returns <code>true</code> if the given rectangle intersects
  * with the receiver and <code>false</code> otherwise.
  * <p>
@@ -210,13 +275,12 @@ public Rectangle intersection (Rectangle rect) {
  *    <li>ERROR_NULL_ARGUMENT - if the argument is null</li>
  * </ul>
  *
- * @see #intersection
- * @see #isEmpty
+ * @see #intersection(Rectangle)
+ * @see #isEmpty()
  */
 public boolean intersects (Rectangle rect) {
 	if (rect == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
-	return (rect == this) || (rect.x < x + width) && (rect.y < y + height) &&
-		(rect.x + rect.width > x) && (rect.y + rect.height > y);
+	return rect == this || intersects (rect.x, rect.y, rect.width, rect.height);
 }
 		
 /**
@@ -261,7 +325,7 @@ public String toString () {
  *    <li>ERROR_NULL_ARGUMENT - if the argument is null</li>
  * </ul>
  *
- * @see #add
+ * @see #add(Rectangle)
  */
 public Rectangle union (Rectangle rect) {
 	if (rect == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);

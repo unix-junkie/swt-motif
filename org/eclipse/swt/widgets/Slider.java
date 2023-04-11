@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -143,7 +143,6 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 	checkWidget();
 	int border = getBorderWidth ();
 	int width = border * 2, height = border * 2;
-	Display display = getDisplay ();
 	int hScroll = display.scrolledMarginX;
 	int vScroll = display.scrolledMarginY;
 	if ((style & SWT.HORIZONTAL) != 0) {
@@ -159,12 +158,12 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 }
 void createHandle (int index) {
 	state |= HANDLE;
-	Display display = getDisplay ();
 	int [] argList = {
 		OS.XmNancestorSensitive, 1,
 		OS.XmNhighlightThickness, display.textHighlightThickness,
 		OS.XmNborderWidth, (style & SWT.BORDER) != 0 ? 1 : 0,
 		OS.XmNorientation, ((style & SWT.H_SCROLL) != 0) ? OS.XmHORIZONTAL : OS.XmVERTICAL,
+		OS.XmNtraversalOn, 1,
 	};
 	int parentHandle = parent.handle;
 	handle = OS.XmCreateScrollBar (parentHandle, null, argList, argList.length / 2);
@@ -273,7 +272,7 @@ public int getThumb () {
 }
 void hookEvents () {
 	super.hookEvents ();
-	int windowProc = getDisplay ().windowProc;
+	int windowProc = display.windowProc;
 	OS.XtAddCallback (handle, OS.XmNvalueChangedCallback, windowProc, VALUE_CHANGED_CALLBACK);
 	OS.XtAddCallback (handle, OS.XmNdragCallback, windowProc, DRAG_CALLBACK);
 	OS.XtAddCallback (handle, OS.XmNtoBottomCallback, windowProc, TO_BOTTOM_CALLBACK);
@@ -284,7 +283,6 @@ void hookEvents () {
 	OS.XtAddCallback (handle, OS.XmNpageDecrementCallback, windowProc, PAGE_DECREMENT_CALLBACK);
 }
 void overrideTranslations () {
-	Display display = getDisplay ();
 	OS.XtOverrideTranslations (handle, display.tabTranslations);
 }
 /**
@@ -336,11 +334,12 @@ public void setIncrement (int value) {
 	OS.XtSetValues (handle, argList, argList.length / 2);
 }
 /**
- * Sets the maximum value which the receiver will allow
- * to be the argument which must be greater than or
- * equal to zero.
+ * Sets the maximum. If this value is negative or less than or
+ * equal to the minimum, the value is ignored. If necessary, first
+ * the thumb and then the selection are adjusted to fit within the
+ * new range.
  *
- * @param value the new maximum (must be zero or greater)
+ * @param value the new maximum, which must be greater than the current minimum
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -351,18 +350,18 @@ public void setMaximum (int value) {
 	checkWidget();
 	if (value < 0) return;
 	int [] argList = {OS.XmNmaximum, value};
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XtSetValues (handle, argList, argList.length / 2);
 	display.setWarnings (warnings);
 }
 /**
- * Sets the minimum value which the receiver will allow
- * to be the argument which must be greater than or
- * equal to zero.
+ * Sets the minimum value. If this value is negative or greater
+ * than or equal to the maximum, the value is ignored. If necessary,
+ * first the thumb and then the selection are adjusted to fit within
+ * the new range.
  *
- * @param value the new minimum (must be zero or greater)
+ * @param value the new minimum
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -392,7 +391,6 @@ public void setMinimum (int value) {
 		argList [5] = argList [3] - value;
 	}
 	argList [1] = value;
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XtSetValues (handle, argList, argList.length / 2);
@@ -404,7 +402,7 @@ public void setMinimum (int value) {
  * are selected to the argument, which must be at least
  * one.
  *
- * @return the page increment (must be greater than zero)
+ * @param value the page increment (must be greater than zero)
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -432,7 +430,6 @@ public void setPageIncrement (int value) {
 public void setSelection (int value) {
 	checkWidget();
 	int [] argList = {OS.XmNvalue, value};
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XtSetValues (handle, argList, argList.length / 2);
@@ -440,26 +437,28 @@ public void setSelection (int value) {
 }
 /**
  * Sets the size of the receiver's thumb relative to the
- * difference between its maximum and minimum values to the
- * argument which must be at least one.
+ * difference between its maximum and minimum values.  This new
+ * value will be ignored if it is less than one, and will be
+ * clamped if it exceeds the receiver's current range.
  *
- * @param value the new thumb value (must be at least one)
+ * @param value the new thumb value, which must be at least one and not
+ * larger than the size of the current range
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
- *
- * @see ScrollBar
  */
 public void setThumb (int value) {
 	checkWidget();
 	if (value < 1) return;
-	int [] argList = {OS.XmNsliderSize, value};
-	Display display = getDisplay ();
+	int [] argList = {OS.XmNminimum, 0, OS.XmNmaximum, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	value = Math.min (value, argList [3] - argList [1]);
+	int [] argList2 = {OS.XmNsliderSize, value};
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
-	OS.XtSetValues (handle, argList, argList.length / 2);
+	OS.XtSetValues (handle, argList2, argList2.length / 2);
 	display.setWarnings (warnings);
 }
 /**
@@ -488,9 +487,9 @@ public void setValues (int selection, int minimum, int maximum, int thumb, int i
 	if (minimum < 0) return;
 	if (maximum < 0) return;
 	if (thumb < 1) return;
-	if (maximum - minimum - thumb < 0) return;
 	if (increment < 1) return;
 	if (pageIncrement < 1) return;
+	thumb = Math.min (thumb, maximum - minimum);
 	int [] argList = {
 		OS.XmNvalue, selection,
 		OS.XmNminimum, minimum,
@@ -499,7 +498,6 @@ public void setValues (int selection, int minimum, int maximum, int thumb, int i
 		OS.XmNincrement, increment,
 		OS.XmNpageIncrement, pageIncrement,
 	};
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XtSetValues (handle, argList, argList.length / 2);

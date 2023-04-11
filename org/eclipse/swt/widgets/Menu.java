@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -57,7 +57,7 @@ public class Menu extends Widget {
  * @see Widget#getStyle
  */
 public Menu (Control parent) {
-	this (checkNull(parent).getShell (), SWT.POP_UP);
+	this (checkNull(parent).menuShell (), SWT.POP_UP);
 }
 /**
  * Constructs a new instance of this class given its parent
@@ -101,7 +101,7 @@ public Menu (Decorations parent, int style) {
  * for the instance so that the instance will be a drop-down
  * menu on the given parent's parent.
  *
- * @param parent a menu which will be the parent of the new instance (cannot be null)
+ * @param parentMenu a menu which will be the parent of the new instance (cannot be null)
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
@@ -124,7 +124,7 @@ public Menu (Menu parentMenu) {
  * for the instance so that the instance will be a drop-down
  * menu on the given parent's parent menu.
  *
- * @param parent a menu item which will be the parent of the new instance (cannot be null)
+ * @param parentItem a menu item which will be the parent of the new instance (cannot be null)
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
@@ -229,7 +229,7 @@ void createHandle (int index) {
 		int [] argc = new int [] {0};
 		int xtContext = OS.XtCreateApplicationContext ();
 		xDisplay = OS.XtOpenDisplay (xtContext, null, null, null, 0, 0, argc, 0);
-		shellHandle = OS.XtAppCreateShell (null, null, OS.TopLevelShellWidgetClass (), xDisplay, null, 0);
+		shellHandle = OS.XtAppCreateShell (null, null, OS.topLevelShellWidgetClass (), xDisplay, null, 0);
 	}
 	
 	/* BAR menu */
@@ -301,11 +301,6 @@ public MenuItem getDefaultItem () {
 	checkWidget();
 	return defaultItem;
 }
-public Display getDisplay () {
-	Decorations parent = this.parent;
-	if (parent == null) error (SWT.ERROR_WIDGET_DISPOSED);
-	return parent.getDisplay ();
-}
 /**
  * Returns <code>true</code> if the receiver is enabled, and
  * <code>false</code> otherwise. A disabled control is typically
@@ -358,7 +353,7 @@ public MenuItem getItem (int index) {
 		i++;
 	}
 	if (index != count) error (SWT.ERROR_INVALID_RANGE);
-	Widget widget = WidgetTable.get (handles [i]);
+	Widget widget = display.getWidget (handles [i]);
 	if (!(widget instanceof MenuItem)) error (SWT.ERROR_CANNOT_GET_ITEM);
 	return (MenuItem) widget;
 }
@@ -412,7 +407,7 @@ public MenuItem [] getItems () {
 	MenuItem [] items = new MenuItem [count];
 	int i = 0, j = 0;
 	while (i < count) {
-		Widget item = WidgetTable.get (handles [i]);
+		Widget item = display.getWidget (handles [i]);
 		if (item != null) items [j++] = (MenuItem) item;
 		i++;
 	}
@@ -499,6 +494,12 @@ public Shell getShell () {
 	checkWidget();
 	return parent.getShell ();
 }
+/*public*/ Point getSize () {
+	checkWidget();
+	int [] argList = {OS.XmNwidth, 0, OS.XmNheight, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	return new Point (argList [1], argList [3]);
+}
 /**
  * Returns <code>true</code> if the receiver is visible, and
  * <code>false</code> otherwise.
@@ -521,7 +522,7 @@ public boolean getVisible () {
 	return OS.XtIsManaged (handle);
 }
 void hookEvents () {
-	int windowProc = getDisplay ().windowProc;
+	int windowProc = display.windowProc;
 	OS.XtAddCallback (handle, OS.XmNhelpCallback, windowProc, HELP_CALLBACK);
 	OS.XtAddCallback (handle, OS.XmNmapCallback, windowProc, MAP_CALLBACK);
 	OS.XtAddCallback (handle, OS.XmNunmapCallback, windowProc, UNMAP_CALLBACK);
@@ -779,6 +780,7 @@ public void setVisible (boolean visible) {
 	checkWidget();
 	if ((style & (SWT.BAR | SWT.DROP_DOWN)) != 0) return;
 	if (visible) {
+		display.runDeferredEvents ();
 		sendEvent (SWT.Show);
 		if (getItemCount () != 0) {
 			int xDisplay = OS.XtDisplay (handle);
@@ -825,12 +827,12 @@ public void setVisible (boolean visible) {
 		OS.XtUnmanageChild (handle);
 	}
 }
-boolean translateAccelerator (int accel) {
+boolean translateAccelerator (int accel, boolean doit) {
 	if (!getEnabled ()) return false;
 	MenuItem [] items = getItems ();
 	for (int i = 0; i < items.length; i++) {
 		MenuItem item = items [i];
-		if (item.translateAccelerator (accel)) return true;
+		if (item.translateAccelerator (accel, doit)) return true;
 	}
 	return false;
 }
@@ -840,25 +842,6 @@ int XmNhelpCallback (int w, int client_data, int call_data) {
 }
 int XmNmapCallback (int w, int client_data, int call_data) {
 	if ((style & SWT.POP_UP) != 0) return 0;
-	/*
-	* SWT.Selection events are posted to allow stepping
-	* in the VA/Java debugger.  SWT.Show events are
-	* sent to ensure that application event handler
-	* code runs before the menu is displayed.  This
-	* means that SWT.Show events would normally occur
-	* before SWT.Selection events.  While this is not 
-	* strictly incorrect, applications often use the 
-	* SWT.Selection event to update the state of menu
-	* items and would like the ordering of events to 
-	* be the other way around.
-	*
-	* The fix is to run the deferred events before
-	* the menu is shown.  This means that stepping
-	* through a selection event that was caused by
-	* a popup menu will fail in VA/Java.
-	*/
-	Display display = getDisplay ();
-	display.runDeferredEvents ();
 	sendEvent (SWT.Show);
 	return 0;
 }

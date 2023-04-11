@@ -12,6 +12,7 @@ package org.eclipse.swt.custom;
 
 
 import org.eclipse.swt.*;
+import org.eclipse.swt.events.*;
 import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.widgets.*;
 
@@ -24,45 +25,56 @@ import org.eclipse.swt.widgets.*;
 *
 * <p> Here is an example of using a TableEditor:
 * <code><pre>
-* Table table = new Table(parent, SWT.FULL_SELECTION);
-* TableEditor editor = new TableEditor (table);
-* table.addSelectionListener (new SelectionAdapter() {
-*	public void widgetSelected(SelectionEvent e) {
-*
-*		// Clean up any previous editor control
-*		Control oldEditor = editor.getEditor();
-*		if (oldEditor != null)
-*			oldEditor.dispose();	
-*
-*		// Identify the selected row
-*		int index = table.getSelectionIndex ();
-*		if (index == -1) return;
-*		TableItem item = table.getItem (index);
-*
-*		// The control that will be the editor must be a child of the Table
-*		Text text = new Text(table, SWT.NONE);
-*
-*		//The text editor must have the same size as the cell and must
-*		//not be any smaller than 50 pixels.
-*		editor.horizontalAlignment = SWT.LEFT;
-*		editor.grabHorizontal = true;
-*		editor.minimumWidth = 50;
-*
-*		// Open the text editor in the second column of the selected row.
-*		editor.setEditor (text, item, 1);
-*
-*		// Assign focus to the text control
-*		text.setFocus ();
+*	final Table table = new Table(shell, SWT.FULL_SELECTION | SWT.HIDE_SELECTION);
+*	TableColumn column1 = new TableColumn(table, SWT.NONE);
+*	TableColumn column2 = new TableColumn(table, SWT.NONE);
+*	for (int i = 0; i &lt 10; i++) {
+*		TableItem item = new TableItem(table, SWT.NONE);
+*		item.setText(new String[] {"item " + i, "edit this value"});
 *	}
-* });
+*	column1.pack();
+*	column2.pack();
+*	
+*	final TableEditor editor = new TableEditor(table);
+*	//The editor must have the same size as the cell and must
+*	//not be any smaller than 50 pixels.
+*	editor.horizontalAlignment = SWT.LEFT;
+*	editor.grabHorizontal = true;
+*	editor.minimumWidth = 50;
+*	// editing the second column
+*	final int EDITABLECOLUMN = 1;
+*	
+*	table.addSelectionListener(new SelectionAdapter() {
+*		public void widgetSelected(SelectionEvent e) {
+*			// Clean up any previous editor control
+*			Control oldEditor = editor.getEditor();
+*			if (oldEditor != null) oldEditor.dispose();
+*	
+*			// Identify the selected row
+*			TableItem item = (TableItem)e.item;
+*			if (item == null) return;
+*	
+*			// The control that will be the editor must be a child of the Table
+*			Text newEditor = new Text(table, SWT.NONE);
+*			newEditor.setText(item.getText(EDITABLECOLUMN));
+*			newEditor.addModifyListener(new ModifyListener() {
+*				public void modifyText(ModifyEvent e) {
+*					Text text = (Text)editor.getEditor();
+*					editor.getItem().setText(EDITABLECOLUMN, text.getText());
+*				}
+*			});
+*			newEditor.selectAll();
+*			newEditor.setFocus();
+*			editor.setEditor(newEditor, item, EDITABLECOLUMN);
+*		}
+*	});
 * </pre></code>
 */
 public class TableEditor extends ControlEditor {
-
 	Table table;
 	TableItem item;
 	int column = -1;
-	Listener columnListener;
+	ControlListener columnListener;
 /**
 * Creates a TableEditor for the specified Table.
 *
@@ -73,27 +85,38 @@ public TableEditor (Table table) {
 	super(table);
 	this.table = table;
 	
-	columnListener = new Listener() {
-		public void handleEvent(Event e) {
+	columnListener = new ControlListener() {
+		public void controlMoved(ControlEvent e){
+			resize ();
+		}
+		public void controlResized(ControlEvent e){
 			resize ();
 		}
 	};
-
+	
+	// To be consistent with older versions of SWT, grabVertical defaults to true
+	grabVertical = true;
 }
 Rectangle computeBounds () {
 	if (item == null || column == -1 || item.isDisposed()) return new Rectangle(0, 0, 0, 0);
-	
 	Rectangle cell = item.getBounds(column);
-	Rectangle editorRect = new Rectangle(cell.x, cell.y, minimumWidth, cell.height);
+	Rectangle rect = item.getImageBounds(column);
+	cell.x = rect.x + rect.width;
+	cell.width -= rect.width;
 	Rectangle area = table.getClientArea();
 	if (cell.x < area.x + area.width) {
 		if (cell.x + cell.width > area.x + area.width) {
-			cell.width = area.width - cell.x;
+			cell.width = area.x + area.width - cell.x;
 		}
 	}
-	
-	if (grabHorizontal){
+	Rectangle editorRect = new Rectangle(cell.x, cell.y, minimumWidth, minimumHeight);
+
+	if (grabHorizontal) {
 		editorRect.width = Math.max(cell.width, minimumWidth);
+	}
+	
+	if (grabVertical) {
+		editorRect.height = Math.max(cell.height, minimumHeight);
 	}
 	
 	if (horizontalAlignment == SWT.RIGHT) {
@@ -104,6 +127,13 @@ Rectangle computeBounds () {
 		editorRect.x += (cell.width - editorRect.width)/2;
 	}
 	
+	if (verticalAlignment == SWT.BOTTOM) {
+		editorRect.y += cell.height - editorRect.height;
+	} else if (verticalAlignment == SWT.TOP) {
+		// do nothing - cell.y is the right answer
+	} else { // default is CENTER
+		editorRect.y += (cell.height - editorRect.height)/2;
+	}
 	return editorRect;
 }
 /**
@@ -111,11 +141,9 @@ Rectangle computeBounds () {
  * Table and the editor Control are <b>not</b> disposed.
  */
 public void dispose () {
-	
 	if (this.column > -1 && this.column < table.getColumnCount()){
 		TableColumn tableColumn = table.getColumn(this.column);
-		tableColumn.removeListener(SWT.Resize, columnListener);
-		tableColumn.removeListener(SWT.Move, columnListener);
+		tableColumn.removeControlListener(columnListener);
 	}
 	columnListener = null;
 	table = null;
@@ -141,7 +169,6 @@ public TableItem getItem () {
 	return item;
 }
 public void setColumn(int column) {
-	
 	int columnCount = table.getColumnCount();
 	// Separately handle the case where the table has no TableColumns.
 	// In this situation, there is a single default column.
@@ -150,11 +177,9 @@ public void setColumn(int column) {
 		resize();
 		return;
 	}
-		
 	if (this.column > -1 && this.column < columnCount){
 		TableColumn tableColumn = table.getColumn(this.column);
-		tableColumn.removeListener(SWT.Resize, columnListener);
-		tableColumn.removeListener(SWT.Move, columnListener);
+		tableColumn.removeControlListener(columnListener);
 		this.column = -1;
 	}
 
@@ -162,8 +187,7 @@ public void setColumn(int column) {
 		
 	this.column = column;
 	TableColumn tableColumn = table.getColumn(this.column);
-	tableColumn.addListener(SWT.Resize, columnListener);
-	tableColumn.addListener(SWT.Move, columnListener);
+	tableColumn.addControlListener(columnListener);
 	resize();
 }
 public void setItem (TableItem item) {	

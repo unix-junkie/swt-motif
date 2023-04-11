@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -263,6 +263,7 @@ void calculateGridDimensions(Composite composite, boolean flushCache) {
 		for (int i = 0; i < numColumns; i++) {
 			maxWidth = Math.max(maxWidth, pixelColumnWidths[i]);
 		}
+		maxWidth += horizontalSpacing;
 		for (int i = 0; i < numColumns; i++) {
 			pixelColumnWidths[i] = maxWidth;
 		}
@@ -356,10 +357,8 @@ Point computeLayoutSize(Composite composite, int wHint, int hHint, boolean flush
 		totalHeight = totalHeight + pixelRowHeights[i];
 	}
 
-	if (wHint != SWT.DEFAULT) {
-		totalWidth = wHint;};
-	if (hHint != SWT.DEFAULT) {
-		totalHeight = hHint;};
+	if (wHint != SWT.DEFAULT) totalWidth = wHint;
+	if (hHint != SWT.DEFAULT) totalHeight = hHint;
 	// The preferred extent is the width and height that will accomodate the grid's controls.
 	return new Point(totalWidth, totalHeight);
 }
@@ -651,10 +650,10 @@ protected void layout(Composite composite, boolean flushCache) {
 				widgetX = columnX;
 
 				// Calculate the x and width values for the control.
-				if (hAlign == GridData.CENTER) {
+				if (hAlign == GridData.CENTER || hAlign == SWT.CENTER) {
 					widgetX = widgetX + (spannedWidth / 2) - (childExtent.x / 2);
 				} else
-					if (hAlign == GridData.END) {
+					if (hAlign == GridData.END || hAlign == SWT.END || hAlign == SWT.RIGHT) {
 						widgetX = widgetX + spannedWidth - childExtent.x - spec.horizontalIndent;
 					} else {
 						widgetX = widgetX + spec.horizontalIndent;
@@ -669,10 +668,10 @@ protected void layout(Composite composite, boolean flushCache) {
 				// Calculate the y and height values for the control.
 				vAlign = spec.verticalAlignment;
 				widgetY = rowY;
-				if (vAlign == GridData.CENTER) {
+				if (vAlign == GridData.CENTER || vAlign == SWT.CENTER) {
 					widgetY = widgetY + (spannedHeight / 2) - (childExtent.y / 2);
 				} else
-					if (vAlign == GridData.END) {
+					if (vAlign == GridData.END || vAlign == SWT.END || vAlign == SWT.BOTTOM) {
 						widgetY = widgetY + spannedHeight - childExtent.y;
 					}
 				if (vAlign == GridData.FILL) {

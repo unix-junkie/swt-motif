@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -41,16 +41,7 @@ public class MessageBox extends Dialog {
 	String message = "";
 
 /**
- * Constructs a new instance of this class given only its
- * parent.
- * <p>
- * Note: Currently, null can be passed in for the parent.
- * This has the effect of creating the dialog on the currently active
- * display if there is one. If there is no current display, the 
- * dialog is created on a "default" display. <b>Passing in null as
- * the parent is not considered to be good coding style,
- * and may not be supported in a future release of SWT.</b>
- * </p>
+ * Constructs a new instance of this class given only its parent.
  *
  * @param parent a shell which will be the parent of the new instance
  *
@@ -77,16 +68,9 @@ public MessageBox (Shell parent) {
  * of those <code>SWT</code> style constants. The class description
  * lists the style constants that are applicable to the class.
  * Style bits are also inherited from superclasses.
- * </p>
- * Note: Currently, null can be passed in for the parent.
- * This has the effect of creating the dialog on the currently active
- * display if there is one. If there is no current display, the 
- * dialog is created on a "default" display. <b>Passing in null as
- * the parent is not considered to be good coding style,
- * and may not be supported in a future release of SWT.</b>
- * </p>
  *
  * @param parent a shell which will be the parent of the new instance
+ * @param style the style of dialog to construct
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
@@ -120,6 +104,7 @@ int createHandle (int parentHandle, int [] argList) {
 	if ((style & SWT.ICON_INFORMATION) != 0) return OS.XmCreateInformationDialog (parentHandle, null, argList, argList.length / 2);
 	if ((style & SWT.ICON_QUESTION) != 0) return OS.XmCreateQuestionDialog (parentHandle, null, argList, argList.length / 2);
 	if ((style & SWT.ICON_WARNING) != 0) return OS.XmCreateWarningDialog (parentHandle, null, argList, argList.length / 2);
+	if ((style & SWT.ICON_WORKING) != 0) return OS.XmCreateWorkingDialog (parentHandle, null, argList, argList.length / 2);
 	return OS.XmCreateMessageDialog (parentHandle, null, argList, argList.length / 2);
 }
 
@@ -153,7 +138,7 @@ public int open () {
 	Display appContext = Display.getCurrent ();
 	if (destroyContext = (appContext == null)) appContext = new Display ();
 	int parentHandle = appContext.shellHandle;
-	if (parent != null && parent.getDisplay () == appContext)
+	if (parent != null && parent.display == appContext)
 		parentHandle = parent.shellHandle;
 
 	/* Compute the dialog title */	
@@ -194,6 +179,7 @@ public int open () {
 		OS.XmNdialogTitle, xmStringPtr,
 	};
 	int dialog = createHandle (parentHandle, argList);
+	if (dialog == 0) error (SWT.ERROR_NO_HANDLES);
 	OS.XmStringFree (xmStringPtr);
 	setMessage (dialog);
 	setButtons (dialog);
@@ -221,7 +207,7 @@ public int open () {
 		if (button == OS.XmDIALOG_OK_BUTTON) return SWT.YES;
 		if (button == OS.XmDIALOG_CANCEL_BUTTON) return SWT.NO;
 		return SWT.CANCEL;
-	};
+	}
 	if ((style & (SWT.YES | SWT.NO)) == (SWT.YES | SWT.NO)) {
 		return (button == OS.XmDIALOG_OK_BUTTON) ? SWT.YES : SWT.NO;
 	}
@@ -388,7 +374,7 @@ void setMessage (int dialogHandle) {
 		OS.XtGetValues (label, argList, argList.length / 2);
 		int fontList = argList [1];
 		if (fontList != 0) {
-			Display display = parent.getDisplay ();
+			Display display = parent.display;
 			int xDisplay = display.xDisplay;
 			int screen = OS.XDefaultScreen (xDisplay);
 			int width = OS.XDisplayWidth (xDisplay, screen);
@@ -410,8 +396,13 @@ void setMessage (int dialogHandle) {
  * visible on the dialog while it is open.
  *
  * @param string the message
+ * 
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the string is null</li>
+ * </ul>
  */
 public void setMessage (String string) {
+	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
 	message = string;
 }
 }

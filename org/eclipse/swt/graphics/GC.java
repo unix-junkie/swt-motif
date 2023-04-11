@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -19,12 +19,27 @@ import org.eclipse.swt.*;
  * Class <code>GC</code> is where all of the drawing capabilities that are 
  * supported by SWT are located. Instances are used to draw on either an 
  * <code>Image</code>, a <code>Control</code>, or directly on a <code>Display</code>.
+ * <dl>
+ * <dt><b>Styles:</b></dt>
+ * <dd>LEFT_TO_RIGHT, RIGHT_TO_LEFT</dd>
+ * </dl>
+ * 
+ * <p>
+ * The SWT drawing coordinate system is the two-dimensional space with the origin
+ * (0,0) at the top left corner of the drawing area and with (x,y) values increasing
+ * to the right and downward respectively.
+ * </p>
+ * 
  * <p>
  * Application code must explicitly invoke the <code>GC.dispose()</code> 
  * method to release the operating system resources managed by each instance
  * when those instances are no longer required. This is <em>particularly</em>
  * important on Windows95 and Windows98 where the operating system has a limited
  * number of device contexts available.
+ * </p>
+ * 
+ * <p>
+ * Note: Only one of LEFT_TO_RIGHT and RIGHT_TO_LEFT may be specified.
  * </p>
  *
  * @see org.eclipse.swt.events.PaintEvent
@@ -65,6 +80,32 @@ GC() {
 public GC(Drawable drawable) {
 	this(drawable, 0);
 }
+/**	 
+ * Constructs a new instance of this class which has been
+ * configured to draw on the specified drawable. Sets the
+ * foreground and background color in the GC to match those
+ * in the drawable.
+ * <p>
+ * You must dispose the graphics context when it is no longer required. 
+ * </p>
+ * 
+ * @param drawable the drawable to draw on
+ * @param style the style of GC to construct
+ * 
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the drawable is null</li>
+ *    <li>ERROR_NULL_ARGUMENT - if there is no current device</li>
+ *    <li>ERROR_INVALID_ARGUMENT
+ *          - if the drawable is an image that is not a bitmap or an icon
+ *          - if the drawable is an image or printer that is already selected
+ *            into another graphics context</li>
+ * </ul>
+ * @exception SWTError <ul>
+ *    <li>ERROR_NO_HANDLES if a handle could not be obtained for gc creation</li>
+ * </ul>
+ *  
+ * @since 2.1.2
+ */
 public GC(Drawable drawable, int style) {
 	if (drawable == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
 	GCData data = new GCData();
@@ -127,6 +168,7 @@ public void copyArea(int x, int y, int width, int height, int destX, int destY) 
  * Copies a rectangular area of the receiver at the specified
  * position into the image, which must be of type <code>SWT.BITMAP</code>.
  *
+ * @param image the image to copy into
  * @param x the x coordinate in the receiver of the area to be copied
  * @param y the y coordinate in the receiver of the area to be copied
  *
@@ -170,17 +212,24 @@ public void dispose () {
 
 	int renderTable = data.renderTable;
 	if (renderTable != 0) OS.XmRenderTableFree(renderTable);
+	int xmString = data.xmString;
+	if (xmString != 0) OS.XmStringFree (xmString);
+	int xmText = data.xmText;
+	if (xmText != 0) OS.XmStringFree (xmText);
+	int xmMnemonic = data.xmMnemonic;
+	if (xmMnemonic != 0) OS.XmStringFree (xmMnemonic);
 
 	/* Dispose the GC */
 	Device device = data.device;
-	drawable.internal_dispose_GC(handle, data);
+	if (drawable != null) drawable.internal_dispose_GC(handle, data);
 
-	data.display = data.drawable = data.colormap = data.fontList = 
-		data.clipRgn = data.renderTable = 0;
+	data.display = data.drawable = data.colormap = 
+		data.clipRgn = data.renderTable = data.xmString = data.xmText = 
+			data.xmMnemonic = 0;
+	data.font = null;
 	drawable = null;
 	handle = 0;
 	data.image = null;
-	data.codePage = null;
 	if (device.tracking) device.dispose_Object(this);
 	data.device = null;
 	data = null;
@@ -210,14 +259,11 @@ public void dispose () {
  * @param startAngle the beginning angle
  * @param arcAngle the angular extent of the arc, relative to the start angle
  *
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_INVALID_ARGUMENT - if any of the width, height or endAngle is zero.</li>
- * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
  * </ul>
  */
-public void drawArc(int x, int y, int width, int height, int startAngle, int endAngle) {
+public void drawArc(int x, int y, int width, int height, int startAngle, int arcAngle) {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	if (width < 0) {
 		x = x + width;
@@ -227,10 +273,8 @@ public void drawArc(int x, int y, int width, int height, int startAngle, int end
 		y = y + height;
 		height = -height;
 	}
-	if (width == 0 || height == 0 || endAngle == 0) {
-		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
-	}
-	OS.XDrawArc(data.display,data.drawable,handle,x,y,width,height,startAngle * 64 ,endAngle * 64);
+	if (width == 0 || height == 0 || arcAngle == 0) return;
+	OS.XDrawArc(data.display, data.drawable, handle, x, y, width, height, startAngle * 64, arcAngle * 64);
 }
 /** 
  * Draws a rectangle, based on the specified arguments, which has
@@ -410,7 +454,7 @@ void drawImageAlpha(Image srcImage, int srcX, int srcY, int srcWidth, int srcHei
 	try {
 		/* Get the background pixels */
 		xDestImagePtr = OS.XGetImage(xDisplay, xDrawable, destX, destY, destWidth, destHeight, OS.AllPlanes, OS.ZPixmap);
-		if (xDestImagePtr == 0) SWT.error(SWT.ERROR_NO_HANDLES);
+		if (xDestImagePtr == 0) return;
 		XImage xDestImage = new XImage();
 		OS.memmove(xDestImage, xDestImagePtr, XImage.sizeof);
 		byte[] destData = new byte[xDestImage.bytes_per_line * xDestImage.height];
@@ -418,7 +462,7 @@ void drawImageAlpha(Image srcImage, int srcX, int srcY, int srcWidth, int srcHei
 	
 		/* Get the foreground pixels */
 		xSrcImagePtr = OS.XGetImage(xDisplay, srcImage.pixmap, srcX, srcY, srcWidth, srcHeight, OS.AllPlanes, OS.ZPixmap);
-		if (xSrcImagePtr == 0) SWT.error(SWT.ERROR_NO_HANDLES);
+		if (xSrcImagePtr == 0) return;
 		XImage xSrcImage = new XImage();
 		OS.memmove(xSrcImage, xSrcImagePtr, XImage.sizeof);
 		byte[] srcData = new byte[xSrcImage.bytes_per_line * xSrcImage.height];
@@ -491,29 +535,35 @@ void drawImageAlpha(Image srcImage, int srcX, int srcY, int srcWidth, int srcHei
 void drawImageMask(Image srcImage, int srcX, int srcY, int srcWidth, int srcHeight, int destX, int destY, int destWidth, int destHeight, boolean simple, int imgWidth, int imgHeight, int depth) {
 	int xDisplay = data.display;
 	int xDrawable = data.drawable;
-	int colorPixmap = srcImage.pixmap;
 	/* Generate the mask if necessary. */
 	if (srcImage.transparentPixel != -1) srcImage.createMask();
-	int maskPixmap = srcImage.mask;
+	int colorPixmap = 0, maskPixmap = 0;
 	int foreground = 0x00000000;
-	if (!(simple || (srcWidth == destWidth && srcHeight == destHeight))) {
+	if (simple || (srcWidth == destWidth && srcHeight == destHeight)) {
+		colorPixmap = srcImage.pixmap;
+		maskPixmap = srcImage.mask;
+	} else {
 		/* Stretch the color and mask*/
-		int xImagePtr = scalePixmap(xDisplay, colorPixmap, srcX, srcY, srcWidth, srcHeight, destX, destY, destWidth, destHeight, false, false);
-		int xMaskPtr = scalePixmap(xDisplay, maskPixmap, srcX, srcY, srcWidth, srcHeight, destX, destY, destWidth, destHeight, false, false);
+		int xImagePtr = scalePixmap(xDisplay, srcImage.pixmap, srcX, srcY, srcWidth, srcHeight, destX, destY, destWidth, destHeight, false, false);
+		if (xImagePtr != 0) {
+			int xMaskPtr = scalePixmap(xDisplay, srcImage.mask, srcX, srcY, srcWidth, srcHeight, destX, destY, destWidth, destHeight, false, false);
+			if (xMaskPtr != 0) {
+				/* Create color scaled pixmaps */
+				colorPixmap = OS.XCreatePixmap(xDisplay, xDrawable, destWidth, destHeight, depth);
+				int tempGC = OS.XCreateGC(xDisplay, colorPixmap, 0, null);
+				OS.XPutImage(xDisplay, colorPixmap, tempGC, xImagePtr, 0, 0, 0, 0, destWidth, destHeight);
+				OS.XFreeGC(xDisplay, tempGC);
+		
+				/* Create mask scaled pixmaps */
+				maskPixmap = OS.XCreatePixmap(xDisplay, xDrawable, destWidth, destHeight, 1);
+				tempGC = OS.XCreateGC(xDisplay, maskPixmap, 0, null);
+				OS.XPutImage(xDisplay, maskPixmap, tempGC, xMaskPtr, 0, 0, 0, 0, destWidth, destHeight);
+				OS.XFreeGC(xDisplay, tempGC);
 
-		/* Create color scaled pixmaps */
-		colorPixmap = OS.XCreatePixmap(xDisplay, xDrawable, destWidth, destHeight, depth);
-		int tempGC = OS.XCreateGC(xDisplay, colorPixmap, 0, null);
-		OS.XPutImage(xDisplay, colorPixmap, tempGC, xImagePtr, 0, 0, 0, 0, destWidth, destHeight);
-		OS.XDestroyImage(xImagePtr);
-		OS.XFreeGC(xDisplay, tempGC);
-
-		/* Create mask scaled pixmaps */
-		maskPixmap = OS.XCreatePixmap(xDisplay, xDrawable, destWidth, destHeight, 1);
-		tempGC = OS.XCreateGC(xDisplay, maskPixmap, 0, null);
-		OS.XPutImage(xDisplay, maskPixmap, tempGC, xMaskPtr, 0, 0, 0, 0, destWidth, destHeight);
-		OS.XDestroyImage(xMaskPtr);
-		OS.XFreeGC(xDisplay, tempGC);
+				OS.XDestroyImage(xMaskPtr);
+			}
+			OS.XDestroyImage(xImagePtr);
+		}
 		
 		/* Change the source rectangle */
 		srcX = srcY = 0;
@@ -524,23 +574,25 @@ void drawImageMask(Image srcImage, int srcX, int srcY, int srcWidth, int srcHeig
 	}
 	
 	/* Do the blts */
-	XGCValues values = new XGCValues();
-	OS.XGetGCValues(xDisplay, handle, OS.GCForeground | OS. GCBackground | OS.GCFunction, values);
-	OS.XSetFunction(xDisplay, handle, OS.GXxor);
-	OS.XCopyArea(xDisplay, colorPixmap, xDrawable, handle, srcX, srcY, srcWidth, srcHeight, destX, destY);
-	OS.XSetForeground(xDisplay, handle, foreground);
-	OS.XSetBackground(xDisplay, handle, ~foreground);
-	OS.XSetFunction(xDisplay, handle, OS.GXand);
-	OS.XCopyPlane(xDisplay, maskPixmap, xDrawable, handle, srcX, srcY, srcWidth, srcHeight, destX, destY, 1);
-	OS.XSetFunction(xDisplay, handle, OS.GXxor);
-	OS.XCopyArea(xDisplay, colorPixmap, xDrawable, handle, srcX, srcY, srcWidth, srcHeight, destX, destY);
-	OS.XSetForeground(xDisplay, handle, values.foreground);
-	OS.XSetBackground(xDisplay, handle, values.background);
-	OS.XSetFunction(xDisplay, handle, values.function);
+	if (colorPixmap != 0 && maskPixmap != 0) {
+		XGCValues values = new XGCValues();
+		OS.XGetGCValues(xDisplay, handle, OS.GCForeground | OS. GCBackground | OS.GCFunction, values);
+		OS.XSetFunction(xDisplay, handle, OS.GXxor);
+		OS.XCopyArea(xDisplay, colorPixmap, xDrawable, handle, srcX, srcY, srcWidth, srcHeight, destX, destY);
+		OS.XSetForeground(xDisplay, handle, foreground);
+		OS.XSetBackground(xDisplay, handle, ~foreground);
+		OS.XSetFunction(xDisplay, handle, OS.GXand);
+		OS.XCopyPlane(xDisplay, maskPixmap, xDrawable, handle, srcX, srcY, srcWidth, srcHeight, destX, destY, 1);
+		OS.XSetFunction(xDisplay, handle, OS.GXxor);
+		OS.XCopyArea(xDisplay, colorPixmap, xDrawable, handle, srcX, srcY, srcWidth, srcHeight, destX, destY);
+		OS.XSetForeground(xDisplay, handle, values.foreground);
+		OS.XSetBackground(xDisplay, handle, values.background);
+		OS.XSetFunction(xDisplay, handle, values.function);
+	}
 
 	/* Destroy scaled pixmaps */
-	if (srcImage.pixmap != colorPixmap) OS.XFreePixmap(xDisplay, colorPixmap);
-	if (srcImage.mask != maskPixmap) OS.XFreePixmap(xDisplay, maskPixmap);
+	if (colorPixmap != 0 && srcImage.pixmap != colorPixmap) OS.XFreePixmap(xDisplay, colorPixmap);
+	if (maskPixmap != 0 && srcImage.mask != maskPixmap) OS.XFreePixmap(xDisplay, maskPixmap);
 	/* Destroy the image mask if the there is a GC created on the image */
 	if (srcImage.transparentPixel != -1 && srcImage.memGC != null) srcImage.destroyMask();
 }
@@ -555,17 +607,20 @@ void drawImage(Image srcImage, int srcX, int srcY, int srcWidth, int srcHeight, 
 	
 	/* Streching case */
 	int xImagePtr = scalePixmap(xDisplay, srcImage.pixmap, srcX, srcY, srcWidth, srcHeight, destX, destY, destWidth, destHeight, false, false);
-	OS.XPutImage(xDisplay, xDrawable, handle, xImagePtr, 0, 0, destX, destY, destWidth, destHeight);
-	OS.XDestroyImage(xImagePtr);
+	if (xImagePtr != 0) {
+		OS.XPutImage(xDisplay, xDrawable, handle, xImagePtr, 0, 0, destX, destY, destWidth, destHeight);
+		OS.XDestroyImage(xImagePtr);
+	}
 }
 static int scalePixmap(int display, int pixmap, int srcX, int srcY, int srcWidth, int srcHeight, int destX, int destY, int destWidth, int destHeight, boolean flipX, boolean flipY) {
 	int xSrcImagePtr = OS.XGetImage(display, pixmap, srcX, srcY, srcWidth, srcHeight, OS.AllPlanes, OS.ZPixmap);
-	if (xSrcImagePtr == 0) SWT.error(SWT.ERROR_NO_HANDLES);
+	if (xSrcImagePtr == 0) return 0;
 	XImage xSrcImage = new XImage();
 	OS.memmove(xSrcImage, xSrcImagePtr, XImage.sizeof);
 	byte[] srcData = new byte[xSrcImage.bytes_per_line * xSrcImage.height];
 	OS.memmove(srcData, xSrcImage.data, srcData.length);
-	int error = 0, xImagePtr = 0;
+	OS.XDestroyImage(xSrcImagePtr);
+	int xImagePtr = 0;
 	int visual = OS.XDefaultVisual(display, OS.XDefaultScreen(display));
 	switch (xSrcImage.bits_per_pixel) {
 		case 1:
@@ -573,10 +628,14 @@ static int scalePixmap(int display, int pixmap, int srcX, int srcY, int srcWidth
 		case 8: {
 			int format = xSrcImage.bits_per_pixel == 1 ? OS.XYBitmap : OS.ZPixmap;
 			xImagePtr = OS.XCreateImage(display, visual, xSrcImage.depth, format, 0, 0, destWidth, destHeight, xSrcImage.bitmap_pad, 0);
-			if (xImagePtr == 0) break;
+			if (xImagePtr == 0) return 0;
 			XImage xImage = new XImage();
 			OS.memmove(xImage, xImagePtr, XImage.sizeof);
 			int bufSize = xImage.bytes_per_line * xImage.height;
+			if (bufSize < 0) {
+				OS.XDestroyImage(xImagePtr);
+				return 0;
+			} 
 			int bufPtr = OS.XtMalloc(bufSize);
 			xImage.data = bufPtr;
 			OS.memmove(xImagePtr, xImage, XImage.sizeof);
@@ -595,10 +654,14 @@ static int scalePixmap(int display, int pixmap, int srcX, int srcY, int srcWidth
 		case 24:
 		case 32: {
 			xImagePtr = OS.XCreateImage(display, visual, xSrcImage.depth, OS.ZPixmap, 0, 0, destWidth, destHeight, xSrcImage.bitmap_pad, 0);
-			if (xImagePtr == 0) break;
+			if (xImagePtr == 0) return 0;
 			XImage xImage = new XImage();
 			OS.memmove(xImage, xImagePtr, XImage.sizeof);
 			int bufSize = xImage.bytes_per_line * xImage.height;
+			if (bufSize < 0) {
+				OS.XDestroyImage(xImagePtr);
+				return 0;
+			} 
 			int bufPtr = OS.XtMalloc(bufSize);
 			xImage.data = bufPtr;
 			OS.memmove(xImagePtr, xImage, XImage.sizeof);
@@ -611,14 +674,6 @@ static int scalePixmap(int display, int pixmap, int srcX, int srcY, int srcWidth
 			OS.memmove(bufPtr, buf, bufSize);
 			break;
 		}
-		default:
-			error = SWT.ERROR_UNSUPPORTED_DEPTH;
-	}
-	OS.XDestroyImage(xSrcImagePtr);
-	if (xImagePtr == 0) SWT.error(SWT.ERROR_NO_HANDLES);
-	if (error != 0) {
-		if (xImagePtr != 0) OS.XDestroyImage(xImagePtr);
-		SWT.error(error);
 	}
 	return xImagePtr;
 }
@@ -671,6 +726,27 @@ public void drawOval(int x, int y, int width, int height) {
 		height = -height;
 	}
 	OS.XDrawArc(data.display, data.drawable, handle, x, y, width, height, 0, 23040);
+}
+/** 
+ * Draws a pixel, using the foreground color, at the specified
+ * point (<code>x</code>, <code>y</code>).
+ * <p>
+ * Note that the receiver's line attributes do not affect this
+ * operation.
+ * </p>
+ *
+ * @param x the point's x coordinate
+ * @param y the point's y coordinate
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ *  
+ * @since 3.0
+ */
+public void drawPoint (int x, int y) {
+	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
+	OS.XDrawPoint(data.display, data.drawable, handle, x, y);
 }
 /** 
  * Draws the closed polygon which is defined by the specified array
@@ -926,19 +1002,17 @@ public void drawString (String string, int x, int y) {
 public void drawString (String string, int x, int y, boolean isTransparent) {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	if (string == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
-	byte [] buffer = Converter.wcsToMbcs (getCodePage (), string, true);
-	int xmString = OS.XmStringCreate (buffer, OS.XmFONTLIST_DEFAULT_TAG);
+	if (string.length() == 0) return;
+	setString(string);
 	if (isTransparent) {
-		OS.XmStringDraw (data.display, data.drawable, data.fontList, xmString, handle, x, y, 0x7FFFFFFF, OS.XmALIGNMENT_BEGINNING, 0, null);
+		OS.XmStringDraw (data.display, data.drawable, data.font.handle, data.xmString, handle, x, y, 0x7FFFFFFF, OS.XmALIGNMENT_BEGINNING, 0, null);
 	} else {
-		OS.XmStringDrawImage (data.display, data.drawable, data.fontList, xmString, handle, x, y, 0x7FFFFFFF, OS.XmALIGNMENT_BEGINNING, 0, null);
+		OS.XmStringDrawImage (data.display, data.drawable, data.font.handle, data.xmString, handle, x, y, 0x7FFFFFFF, OS.XmALIGNMENT_BEGINNING, 0, null);
 	}			
-//	OS.XmStringDrawUnderline (display, drawable, fontList, xmString, handle, x, y, 0x7FFFFFFF, OS.XmALIGNMENT_BEGINNING, 0, null, 0);
-	OS.XmStringFree (xmString);
 }
 void createRenderTable() {
 	int xDisplay = data.display;
-	int fontList = data.fontList;	
+	int fontList = data.font.handle;	
 	/* Get the width of the tabs */
 	byte[] buffer = {(byte)' ', 0};
 	int xmString = OS.XmStringCreate(buffer, OS.XmFONTLIST_DEFAULT_TAG);
@@ -957,7 +1031,7 @@ void createRenderTable() {
 		SWT.error(SWT.ERROR_NO_HANDLES);
 	}
 	int context = fontBuffer[0], fontListEntry = 0;
-	int widgetClass = OS.TopLevelShellWidgetClass ();
+	int widgetClass = OS.topLevelShellWidgetClass ();
 	int[] renditions = new int[4]; int renditionCount = 0;	
 		
 	/* Create a rendition for each entry in the font list */
@@ -1071,35 +1145,18 @@ public void drawText (String string, int x, int y, boolean isTransparent) {
 public void drawText (String string, int x, int y, int flags) {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	if (string == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
-	if (data.renderTable == 0) createRenderTable();
-	int renderTable = data.renderTable;
-
-	char mnemonic=0;
-	int tableLength = 0;
-	Device device = data.device;
-	int[] parseTable = new int[2];
-	char[] text = new char[string.length()];
-	string.getChars(0, text.length, text, 0);
-	if ((flags & SWT.DRAW_DELIMITER) != 0) parseTable[tableLength++] = device.crMapping;
-	if ((flags & SWT.DRAW_TAB) != 0) parseTable[tableLength++] = device.tabMapping;
-	if ((flags & SWT.DRAW_MNEMONIC) != 0) mnemonic = stripMnemonic(text);
-	
-	String codePage = getCodePage();
-	byte[] buffer = Converter.wcsToMbcs(codePage, text, true);
-	int xmString = OS.XmStringParseText(buffer, 0, OS.XmFONTLIST_DEFAULT_TAG, OS.XmCHARSET_TEXT, parseTable, tableLength, 0);
-	if (mnemonic != 0) {
-		byte [] buffer1 = Converter.wcsToMbcs(codePage, new char[]{mnemonic}, true);
-		int xmStringUnderline = OS.XmStringCreate (buffer1, OS.XmFONTLIST_DEFAULT_TAG);
-		OS.XmStringDrawUnderline(data.display, data.drawable, renderTable, xmString, handle, x, y, 0x7FFFFFFF, OS.XmALIGNMENT_BEGINNING, 0, null, xmStringUnderline);
-		OS.XmStringFree(xmStringUnderline);
+	if (string.length() == 0) return;
+	setText(string, flags);
+	int xmMnemonic = data.xmMnemonic;
+	if (xmMnemonic != 0) {
+		OS.XmStringDrawUnderline(data.display, data.drawable, data.renderTable, data.xmText, handle, x, y, 0x7FFFFFFF, OS.XmALIGNMENT_BEGINNING, 0, null, xmMnemonic);
 	} else {
 		if ((flags & SWT.DRAW_TRANSPARENT) != 0) {
-			OS.XmStringDraw(data.display, data.drawable, renderTable, xmString, handle, x, y, 0x7FFFFFFF, OS.XmALIGNMENT_BEGINNING, 0, null);
+			OS.XmStringDraw(data.display, data.drawable, data.renderTable, data.xmText, handle, x, y, 0x7FFFFFFF, OS.XmALIGNMENT_BEGINNING, 0, null);
 		} else {
-			OS.XmStringDrawImage(data.display, data.drawable, renderTable, xmString, handle, x, y, 0x7FFFFFFF, OS.XmALIGNMENT_BEGINNING, 0, null);
+			OS.XmStringDrawImage(data.display, data.drawable, data.renderTable, data.xmText, handle, x, y, 0x7FFFFFFF, OS.XmALIGNMENT_BEGINNING, 0, null);
 		}
 	}
-	OS.XmStringFree(xmString);
 }
 /**
  * Compares the argument to the receiver, and returns true
@@ -1142,16 +1199,13 @@ public boolean equals (Object object) {
  * @param startAngle the beginning angle
  * @param arcAngle the angular extent of the arc, relative to the start angle
  *
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_INVALID_ARGUMENT - if any of the width, height or endAngle is zero.</li>
- * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
  * </ul>
  *
  * @see #drawArc
  */
-public void fillArc(int x, int y, int width, int height, int startAngle, int endAngle) {
+public void fillArc(int x, int y, int width, int height, int startAngle, int arcAngle) {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	if (width < 0) {
 		x = x + width;
@@ -1161,14 +1215,12 @@ public void fillArc(int x, int y, int width, int height, int startAngle, int end
 		y = y + height;
 		height = -height;
 	}
-	if (width == 0 || height == 0 || endAngle == 0) {
-		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
-	}
+	if (width == 0 || height == 0 || arcAngle == 0) return;
 	int xDisplay = data.display;
 	XGCValues values = new XGCValues ();
 	OS.XGetGCValues (xDisplay, handle, OS.GCForeground | OS.GCBackground, values);
 	OS.XSetForeground (xDisplay, handle, values.background);
-	OS.XFillArc(xDisplay,data.drawable,handle,x,y,width,height,startAngle * 64 ,endAngle * 64);
+	OS.XFillArc(xDisplay, data.drawable, handle, x, y, width, height, startAngle * 64, arcAngle * 64);
 	OS.XSetForeground (xDisplay, handle, values.foreground);
 }
 
@@ -1372,7 +1424,7 @@ public void fillRectangle (int x, int y, int width, int height) {
  * Fills the interior of the specified rectangle, using the receiver's
  * background color. 
  *
- * @param rectangle the rectangle to be filled
+ * @param rect the rectangle to be filled
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the rectangle is null</li>
@@ -1438,27 +1490,41 @@ public void fillRoundRectangle (int x, int y, int width, int height, int arcWidt
 	if (nw > naw) {
 		if (nh > nah) {
 			OS.XFillArc(xDisplay, xDrawable, handle, nx, ny, naw, nah, 5760, 5760);
-			OS.XFillRectangle(xDisplay, xDrawable, handle, nx + naw2, ny, nw - naw, nah2);
+			OS.XFillRectangle(xDisplay, xDrawable, handle, nx + naw2, ny, nw - naw2 * 2, nah2);
 			OS.XFillArc(xDisplay, xDrawable, handle, nx + nw - naw, ny, naw, nah, 0, 5760);
-			OS.XFillRectangle(xDisplay, xDrawable, handle, nx, ny + nah2, nw, nh - nah);
+			OS.XFillRectangle(xDisplay, xDrawable, handle, nx, ny + nah2, nw, nh - nah2 * 2);
 			OS.XFillArc(xDisplay, xDrawable, handle, nx + nw - naw, ny + nh - nah, naw, nah, 17280, 5760);
-			OS.XFillRectangle(xDisplay, xDrawable, handle, nx + naw2, ny + nh - nah2, nw - naw, nah2);
+			OS.XFillRectangle(xDisplay, xDrawable, handle, nx + naw2, ny + nh - nah2, nw - naw2 * 2, nah2);
 			OS.XFillArc(xDisplay, xDrawable, handle, nx, ny + nh - nah, naw, nah, 11520, 5760);
 		} else {
 			OS.XFillArc(xDisplay, xDrawable, handle, nx, ny, naw, nh, 5760, 11520);
-			OS.XFillRectangle(xDisplay, xDrawable, handle, nx + naw2, ny, nw - naw, nh);
+			OS.XFillRectangle(xDisplay, xDrawable, handle, nx + naw2, ny, nw - naw2 * 2, nh);
 			OS.XFillArc(xDisplay, xDrawable, handle, nx + nw - naw, ny, naw, nh, 17280, 11520);
 		}
 	} else {
 		if (nh > nah) {
 			OS.XFillArc(xDisplay, xDrawable, handle, nx, ny, nw, nah, 0, 11520);
-			OS.XFillRectangle(xDisplay, xDrawable, handle, nx, ny + nah2, nw, nh - nah);
+			OS.XFillRectangle(xDisplay, xDrawable, handle, nx, ny + nah2, nw, nh - nah2 * 2);
 			OS.XFillArc(xDisplay, xDrawable, handle, nx, ny + nh - nah, nw, nah, 11520, 11520);
 		} else {
 			OS.XFillArc(xDisplay, xDrawable, handle, nx, ny, nw, nh, 0, 23040);
 		}
 	}
 	OS.XSetForeground(xDisplay, handle, values.foreground);
+}
+char fixMnemonic(char[] text) {
+	char mnemonic=0;
+	int i=0, j=0;
+	while (i < text.length) {
+		if ((text [j++] = text [i++]) == '&') {
+			if (i == text.length) {continue;}
+			if (text [i] == '&') {i++; continue;}
+			if (mnemonic == 0) mnemonic = text [i];
+			j--;
+		}
+	}
+	while (j < text.length) text [j++] = 0;
+	return mnemonic;
 }
 /**
  * Returns the <em>advance width</em> of the specified character in
@@ -1477,7 +1543,7 @@ public void fillRoundRectangle (int x, int y, int width, int height, int arcWidt
  */
 public int getAdvanceWidth(char ch) {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
-	int fontList  = data.fontList;
+	int fontList  = data.font.handle;
 	byte[] charBuffer = Converter.wcsToMbcs(getCodePage (), new char[] { ch }, false);
 	int val = charBuffer[0] & 0xFF;
 	/* Create a font context to iterate over each element in the font list */
@@ -1501,10 +1567,21 @@ public int getAdvanceWidth(char ch) {
 				/* Single byte fontStruct */
 				if (fontStruct.min_char_or_byte2 <= val && val <= fontStruct.max_char_or_byte2) {
 					/* The font contains the character */
-					OS.memmove(charStruct, fontStruct.per_char + ((val - fontStruct.min_char_or_byte2) * XCharStruct.sizeof), XCharStruct.sizeof);
-					if (charStruct.width != 0) {
+					int charWidth = 0;
+					int perCharPtr = fontStruct.per_char;	
+					if (perCharPtr == 0) {
+						/*
+						 * If perCharPtr is 0 then all glyphs in the font have
+						 * the same width as the font's maximum width.
+						 */
+						 charWidth = fontStruct.max_bounds_width;
+					} else {
+						OS.memmove(charStruct, perCharPtr + ((val - fontStruct.min_char_or_byte2) * XCharStruct.sizeof), XCharStruct.sizeof);
+						charWidth = charStruct.width;
+					} 
+					if (charWidth != 0) {
 						OS.XmFontListFreeFontContext(context);
-						return charStruct.width;
+						return charWidth;
 					}
 				}
 			} else {
@@ -1515,11 +1592,22 @@ public int getAdvanceWidth(char ch) {
 				int col = charBuffer[0] - fontStruct.min_char_or_byte2;
 				if (row <= fontStruct.max_byte1 && col <= fontStruct.max_char_or_byte2) {
 					/* The font contains the character */
-					int offset = row * charsPerRow + col;
-					OS.memmove(charStruct, fontStruct.per_char + offset * XCharStruct.sizeof, XCharStruct.sizeof);
-					if (charStruct.width != 0) {
+					int charWidth = 0;
+					int perCharPtr = fontStruct.per_char;	
+					if (perCharPtr == 0) {
+						/*
+						 * If perCharPtr is 0 then all glyphs in the font have
+						 * the same width as the font's maximum width.
+						 */
+						 charWidth = fontStruct.max_bounds_width;
+					} else {
+						int offset = row * charsPerRow + col;
+						OS.memmove(charStruct, perCharPtr + offset * XCharStruct.sizeof, XCharStruct.sizeof);
+						charWidth = charStruct.width;
+					}
+					if (charWidth != 0) {
 						OS.XmFontListFreeFontContext(context);
-						return charStruct.width;
+						return charWidth;
 					}
 				}
 			} 
@@ -1535,10 +1623,21 @@ public int getAdvanceWidth(char ch) {
 					/* Single byte fontStruct */
 					if (fontStruct.min_char_or_byte2 <= val && val <= fontStruct.max_char_or_byte2) {
 						/* The font contains the character */
-						OS.memmove(charStruct, fontStruct.per_char + (val - fontStruct.min_char_or_byte2 * XCharStruct.sizeof), XCharStruct.sizeof);
-						if (charStruct.width != 0) {
+						int charWidth = 0;
+						int perCharPtr = fontStruct.per_char;	
+						if (perCharPtr == 0) {
+							/*
+							 * If perCharPtr is 0 then all glyphs in the font have
+							 * the same width as the font's maximum width.
+							 */
+							 charWidth = fontStruct.max_bounds_width;
+						} else {
+							OS.memmove(charStruct, perCharPtr + (val - fontStruct.min_char_or_byte2 * XCharStruct.sizeof), XCharStruct.sizeof);
+							charWidth = charStruct.width;
+						}
+						if (charWidth != 0) {
 							OS.XmFontListFreeFontContext(context);
-							return charStruct.width;
+							return charWidth;
 						}
 					}
 				} else {
@@ -1549,11 +1648,22 @@ public int getAdvanceWidth(char ch) {
 					int col = charBuffer[0] - fontStruct.min_char_or_byte2;
 					if (row <= fontStruct.max_byte1 && col <= fontStruct.max_char_or_byte2) {
 						/* The font contains the character */
-						int offset = row * charsPerRow + col;
-						OS.memmove(charStruct, fontStruct.per_char + offset * XCharStruct.sizeof, XCharStruct.sizeof);
-						if (charStruct.width != 0) {
+						int charWidth = 0;
+						int perCharPtr = fontStruct.per_char;	
+						if (perCharPtr == 0) {
+							/*
+							 * If perCharPtr is 0 then all glyphs in the font have
+							 * the same width as the font's maximum width.
+							 */
+							 charWidth = fontStruct.max_bounds_width;
+						} else {
+							int offset = row * charsPerRow + col;
+							OS.memmove(charStruct, perCharPtr + offset * XCharStruct.sizeof, XCharStruct.sizeof);
+							charWidth = charStruct.width;
+						}
+						if (charWidth != 0) {
 							OS.XmFontListFreeFontContext(context);
-							return charStruct.width;
+							return charWidth;
 						}
 					}
 				} 
@@ -1601,7 +1711,7 @@ public Color getBackground() {
  */
 public int getCharWidth(char ch) {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
-	int fontList = data.fontList;
+	int fontList = data.font.handle;
 	byte[] charBuffer = Converter.wcsToMbcs(getCodePage (), new char[] { ch }, false);
 	int val = charBuffer[0] & 0xFF;
 	/* Create a font context to iterate over each element in the font list */
@@ -1625,10 +1735,27 @@ public int getCharWidth(char ch) {
 				/* Single byte fontStruct */
 				if (fontStruct.min_char_or_byte2 <= val && val <= fontStruct.max_char_or_byte2) {
 					/* The font contains the character */
-					OS.memmove(charStruct, fontStruct.per_char + ((val - fontStruct.min_char_or_byte2) * XCharStruct.sizeof), XCharStruct.sizeof);
-					if (charStruct.width != 0) {
+					int charWidth = 0;
+					int lBearing = 0;
+					int rBearing = 0;
+					int perCharPtr = fontStruct.per_char;	
+					if (perCharPtr == 0) {
+						/*
+						 * If perCharPtr is 0 then all glyphs in the font have
+						 * the same width and left/right bearings as the font.
+						 */
+						charWidth = fontStruct.max_bounds_width;
+						lBearing = fontStruct.min_bounds_lbearing;
+						rBearing = fontStruct.max_bounds_rbearing;
+					} else {
+						OS.memmove(charStruct, perCharPtr + ((val - fontStruct.min_char_or_byte2) * XCharStruct.sizeof), XCharStruct.sizeof);
+						charWidth = charStruct.width;
+						lBearing = charStruct.lbearing;
+						rBearing = charStruct.rbearing;
+					}
+					if (charWidth != 0) {
 						OS.XmFontListFreeFontContext(context);
-						return charStruct.rbearing - charStruct.lbearing;
+						return rBearing - lBearing;
 					}
 				}
 			} else {
@@ -1639,11 +1766,28 @@ public int getCharWidth(char ch) {
 				int col = charBuffer[0] - fontStruct.min_char_or_byte2;
 				if (row <= fontStruct.max_byte1 && col <= fontStruct.max_char_or_byte2) {
 					/* The font contains the character */
-					int offset = row * charsPerRow + col;
-					OS.memmove(charStruct, fontStruct.per_char + offset * XCharStruct.sizeof, XCharStruct.sizeof);
-					if (charStruct.width != 0) {
+					int charWidth = 0;
+					int lBearing = 0;
+					int rBearing = 0;
+					int perCharPtr = fontStruct.per_char;	
+					if (perCharPtr == 0) {
+						/*
+						 * If perCharPtr is 0 then all glyphs in the font have
+						 * the same width and left/right bearings as the font.
+						 */
+						charWidth = fontStruct.max_bounds_width;
+						lBearing = fontStruct.min_bounds_lbearing;
+						rBearing = fontStruct.max_bounds_rbearing;
+					} else {
+						int offset = row * charsPerRow + col;
+						OS.memmove(charStruct, perCharPtr + offset * XCharStruct.sizeof, XCharStruct.sizeof);
+						charWidth = charStruct.width;
+						lBearing = charStruct.lbearing;
+						rBearing = charStruct.rbearing;
+					}
+					if (charWidth != 0) {
 						OS.XmFontListFreeFontContext(context);
-						return charStruct.rbearing - charStruct.lbearing;
+						return rBearing - lBearing;
 					}
 				}
 			} 
@@ -1659,10 +1803,27 @@ public int getCharWidth(char ch) {
 					/* Single byte fontStruct */
 					if (fontStruct.min_char_or_byte2 <= val && val <= fontStruct.max_char_or_byte2) {
 						/* The font contains the character */
-						OS.memmove(charStruct, fontStruct.per_char + (val - fontStruct.min_char_or_byte2 * XCharStruct.sizeof), XCharStruct.sizeof);
-						if (charStruct.width != 0) {
+						int charWidth = 0;
+						int lBearing = 0;
+						int rBearing = 0;
+						int perCharPtr = fontStruct.per_char;	
+						if (perCharPtr == 0) {
+							/*
+							 * If perCharPtr is 0 then all glyphs in the font have
+							 * the same width and left/right bearings as the font.
+							 */
+							charWidth = fontStruct.max_bounds_width;
+							lBearing = fontStruct.min_bounds_lbearing;
+							rBearing = fontStruct.max_bounds_rbearing;
+						} else {
+							OS.memmove(charStruct, perCharPtr + (val - fontStruct.min_char_or_byte2 * XCharStruct.sizeof), XCharStruct.sizeof);
+							charWidth = charStruct.width;
+							lBearing = charStruct.lbearing;
+							rBearing = charStruct.rbearing;
+						}
+						if (charWidth != 0) {
 							OS.XmFontListFreeFontContext(context);
-							return charStruct.rbearing - charStruct.lbearing;
+							return rBearing - lBearing;
 						}
 					}
 				} else {
@@ -1673,11 +1834,28 @@ public int getCharWidth(char ch) {
 					int col = charBuffer[0] - fontStruct.min_char_or_byte2;
 					if (row <= fontStruct.max_byte1 && col <= fontStruct.max_char_or_byte2) {
 						/* The font contains the character */
-						int offset = row * charsPerRow + col;
-						OS.memmove(charStruct, fontStruct.per_char + offset * XCharStruct.sizeof, XCharStruct.sizeof);
-						if (charStruct.width != 0) {
+						int charWidth = 0;
+						int lBearing = 0;
+						int rBearing = 0;
+						int perCharPtr = fontStruct.per_char;	
+						if (perCharPtr == 0) {
+							/*
+							 * If perCharPtr is 0 then all glyphs in the font have
+							 * the same width and left/right bearings as the font.
+							 */
+							charWidth = fontStruct.max_bounds_width;
+							lBearing = fontStruct.min_bounds_lbearing;
+							rBearing = fontStruct.max_bounds_rbearing;
+						} else {
+							int offset = row * charsPerRow + col;
+							OS.memmove(charStruct, perCharPtr + offset * XCharStruct.sizeof, XCharStruct.sizeof);
+							charWidth = charStruct.width;
+							lBearing = charStruct.lbearing;
+							rBearing = charStruct.rbearing;
+						}
+						if (charWidth != 0) {
 							OS.XmFontListFreeFontContext(context);
-							return charStruct.rbearing - charStruct.lbearing;
+							return rBearing - lBearing;
 						}
 					}
 				} 
@@ -1745,7 +1923,7 @@ public void getClipping(Region region) {
 	OS.XUnionRegion (clipRgn, hRegion, hRegion);
 }
 String getCodePage () {
-	return data.codePage;
+	return data.font.codePage;
 }
 /** 
  * Returns the font currently being used by the receiver
@@ -1759,10 +1937,10 @@ String getCodePage () {
  */
 public Font getFont () {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
-	return Font.motif_new(data.device, data.fontList);
+	return Font.motif_new(data.device, data.font.handle);
 }
 int getFontHeight () {
-	int fontList = data.fontList;
+	int fontList = data.font.handle;
 	/* Create a font context to iterate over each element in the font list */
 	int [] buffer = new int [1];
 	if (!OS.XmFontListInitFontContext (buffer, fontList)) {
@@ -1780,11 +1958,11 @@ int getFontHeight () {
 	/* Go through each entry in the font list. */
 	while ((fontListEntry = OS.XmFontListNextEntry (context)) != 0) {
 		int fontPtr = OS.XmFontListEntryGetFont (fontListEntry, buffer);
-		if (buffer [0] == 0) { 
+		if (buffer [0] == 0) {
 			/* FontList contains a single font */
 			OS.memmove (fontStruct, fontPtr, XFontStruct.sizeof);
 			int fontHeight = fontStruct.ascent + fontStruct.descent;
-			if (fontHeight > height) height = fontHeight;
+			height = Math.max(height, fontHeight);
 		} else {
 			/* FontList contains a fontSet */
 			int nFonts = OS.XFontsOfFontSet (fontPtr, fontStructPtr, fontNamePtr);
@@ -1792,10 +1970,10 @@ int getFontHeight () {
 			OS.memmove (fontStructs, fontStructPtr [0], nFonts * 4);
 			
 			/* Go through each fontStruct in the font set */
-			for (int i=0; i<nFonts; i++) { 
+			for (int i=0; i<nFonts; i++) {
 				OS.memmove (fontStruct, fontStructs[i], XFontStruct.sizeof);
 				int fontHeight = fontStruct.ascent + fontStruct.descent;
-				if (fontHeight > height) height = fontHeight;
+				height = Math.max(height, fontHeight);
 			}
 		}
 	}
@@ -1817,7 +1995,8 @@ int getFontHeight () {
 public FontMetrics getFontMetrics() {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	int xDisplay = data.display;
-	int fontList = data.fontList;
+	Font font = data.font;
+	int fontList = font.handle;
 	/* Create a font context to iterate over each element in the font list */
 	int[] buffer = new int[1];
 	if (!OS.XmFontListInitFontContext(buffer, fontList)) {
@@ -1838,15 +2017,13 @@ public FontMetrics getFontMetrics() {
 	/* Go through each entry in the font list. */
 	while ((fontListEntry = OS.XmFontListNextEntry(context)) != 0) {
 		int fontPtr = OS.XmFontListEntryGetFont(fontListEntry, buffer);
-		if (buffer[0] == 0) { 
+		if (buffer[0] == 0) {
 			/* FontList contains a single font */
 			OS.memmove(fontStruct, fontPtr, XFontStruct.sizeof);
-			ascent = ascent > fontStruct.max_bounds_ascent ? ascent : fontStruct.max_bounds_ascent;
-			descent = descent > fontStruct.descent ? descent : fontStruct.descent;
-			int tmp = fontStruct.ascent + fontStruct.descent;
-			height = height > tmp ? height : tmp;
-			tmp = fontStruct.ascent - fontStruct.max_bounds_ascent;
-			leading = leading > tmp ? leading : tmp;
+			ascent = Math.max(ascent, fontStruct.ascent);
+			descent = Math.max(descent, fontStruct.descent);
+			int fontHeight = fontStruct.ascent + fontStruct.descent;
+			height = Math.max(height, fontHeight);
 			/* Calculate average character width */
 			int propPtr = fontStruct.properties;
 			for (int i = 0; i < fontStruct.n_properties; i++) {
@@ -1904,21 +2081,18 @@ public FontMetrics getFontMetrics() {
 				}
 				propPtr += 8;
 			}
-		}
-		else { 
+		} else {
 			/* FontList contains a fontSet */
 			int nFonts = OS.XFontsOfFontSet(fontPtr, fontStructPtr, fontNamePtr);
 			int [] fontStructs = new int[nFonts];
 			OS.memmove(fontStructs, fontStructPtr[0], nFonts * 4);
 			/* Go through each fontStruct in the font set */
-			for (int i = 0; i < nFonts; i++) { 
+			for (int i = 0; i < nFonts; i++) {
 				OS.memmove(fontStruct, fontStructs[i], XFontStruct.sizeof);
-				ascent = ascent > fontStruct.max_bounds_ascent ? ascent : fontStruct.max_bounds_ascent;
-				descent = descent > fontStruct.descent ? descent : fontStruct.descent;
-				int tmp = fontStruct.ascent + fontStruct.descent;
-				height = height > tmp ? height : tmp;
-				tmp = fontStruct.ascent - fontStruct.max_bounds_ascent;
-				leading = leading > tmp ? leading : tmp;
+				ascent = Math.max(ascent, fontStruct.ascent);
+				descent = Math.max(descent, fontStruct.descent);
+				int fontHeight = fontStruct.ascent + fontStruct.descent;
+				height = Math.max(height, fontHeight);
 				/* Calculate average character width */
 				int propPtr = fontStruct.properties;
 				for (int j = 0; j < fontStruct.n_properties; j++) {
@@ -2055,6 +2229,24 @@ public int getLineWidth() {
 	OS.XGetGCValues(data.display, handle, OS.GCLineWidth, values);
 	return values.line_width;
 }
+/**
+ * Returns the receiver's style information.
+ * <p>
+ * Note that the value which is returned by this method <em>may
+ * not match</em> the value which was provided to the constructor
+ * when the receiver was created. This can occur when the underlying
+ * operating system does not support a particular combination of
+ * requested styles. 
+ * </p>
+ *
+ * @return the style bits
+ *  
+ * @exception SWTException <ul>
+ *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ *   
+ * @since 2.1.2
+ */
 public int getStyle () {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	return data.style;
@@ -2147,10 +2339,45 @@ public boolean isClipped() {
 public boolean isDisposed() {
 	return handle == 0;
 }
+/**	 
+ * Invokes platform specific functionality to allocate a new graphics context.
+ * <p>
+ * <b>IMPORTANT:</b> This method is <em>not</em> part of the public
+ * API for <code>GC</code>. It is marked public only so that it
+ * can be shared within the packages provided by SWT. It is not
+ * available on all platforms, and should never be called from
+ * application code.
+ * </p>
+ *
+ * @param drawable the Drawable for the receiver.
+ * @param data the data for the receiver.
+ *
+ * @return a new <code>GC</code>
+ */
 public static GC motif_new(Drawable drawable, GCData data) {
 	GC gc = new GC();
 	int xGC = drawable.internal_new_GC(data);
 	gc.init(drawable, data, xGC);
+	return gc;
+}
+/**	 
+ * Invokes platform specific functionality to wrap a graphics context.
+ * <p>
+ * <b>IMPORTANT:</b> This method is <em>not</em> part of the public
+ * API for <code>GC</code>. It is marked public only so that it
+ * can be shared within the packages provided by SWT. It is not
+ * available on all platforms, and should never be called from
+ * application code.
+ * </p>
+ *
+ * @param xGC the X Windows graphics context.
+ * @param data the data for the receiver.
+ *
+ * @return a new <code>GC</code>
+ */
+public static GC motif_new(int xGC, GCData data) {
+	GC gc = new GC();
+	gc.init(null, data, xGC);
 	return gc;
 }
 /**
@@ -2231,7 +2458,7 @@ public void setClipping (Rectangle rect) {
  * by drawing operations to the region specified
  * by the argument.
  *
- * @param rect the clipping region.
+ * @param region the clipping region.
  *
  * @exception SWTException <ul>
  *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
@@ -2275,10 +2502,10 @@ public void setFont (Font font) {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	if (font == null) font = data.device.systemFont;
 	if (font.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
-	data.fontList = font.handle;
-	data.codePage = font.codePage;
+	data.font = font;
 	if (data.renderTable != 0) OS.XmRenderTableFree(data.renderTable);
 	data.renderTable = 0;
+	data.stringWidth = data.stringHeight = data.textWidth = data.textHeight = -1;
 }
 /**
  * Sets the foreground color. The foreground color is used
@@ -2315,29 +2542,30 @@ public void setForeground (Color color) {
 public void setLineStyle(int lineStyle) {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	int xDisplay = data.display;
+	int line_style = OS.LineOnOffDash;
 	switch (lineStyle) {
 		case SWT.LINE_SOLID:
-			data.lineStyle = lineStyle;
-			OS.XSetLineAttributes(xDisplay, handle, 0, OS.LineSolid, OS.CapButt, OS.JoinMiter);
-			return;
+			line_style = OS.LineSolid;
+			break;
 		case SWT.LINE_DASH:
-			OS.XSetDashes(xDisplay,handle,0, new byte[] {6, 2},2);
+			OS.XSetDashes(xDisplay, handle, 0, new byte[]{6, 2}, 2);
 			break;
 		case SWT.LINE_DOT:
-			OS.XSetDashes(xDisplay,handle,0, new byte[] {3, 1},2);
+			OS.XSetDashes(xDisplay, handle, 0, new byte[]{3, 1}, 2);
 			break;
 		case SWT.LINE_DASHDOT:
-			OS.XSetDashes(xDisplay,handle,0, new byte[] {6, 2, 3, 1},4);
+			OS.XSetDashes(xDisplay, handle, 0, new byte[]{6, 2, 3, 1}, 4);
 			break;
 		case SWT.LINE_DASHDOTDOT:
-			OS.XSetDashes(xDisplay,handle,0, new byte[] {6, 2, 3, 1, 3, 1},6);
+			OS.XSetDashes(xDisplay, handle, 0, new byte[]{6, 2, 3, 1, 3, 1}, 6);
 			break;
 		default:
 			SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
 	data.lineStyle = lineStyle;
-	OS.XSetLineAttributes(xDisplay, handle, 0, OS.LineOnOffDash, OS.CapButt, OS.JoinMiter);
-	
+	XGCValues values = new XGCValues();
+	OS.XGetGCValues(xDisplay, handle, OS.GCLineWidth, values);
+	OS.XSetLineAttributes(xDisplay, handle, values.line_width, line_style, OS.CapRound, OS.JoinMiter);
 }
 /** 
  * Sets the width that will be used when drawing lines
@@ -2353,11 +2581,45 @@ public void setLineStyle(int lineStyle) {
  */
 public void setLineWidth(int width) {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
-	if (data.lineStyle == SWT.LINE_SOLID) {
-		OS.XSetLineAttributes(data.display, handle, width, OS.LineSolid, OS.CapButt, OS.JoinMiter);
-	} else {
-		OS.XSetLineAttributes(data.display, handle, width, OS.LineDoubleDash, OS.CapButt, OS.JoinMiter);
+	int line_style = data.lineStyle == SWT.LINE_SOLID ? OS.LineSolid : OS.LineOnOffDash;
+	OS.XSetLineAttributes(data.display, handle, width, line_style, OS.CapRound, OS.JoinMiter);	
+}
+void setString(String string) {
+	if (string == data.string) return;
+	if (data.xmString != 0) OS.XmStringFree(data.xmString);
+	byte[] buffer = Converter.wcsToMbcs(getCodePage (), string, true);
+	data.xmString = OS.XmStringCreate(buffer, OS.XmFONTLIST_DEFAULT_TAG);
+	data.string = string;
+	data.stringWidth = data.stringHeight = -1;
+}
+void setText(String string, int flags) {
+	if (data.renderTable == 0) createRenderTable();
+	if (string == data.text && (flags & ~SWT.DRAW_TRANSPARENT) == (data.drawFlags & ~SWT.DRAW_TRANSPARENT)) {
+		return;
 	}
+	if (data.xmText != 0) OS.XmStringFree(data.xmText);
+	if (data.xmMnemonic != 0) OS.XmStringFree(data.xmMnemonic);
+	char mnemonic = 0;
+	int tableLength = 0;
+	Device device = data.device;
+	int[] parseTable = new int[2];
+	char[] text = new char[string.length()];
+	string.getChars(0, text.length, text, 0);	
+	if ((flags & SWT.DRAW_DELIMITER) != 0) parseTable[tableLength++] = device.crMapping;
+	if ((flags & SWT.DRAW_TAB) != 0) parseTable[tableLength++] = device.tabMapping;
+	if ((flags & SWT.DRAW_MNEMONIC) != 0) mnemonic = fixMnemonic(text);
+	String codePage = getCodePage();
+	byte[] buffer = Converter.wcsToMbcs(codePage, text, true);
+	data.xmText = OS.XmStringParseText(buffer, 0, OS.XmFONTLIST_DEFAULT_TAG, OS.XmCHARSET_TEXT, parseTable, tableLength, 0);
+	if (mnemonic != 0) {
+		byte [] buffer1 = Converter.wcsToMbcs(codePage, new char[]{mnemonic}, true);
+		data.xmMnemonic = OS.XmStringCreate (buffer1, OS.XmFONTLIST_DEFAULT_TAG);
+	} else {
+		data.xmMnemonic = 0;
+	}
+	data.text = string;
+	data.textWidth = data.textHeight = -1;
+	data.drawFlags = flags;
 }
 /** 
  * If the argument is <code>true</code>, puts the receiver
@@ -2375,10 +2637,7 @@ public void setLineWidth(int width) {
  */
 public void setXORMode(boolean xor) {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
-	if (xor)
-		OS.XSetFunction(data.display, handle, OS.GXxor);
-	else
-		OS.XSetFunction(data.display, handle, OS.GXcopy);
+	OS.XSetFunction(data.display, handle, xor ? OS.GXxor : OS.GXcopy);
 }
 /**
  * Returns the extent of the given string. No tab
@@ -2402,28 +2661,19 @@ public void setXORMode(boolean xor) {
 public Point stringExtent(String string) {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	if (string == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
-	if (string.length () == 0) return new Point(0, getFontHeight());
-	byte[] buffer = Converter.wcsToMbcs(getCodePage (), string, true);
-	int xmString = OS.XmStringCreate(buffer, OS.XmFONTLIST_DEFAULT_TAG);
-	int fontList = data.fontList;
-	int width = OS.XmStringWidth(fontList, xmString);
-	int height = OS.XmStringHeight(fontList, xmString);
-	OS.XmStringFree(xmString);
-	return new Point(width, height);
-}
-char stripMnemonic(char[] text) {
-	char mnemonic=0;
-	int i=0, j=0;
-	while (i < text.length) {
-		if ((text [j++] = text [i++]) == '&') {
-			if (i == text.length) {continue;}
-			if (text [i] == '&') {i++; continue;}
-			if (mnemonic == 0) mnemonic = text [i];
-			j--;
-		}
+	setString(string);
+	if (data.stringWidth != -1) return new Point(data.stringWidth, data.stringHeight);
+	int width, height;
+	if (string.length() == 0) {
+		width = 0;
+		height = getFontHeight();
+	} else {
+		int fontList = data.font.handle;
+		int xmString = data.xmString;
+		width = OS.XmStringWidth(fontList, xmString);
+		height = OS.XmStringHeight(fontList, xmString);
 	}
-	while (j < text.length) text [j++] = 0;
-	return mnemonic;
+	return new Point(data.stringWidth = width, data.stringHeight = height);
 }
 /**
  * Returns the extent of the given string. Tab expansion and
@@ -2481,25 +2731,19 @@ public Point textExtent(String string) {
 public Point textExtent(String string, int flags) {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	if (string == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
-	if (string.length () == 0) return new Point(0, getFontHeight());
-	if (data.renderTable == 0) createRenderTable();
-	int renderTable = data.renderTable;
-
-	int tableLength = 0;
-	Device device = data.device;
-	int[] parseTable = new int[2];
-	char[] text = new char[string.length()];
-	string.getChars(0, text.length, text, 0);	
-	if ((flags & SWT.DRAW_DELIMITER) != 0) parseTable[tableLength++] = device.crMapping;
-	if ((flags & SWT.DRAW_TAB) != 0) parseTable[tableLength++] = device.tabMapping;
-	if ((flags & SWT.DRAW_MNEMONIC) != 0) stripMnemonic(text);	
-
-	byte[] buffer = Converter.wcsToMbcs(getCodePage(), text, true);
-	int xmString = OS.XmStringParseText(buffer, 0, OS.XmFONTLIST_DEFAULT_TAG, OS.XmCHARSET_TEXT, parseTable, tableLength, 0);
-	int width = OS.XmStringWidth(renderTable, xmString);
-	int height =  OS.XmStringHeight(renderTable, xmString);
-	OS.XmStringFree(xmString);
-	return new Point(width, height);
+	setText(string, flags);
+	if (data.textWidth != -1) return new Point(data.textWidth, data.textHeight);
+	int width, height;
+	if (string.length() == 0) {
+		width = 0;
+		height = getFontHeight();
+	} else {
+		int fontList = data.font.handle;
+		int xmText = data.xmText;
+		width = OS.XmStringWidth(fontList, xmText);
+		height = OS.XmStringHeight(fontList, xmText);
+	}
+	return new Point(data.textWidth = width, data.textHeight = height);
 }
 /**
  * Returns a string containing a concise, human-readable

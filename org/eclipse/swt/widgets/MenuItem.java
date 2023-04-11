@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -118,7 +118,7 @@ public MenuItem (Menu parent, int style, int index) {
 	createWidget (index);
 }
 void addAccelerator () {
-	if (accelerator == 0) return;
+	if (accelerator == 0 || !getEnabled ()) return;
 	/*
 	* Bug in Solaris.  When accelerators are set more
 	* than once in the same menu bar, the time it takes
@@ -137,16 +137,21 @@ void addAccelerator () {
 	if (newKey != 0) {
 		keysym = newKey;
 	} else {
-		keysym = wcsToMbcs ((char) keysym);
+		keysym = Display.wcsToMbcs ((char) keysym);
 	}
 	/*
 	* Feature in Motif.  Motif does not activate an accelerator
-	* when the CapsLoc, NumLoc and NumLock+CapsLoc keys are pressed.
+	* when the CapsLock, NumLock and NumLock+CapsLock keys are pressed.
 	* In order to activate accelerators when these keys are pressed,
-	* it is necessary to look for all of these key sequences.
+	* it is necessary to look for all of these key sequences.  The fix
+	* is to add these modifiers to the accelerator.
 	*/
 	String key = ctrl + alt + shift + "<Key>" + keysymName (keysym);
-	String allKeys = key + ",Lock " + key + ",Mod2 " + key + ",Lock Mod2 " + key;
+	String allKeys = key + ",Lock " + key;
+	String numLock = Display.numLock;
+	if (numLock != null) {
+		allKeys += "," + numLock + " " + key + ",Lock " + numLock + " " + key;
+	}
 	/* Use the character encoding for the default locale */
 	byte [] buffer = Converter.wcsToMbcs (null, allKeys, true);		
 	int ptr = OS.XtMalloc (buffer.length);
@@ -328,11 +333,6 @@ public int getAccelerator () {
 	checkWidget();
 	return accelerator;
 }
-public Display getDisplay () {
-	Menu parent = this.parent;
-	if (parent == null) error (SWT.ERROR_WIDGET_DISPOSED);
-	return parent.getDisplay ();
-}
 /**
  * Returns <code>true</code> if the receiver is enabled, and
  * <code>false</code> otherwise. A disabled control is typically
@@ -413,7 +413,7 @@ public boolean getSelection () {
 }
 void hookEvents () {
 	if ((style & SWT.SEPARATOR) != 0) return;
-	int windowProc = getDisplay ().windowProc;
+	int windowProc = display.windowProc;
 	OS.XtAddCallback (handle, OS.XmNhelpCallback, windowProc, HELP_CALLBACK);
 	if ((style & SWT.CASCADE) != 0) {
 		OS.XtAddCallback (handle, OS.XmNactivateCallback, windowProc, ACTIVATE_CALLBACK);
@@ -643,8 +643,16 @@ public void setAccelerator (int accelerator) {
  */
 public void setEnabled (boolean enabled) {
 	checkWidget();
+	if (getEnabled () == enabled) return;
 	int [] argList = {OS.XmNsensitive, enabled ? 1 : 0};
 	OS.XtSetValues (handle, argList, argList.length / 2);
+	if (isAccelActive ()) {
+		if (enabled) {
+			addAccelerator ();
+		} else {
+			removeAccelerator ();
+		}
+	}
 }
 /**
  * Sets the receiver's pull down menu to the argument.
@@ -801,32 +809,38 @@ public void setText (String string) {
 	boolean accel = false;
 	int i=0, j=0, mnemonic=0;
 	while (i < text.length) {
-		if (text [i] == '\t') {accel = true; break;};
-		if ((text [j++] = text [i++]) == Mnemonic) {
+		if (text [i] == '\t') {accel = true; break;}
+		if ((text [j++] = text [i++]) == '&') {
 			if (i == text.length) {continue;}
-			if (text [i] == Mnemonic) {i++; continue;}
+			if (text [i] == '&') {i++; continue;}
 			if (mnemonic == 0) mnemonic = text [i];
 			j--;
 		}
 	}
-	byte [] buffer2;
+	int xmString2 = 0;
 	if (accel && ++i < text.length) {
 		char [] accelText = new char [text.length - i];
 		System.arraycopy (text, i, accelText, 0, accelText.length);
 		/* Use the character encoding for the default locale */
-		buffer2 = Converter.wcsToMbcs (null, accelText, true);
+		byte [] buffer2 = Converter.wcsToMbcs (null, accelText, true);
+		xmString2 = OS.XmStringParseText (
+			buffer2,
+			0,
+			OS.XmFONTLIST_DEFAULT_TAG, 
+			OS.XmCHARSET_TEXT, 
+			null,
+			0,
+			0);
+		if (xmString2 == 0) error (SWT.ERROR_CANNOT_SET_TEXT);
 	} else {
-		buffer2 = new byte [1];
+		/*
+		* Bug in linux.  In some versions of linux motif setting a menu item's
+		* accelerator to NULL will cause a GP.  The workaround is to instead
+		* set these accelerators to a functionally equivalent non-null value.
+		*/
+		xmString2 = OS.XmStringGenerate (new byte[1], null, OS.XmCHARSET_TEXT, null);
+		if (xmString2 == 0) error (SWT.ERROR_CANNOT_SET_TEXT);
 	}
-	int xmString2 = OS.XmStringParseText (
-		buffer2,
-		0,
-		OS.XmFONTLIST_DEFAULT_TAG, 
-		OS.XmCHARSET_TEXT, 
-		null,
-		0,
-		0);
-	if (xmString2 == 0) error (SWT.ERROR_CANNOT_SET_TEXT);
 	while (j < text.length) text [j++] = 0;
 	/* Use the character encoding for the default locale */
 	byte [] buffer1 = Converter.wcsToMbcs (null, text, true);
@@ -841,7 +855,6 @@ public void setText (String string) {
 	if (xmString1 == 0) error (SWT.ERROR_CANNOT_SET_TEXT);
 	if (mnemonic == 0) mnemonic = OS.XK_VoidSymbol;
 	int [] argList = {
-		OS.XmNlabelType, OS.XmSTRING,
 		OS.XmNlabelString, xmString1,
 		OS.XmNmnemonic, mnemonic,
 		OS.XmNacceleratorText, xmString2,
@@ -850,9 +863,9 @@ public void setText (String string) {
 	if (xmString1 != 0) OS.XmStringFree (xmString1);
 	if (xmString2 != 0) OS.XmStringFree (xmString2);
 }
-boolean translateAccelerator (int accel) {
+boolean translateAccelerator (int accel, boolean doit) {
 	if (!getEnabled ()) return false;
-	if (menu != null) return menu.translateAccelerator (accel);
+	if (menu != null) return menu.translateAccelerator (accel, doit);
 	int accelerator = this.accelerator;
 	if ((accelerator & SWT.KEYCODE_BIT) == 0) {
 		int key = accelerator & SWT.KEY_MASK;
@@ -863,7 +876,7 @@ boolean translateAccelerator (int accel) {
 		accelerator = mods | key;
 	}
 	if (accelerator == accel) {
-		postEvent (SWT.Selection);
+		if (doit) postEvent (SWT.Selection);
 		return true;
 	}
 	return false;
@@ -878,14 +891,14 @@ int XmNactivateCallback (int w, int client_data, int call_data) {
 	Event event = new Event ();
 	if (struct.event != 0) {
 		XButtonEvent xEvent = new XButtonEvent ();
-		OS.memmove (xEvent, struct.event, XAnyEvent.sizeof);
+		OS.memmove (xEvent, struct.event, XButtonEvent.sizeof);
 		event.time = xEvent.time;
 		switch (xEvent.type) {
 			case OS.ButtonPress:
 			case OS.ButtonRelease:
 			case OS.KeyPress:
 			case OS.KeyRelease:
-				setInputState (event, xEvent);
+				setInputState (event, xEvent.state);
 				break;
 		}
 	}
@@ -915,14 +928,14 @@ int XmNvalueChangedCallback (int w, int client_data, int call_data) {
 	Event event = new Event ();
 	if (struct.event != 0) {
 		XButtonEvent xEvent = new XButtonEvent ();
-		OS.memmove (xEvent, struct.event, XAnyEvent.sizeof);
+		OS.memmove (xEvent, struct.event, XButtonEvent.sizeof);
 		event.time = xEvent.time;
 		switch (xEvent.type) {
 			case OS.ButtonPress:
 			case OS.ButtonRelease:
 			case OS.KeyPress:
 			case OS.KeyRelease:
-				setInputState (event, xEvent);
+				setInputState (event, xEvent.state);
 				break;
 		}
 	}

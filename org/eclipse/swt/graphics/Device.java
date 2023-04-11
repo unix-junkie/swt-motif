@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -59,15 +59,35 @@ public abstract class Device implements Drawable {
 	
 	/* System Font */
 	Font systemFont;
-
-	/* Warning and Error Handlers */
-	boolean warnings = true;
-	Callback xErrorCallback, xtWarningCallback, xIOErrorCallback, xtErrorCallback;
-	int xErrorProc, xtWarningProc, xIOErrorProc, xtErrorProc;
-	int xNullErrorProc, xtNullWarningProc, xNullIOErrorProc, xtNullErrorProc;
 	
 	/* Parsing Tables */
-	int tabMapping, crMapping, tabPointer, crPointer;
+	int tabPointer, crPointer;
+	/**
+	 * parse table mappings for tab and cr
+	 * (Warning: This field is platform dependent)
+	 */
+	// TEMPORARY CODE
+	public int tabMapping, crMapping;
+
+	/* Xt Warning and Error Handlers */
+	boolean warnings = true;
+	Callback xtWarningCallback, xtErrorCallback;
+	int xtWarningProc, xtErrorProc, xtNullWarningProc, xtNullErrorProc;	
+	
+	/* X Warning and Error Handlers */
+	static Callback XErrorCallback, XIOErrorCallback;
+	static int XErrorProc, XIOErrorProc, XNullErrorProc, XNullIOErrorProc;
+	static Device[] Devices = new Device[4];
+	
+	/* Initialize X and Xt */
+	static {
+		/*
+		* This code is intentionally commented.
+		*/
+//		OS.XInitThreads ();
+//		OS.XtToolkitThreadInitialize ();
+		OS.XtToolkitInitialize ();
+	}
 	
 	/*
 	* TEMPORARY CODE. When a graphics object is
@@ -125,6 +145,7 @@ public Device(DeviceData data) {
 	}
 	create (data);
 	init ();
+	register (this);
 	
 	/* Initialize the system font slot */
 	systemFont = getSystemFont ();
@@ -171,6 +192,12 @@ protected void checkDevice () {
 protected void create (DeviceData data) {
 }
 
+synchronized static void deregister (Device device) {
+	for (int i=0; i<Devices.length; i++) {
+		if (device == Devices [i]) Devices [i] = null;
+	}
+}
+
 /**
  * Destroys the device in the operating system and releases
  * the device's handle.  If the device does not have a handle,
@@ -203,6 +230,7 @@ public void dispose () {
 	checkDevice ();
 	release ();
 	destroy ();
+	deregister (this);
 	xDisplay = 0;
 	if (tracking) {
 		objects = null;
@@ -218,6 +246,16 @@ void dispose_Object (Object object) {
 			return;
 		}
 	}
+}
+
+static synchronized Device findDevice (int xDisplay) {
+	for (int i=0; i<Devices.length; i++) {
+		Device device = Devices [i];
+		if (device != null && device.xDisplay == xDisplay) {
+			return device;
+		}
+	}
+	return null;
 }
 
 /**
@@ -342,7 +380,7 @@ public Point getDPI () {
  * <code>faceName</code> is null, all fonts will be returned.
  *
  * @param faceName the name of the font to look for, or null
- * @param scalable true if scalable fonts should be returned.
+ * @param scalable if true only scalable fonts are returned, otherwise only non-scalable fonts are returned.
  * @return the matching font data
  *
  * @exception SWTException <ul>
@@ -473,6 +511,10 @@ public Font getSystemFont () {
  */
 public boolean getWarnings () {
 	checkDevice ();
+	return _getWarnings();
+}
+
+boolean _getWarnings () {
 	return warnings;
 }
 
@@ -489,32 +531,36 @@ public boolean getWarnings () {
  * @see #create
  */
 protected void init () {
+	if (debug) OS.XSynchronize (xDisplay, true);
 		
 	/* Create the warning and error callbacks */
-	xErrorCallback = new Callback (this, "xErrorProc", 2);
-	xNullErrorProc = xErrorCallback.getAddress ();
-	if (xNullErrorProc == 0) SWT.error (SWT.ERROR_NO_MORE_CALLBACKS);
+	Class clazz = getClass ();
+	synchronized (clazz) {
+		int index = 0;
+		while (index < Devices.length) {
+			if (Devices [index] != null) break;
+			index++;
+		}
+		if (index == Devices.length) {
+			XErrorCallback = new Callback (clazz, "XErrorProc", 2);
+			XNullErrorProc = XErrorCallback.getAddress ();
+			if (XNullErrorProc == 0) SWT.error (SWT.ERROR_NO_MORE_CALLBACKS);
+			XIOErrorCallback = new Callback (clazz, "XIOErrorProc", 1);
+			XNullIOErrorProc = XIOErrorCallback.getAddress ();
+			if (XNullIOErrorProc == 0) SWT.error (SWT.ERROR_NO_MORE_CALLBACKS);
+			XErrorProc = OS.XSetErrorHandler (XNullErrorProc);
+			XIOErrorProc = OS.XSetIOErrorHandler (XNullIOErrorProc);
+		}
+	}
 	xtWarningCallback = new Callback (this, "xtWarningProc", 1);
 	xtNullWarningProc = xtWarningCallback.getAddress ();
 	if (xtNullWarningProc == 0) SWT.error (SWT.ERROR_NO_MORE_CALLBACKS);
-	xIOErrorCallback = new Callback (this, "xIOErrorProc", 1);
-	xNullIOErrorProc = xIOErrorCallback.getAddress ();
-	if (xNullIOErrorProc == 0) SWT.error (SWT.ERROR_NO_MORE_CALLBACKS);
 	xtErrorCallback = new Callback (this, "xtErrorProc", 1);
 	xtNullErrorProc = xtErrorCallback.getAddress ();
 	if (xtNullErrorProc == 0) SWT.error (SWT.ERROR_NO_MORE_CALLBACKS);
-	
-	/* Set the warning and error handlers */
-	if (debug) OS.XSynchronize (xDisplay, true);
 	int xtContext = OS.XtDisplayToApplicationContext (xDisplay);
-	xErrorProc = OS.XSetErrorHandler (xNullErrorProc);
-	if (!debug) OS.XSetErrorHandler (xErrorProc);
 	xtWarningProc = OS.XtAppSetWarningHandler (xtContext, xtNullWarningProc);
-	if (!debug) OS.XtAppSetWarningHandler (xtContext, xtWarningProc);
-	xIOErrorProc = OS.XSetIOErrorHandler (xNullIOErrorProc);
-	if (!debug) OS.XSetIOErrorHandler (xIOErrorProc);
 	xtErrorProc = OS.XtAppSetErrorHandler (xtContext, xtNullErrorProc);
-	if (!debug) OS.XtAppSetErrorHandler (xtContext, xtErrorProc);
 	
 	/* Only use palettes for <= 8 bpp default visual */
 	int xScreenPtr = OS.XDefaultScreenOfDisplay (xDisplay);
@@ -595,7 +641,7 @@ public abstract int internal_new_GC (GCData data);
  * application code.
  * </p>
  *
- * @param handle the platform specific GC handle
+ * @param hDC the platform specific GC handle
  * @param data the platform specific GC data 
  */
 public abstract void internal_dispose_GC (int handle, GCData data);
@@ -630,6 +676,19 @@ void new_Object (Object object) {
 	System.arraycopy (errors, 0, newErrors, 0, errors.length);
 	newErrors [errors.length] = new Error ();
 	errors = newErrors;
+}
+
+static synchronized void register (Device device) {
+	for (int i=0; i<Devices.length; i++) {
+		if (Devices [i] == null) {
+			Devices [i] = device;
+			return;
+		}
+	}
+	Device [] newDevices = new Device [Devices.length + 4];
+	System.arraycopy (Devices, 0, newDevices, 0, Devices.length);
+	newDevices [Devices.length] = device;
+	Devices = newDevices;
 }
 
 /**
@@ -700,27 +759,34 @@ protected void release () {
 	xtWarningCallback.dispose (); xtWarningCallback = null;
 	xtNullWarningProc = xtWarningProc = 0;
 	
-	/* Free the X IO error handler */
-	OS.XSetIOErrorHandler (xIOErrorProc);
-	xIOErrorCallback.dispose (); xIOErrorCallback = null;
-	xNullIOErrorProc = xIOErrorProc = 0;
-	
-	/* Free the X error handler */
-	/*
-	* Bug in Motif.  For some reason, when a pixmap is
-	* set into a button or label, despite the fact that
-	* the pixmap is cleared from the widget before it
-	* is disposed, Motif still references the pixmap
-	* and attempts to dispose it in XtDestroyApplicationContext().
-	* The fix is to install the null error handler to avoid the
-	* warning.
-	*
-	* NOTE: The warning callback is leaked.
-	*/
-	OS.XSetErrorHandler (xNullErrorProc);
-//	OS.XSetErrorHandler (xErrorProc);
-//	xErrorCallback.dispose (); xErrorCallback = null;
-//	xNullErrorProc = xErrorProc = 0;
+	int index = 0;
+	while (index < Devices.length) {
+		if (Devices [index] != null) break;
+		index++;
+	}
+	if (index == Devices.length) {
+		/* Free the X IO error handler */
+		OS.XSetIOErrorHandler (XIOErrorProc);
+		XIOErrorCallback.dispose (); XIOErrorCallback = null;
+		XNullIOErrorProc = XIOErrorProc = 0;
+		
+		/* Free the X error handler */
+		/*
+		* Bug in Motif.  For some reason, when a pixmap is
+		* set into a button or label, despite the fact that
+		* the pixmap is cleared from the widget before it
+		* is disposed, Motif still references the pixmap
+		* and attempts to dispose it in XtDestroyApplicationContext().
+		* The fix is to avoid warnings by leaving our handler
+		* and settings warnings to false.
+		*
+		* NOTE: The warning callback is leaked.
+		*/
+		warnings = false;
+//		OS.XSetErrorHandler (XErrorProc);
+//		XErrorCallback.dispose (); XErrorCallback = null;
+//		XNullErrorProc = XErrorProc = 0;
+	}
 }
 
 /**
@@ -737,47 +803,52 @@ protected void release () {
  */
 public void setWarnings (boolean warnings) {
 	checkDevice ();
-	this.warnings = warnings;
-	if (debug) return;
-	int xtContext = OS.XtDisplayToApplicationContext (xDisplay);
-	if (warnings) {
-		OS.XSetErrorHandler (xErrorProc);
-		OS.XtAppSetWarningHandler (xtContext, xtWarningProc);
-	} else {
-		OS.XSetErrorHandler (xNullErrorProc);
-		OS.XtAppSetWarningHandler (xtContext, xtNullWarningProc);
-	}
+	_setWarnings(warnings);
 }
 
-int xErrorProc (int xDisplay, int xErrorEvent) {
-	if (DEBUG || (debug && warnings)) {
-		new SWTError ().printStackTrace ();
-		OS.Call (xErrorProc, xDisplay, xErrorEvent);
+void _setWarnings (boolean warnings) {
+	this.warnings = warnings;
+}
+
+static int XErrorProc (int xDisplay, int xErrorEvent) {
+	Device device = findDevice (xDisplay);
+	if (device != null) {
+		if (device.warnings) {
+			if (DEBUG || device.debug) {
+				new SWTError ().printStackTrace ();
+			}
+			OS.Call (XErrorProc, xDisplay, xErrorEvent);
+		}
+	} else {
+		OS.Call (XErrorProc, xDisplay, xErrorEvent);
 	}
 	return 0;
 }
 
-int xIOErrorProc (int xDisplay) {
-	if (DEBUG || debug) {
+static int XIOErrorProc (int xDisplay) {
+	Device device = findDevice (xDisplay);
+	if (device != null && (DEBUG || device.debug)) {
 		new SWTError ().printStackTrace ();
-		OS.Call (xIOErrorProc, xDisplay, 0);
 	}
+	OS.Call (XIOErrorProc, xDisplay, 0);
 	return 0;
 }
 
 int xtErrorProc (int message) {
 	if (DEBUG || debug) {
 		new SWTError ().printStackTrace ();
-		OS.Call (xtErrorProc, message, 0);
 	}
+	OS.Call (xtErrorProc, message, 0);
 	return 0;
 }
 
 int xtWarningProc (int message) {
-	if (DEBUG || (debug && warnings)) {
-		new SWTError ().printStackTrace ();
+	if (warnings) {
+		if (DEBUG || debug) {
+			new SWTError ().printStackTrace ();
+		}
 		OS.Call (xtWarningProc, message, 0);
-	}
+	}	
 	return 0;
 }
 

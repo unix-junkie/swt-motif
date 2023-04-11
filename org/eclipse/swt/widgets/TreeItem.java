@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -98,6 +98,7 @@ public class TreeItem extends AbstractTreeItem {
 	private boolean isExpanding = false;
 	Color background = null;
 	Color foreground = null;
+	Font font = null;
 	
 /**
  * Constructs a new instance of this class given its parent
@@ -535,6 +536,24 @@ int getDecorationsWidth() {
 	return width;
 }
 /**
+ * Returns the font that the receiver will use to paint textual information for this item.
+ *
+ * @return the receiver's font
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.0
+ */
+public Font getFont () {
+	checkWidget ();
+	if (font != null) return font;
+	Tree parent = getParent ();
+	return parent.getFont ();
+}
+/**
  * Returns the foreground color that the receiver will use to draw.
  *
  * @return the receiver's foreground color
@@ -643,7 +662,7 @@ Point getItemExtent() {
 		text = getText();
 		itemWidth = SELECTION_PADDING;
 		if (text != null) {
-			itemWidth += parent.getTextWidth(text) + TEXT_INDENT;
+			itemWidth += getTextWidth(text) + TEXT_INDENT;
 		}
 		if (imageExtent != null) {
 			itemWidth += imageExtent.x + IMAGE_PADDING;
@@ -829,6 +848,20 @@ int getTextYPosition(GC gc) {
 		}
 	}
 	return textYPosition;
+}
+/**
+ * Answer the width of 'text' in pixel.
+ * Answer 0 if 'text' is null.
+ */
+int getTextWidth(String text) {
+	int textWidth = 0;
+	if (text != null) {
+		GC gc = new GC(getParent());
+		gc.setFont(getFont());
+		textWidth = gc.stringExtent(text).x;
+		gc.dispose();
+	}
+	return textWidth;
 }
 /**
  * Answer the index of the receiver relative to the first root 
@@ -1024,8 +1057,9 @@ void paint(GC gc, int yPosition) {
 	if (isVisible() == false) {
 		return;
 	}
-	
 	Tree parent = getParent();
+	Font font = getFont();
+	gc.setFont(font);
 	Point paintPosition = new Point(getPaintStartX(), yPosition);
 	Point extent = getSelectionExtent();
 	gc.setForeground(parent.CONNECTOR_LINE_COLOR);
@@ -1118,7 +1152,7 @@ public void setImage(Image newImage) {
 
 	super.setImage(newImage);	
 	if (newImage != null && oldImage != null) {
-		isSameImage = newImage.equals(oldImage);
+		isSameImage = newImage.equals(oldImage) && newImage.type == SWT.ICON;
 	}
 	else {
 		isSameImage = newImage == oldImage;
@@ -1130,7 +1164,7 @@ public void setImage(Image newImage) {
 			}
 			else
 			if (newImage != null) {
-				imageWidth = newImage.getBounds().x;
+				imageWidth = newImage.getBounds().width;
 			}
 			redrawX = getItemStartX();
 		}
@@ -1171,11 +1205,7 @@ void setPaintStartX(int startX) {
 void setParentItem(TreeItem parentItem) {
 	this.parentItem = parentItem;
 }
-/**
- * This label will be displayed to the right of the bitmap, 
- * or, if the receiver doesn't have a bitmap to the right of 
- * the horizontal hierarchy connector line.
- */
+
 public void setText(String newText) {
 	checkWidget();
 	Tree parent = getParent();	
@@ -1230,7 +1260,8 @@ void doDispose() {
 	setIndex(-1);
 	setPaintStartX(-1);
 	setTextYPosition(-1);
-	
+	background = foreground = null;
+	font = null;
 	super.doDispose();
 }
 /**
@@ -1249,9 +1280,6 @@ void doDispose() {
 public boolean getChecked() {
 	checkWidget();
 	return super.getChecked();
-}
-public Display getDisplay() {
-	return super.getDisplay();
 }
 boolean getExpanding(){
 	return isExpanding;
@@ -1293,8 +1321,11 @@ public boolean getGrayed() {
  */
 public void setBackground (Color color) {
 	checkWidget ();
-	if (color != null && color.isDisposed ())
+	if (color != null && color.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
+	}
+	if (background == color) return;
+	if (background != null && background.equals (color)) return;
 	background = color;	
 	redraw();
 }
@@ -1315,6 +1346,33 @@ public void setChecked(boolean checked) {
 }
 void setExpanding(boolean expanding){
 	isExpanding = expanding;
+}
+/**
+ * Sets the font that the receiver will use to paint textual information
+ * for this item to the font specified by the argument, or to the default font
+ * for that kind of control if the argument is null.
+ *
+ * @param font the new font (or null)
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li> 
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.0
+ */
+public void setFont (Font font){
+	checkWidget ();
+	if (font != null && font.isDisposed ()) {
+		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
+	}
+	if (this.font == font) return;
+	if (this.font != null && this.font.equals (font)) return;
+	this.font = font;
+	redraw ();
 }
 /**
  * Sets the receiver's foreground color to the color specified
@@ -1338,8 +1396,11 @@ void setExpanding(boolean expanding){
  */
 public void setForeground (Color color) {
 	checkWidget ();
-	if (color != null && color.isDisposed ())
+	if (color != null && color.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
+	}
+	if (foreground == color) return;
+	if (foreground != null && foreground.equals (color)) return;
 	foreground = color;
 	redraw(); 
 }
@@ -1347,7 +1408,7 @@ public void setForeground (Color color) {
  * Sets the grayed state of the receiver.
  * <p>
  *
- * @param checked the new grayed state
+ * @param grayed the new grayed state
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>

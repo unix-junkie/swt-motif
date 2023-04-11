@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -199,7 +199,7 @@ void createHandle (int index) {
 	setBackgroundPixel (pixel);
 }
 
-void click (boolean dropDown, XInputEvent xEvent) {
+void click (boolean dropDown, int state) {
 	if ((style & SWT.RADIO) != 0) {
 		selectRadio ();
 	} else {
@@ -215,7 +215,7 @@ void click (boolean dropDown, XInputEvent xEvent) {
 			event.y = (short) argList [3] + (short) argList [5];
 		}
 	}
-	if (xEvent != null) setInputState (event, xEvent);
+	if (state != 0) setInputState (event, state);
 	postEvent (SWT.Selection, event);
 }
 
@@ -238,7 +238,6 @@ Point computeSize () {
 	int marginHeight = argList [1], marginWidth = argList [3];
 	int shadowThickness = argList [5];
 	if ((parent.style & SWT.FLAT) != 0) {
-		Display display = getDisplay ();
 		shadowThickness = Math.min (2, display.buttonShadowThickness);
 	}
 	int textWidth = 0, textHeight = 0;
@@ -361,11 +360,6 @@ public boolean getEnabled () {
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	return argList [1] != 0;
 }
-public Display getDisplay () {
-	Composite parent = this.parent;
-	if (parent == null) error (SWT.ERROR_WIDGET_DISPOSED);
-	return parent.getDisplay ();
-}
 /**
  * Returns the receiver's hot image if it has one, or null
  * if it does not.
@@ -465,7 +459,7 @@ boolean hasCursor () {
 void hookEvents () {
 	super.hookEvents ();
 	if ((style & SWT.SEPARATOR) != 0) return;
-	int windowProc = getDisplay ().windowProc;
+	int windowProc = display.windowProc;
 	OS.XtAddEventHandler (handle, OS.KeyPressMask, false, windowProc, KEY_PRESS);
 	OS.XtAddEventHandler (handle, OS.KeyReleaseMask, false, windowProc, KEY_RELEASE);
 	OS.XtAddEventHandler (handle, OS.ButtonPressMask, false, windowProc, BUTTON_PRESS);
@@ -480,7 +474,6 @@ int hoverProc (int id) {
 	boolean showTip = toolTipText != null;
 	parent.hoverProc (id, !showTip);
 	if (showTip) {
-		Display display = getDisplay ();
 		display.showToolTip (handle, toolTipText);
 	}
 	return 0;
@@ -519,9 +512,9 @@ void releaseChild () {
 	parent.destroyItem (this);
 }
 void releaseWidget () {
-	Display display = getDisplay ();
 	display.releaseToolTipHandle (handle);
 	super.releaseWidget ();
+	if (parent.lastFocus == this) parent.lastFocus = null;
 	parent = null;
 	control = null;
 	toolTipText = null;
@@ -655,11 +648,6 @@ public void setEnabled (boolean enabled) {
 void setForegroundPixel(int pixel) {
 	int [] argList = {OS.XmNforeground, pixel};
 	OS.XtSetValues (handle, argList, argList.length / 2);
-	int xDisplay = OS.XtDisplay (handle);
-	if (xDisplay == 0) return;
-	int xWindow = OS.XtWindow (handle);
-	if (xWindow == 0) return;
-	OS.XClearArea (xDisplay, xWindow, 0, 0, 0, 0, true);
 }
 /**
  * Sets the receiver's disabled image to the argument, which may be
@@ -684,6 +672,10 @@ public void setDisabledImage (Image image) {
 	if ((style & SWT.SEPARATOR) != 0) return;
 	disabledImage = image;
 	if (!getEnabled ()) redraw ();
+}
+boolean setFocus () {
+	if ((style & SWT.SEPARATOR) != 0) return false;
+	return XmProcessTraversal (handle, OS.XmTRAVERSE_CURRENT);
 }
 /**
  * Sets the receiver's hot image to the argument, which may be
@@ -833,20 +825,19 @@ void setDrawPressed (boolean value) {
 	int [] argList = {OS.XmNshadowType, shadowType};
 	OS.XtSetValues(handle, argList, argList.length / 2);
 }
-boolean translateAccelerator (int key, int keysym, XKeyEvent xEvent) {
-	return parent.translateAccelerator (key, keysym, xEvent);
+boolean translateAccelerator (char key, int keysym, XKeyEvent xEvent, boolean doit) {
+	return parent.translateAccelerator (key, keysym, xEvent, doit);
 }
-boolean translateMnemonic (int key, XKeyEvent xEvent) {
-	return parent.translateMnemonic (key, xEvent);
+boolean translateMnemonic (char key, int keysym, XKeyEvent xEvent) {
+	return parent.translateMnemonic (key, keysym, xEvent);
 }
 boolean translateTraversal (int key, XKeyEvent xEvent) {
 	return parent.translateTraversal (key, xEvent);
 }
 void propagateWidget (boolean enabled) {
-	propagateHandle (enabled, handle);
+	propagateHandle (enabled, handle, OS.None);
 }
 int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatch) {
-	Display display = getDisplay ();
 //	Shell shell = parent.getShell ();
 	display.hideToolTip ();
 	XButtonEvent xEvent = new XButtonEvent ();
@@ -884,7 +875,6 @@ int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatc
 	return 0;
 }
 int XButtonRelease (int w, int client_data, int call_data, int continue_to_dispatch) {
-	Display display = getDisplay ();
 	display.hideToolTip(); 
 	XButtonEvent xEvent = new XButtonEvent ();
 	OS.memmove (xEvent, call_data, XButtonEvent.sizeof);
@@ -893,7 +883,7 @@ int XButtonRelease (int w, int client_data, int call_data, int continue_to_dispa
 		OS.XtGetValues (handle, argList, argList.length / 2);
 		int width = argList [1], height = argList [3];
 		if (0 <= xEvent.x && xEvent.x < width && 0 <= xEvent.y && xEvent.y < height) {
-			click (xEvent.x > width - 12, xEvent);
+			click (xEvent.x > width - 12, xEvent.state);
 		}
 		setDrawPressed(set);
 	}
@@ -938,12 +928,11 @@ int XFocusChange (int w, int client_data, int call_data, int continue_to_dispatc
 	OS.memmove (xEvent, call_data, XFocusChangeEvent.sizeof);
 	xEvent.window = OS.XtWindow (parent.handle);
 //	OS.memmove (call_data, xEvent, XFocusChangeEvent.sizeof);
-	if (OS.IsDBLocale) {
-		parent.XFocusChange (w, client_data, call_data, continue_to_dispatch);
-	} 
+	parent.XFocusChange (w, client_data, call_data, continue_to_dispatch);
 	return 0;
 }
 int XKeyPress (int w, int client_data, int call_data, int continue_to_dispatch) {
+	int result = 0;
 	XKeyEvent xEvent = new XKeyEvent ();
 	OS.memmove (xEvent, call_data, XKeyEvent.sizeof);
 	int [] keysym = new int [1];
@@ -951,11 +940,12 @@ int XKeyPress (int w, int client_data, int call_data, int continue_to_dispatch) 
 	keysym [0] &= 0xFFFF;
 	switch (keysym [0]) {
 		case OS.XK_space:
-			click (false, xEvent);
+			click (false, xEvent.state);
+			result = 1;
 			break;
-		case OS.XK_KP_Enter:
-		case OS.XK_Return:
-			click (true, xEvent);
+		case OS.XK_Down:
+			click (true, xEvent.state);
+			result = 1;
 			break;
 	}
 	/*
@@ -969,7 +959,10 @@ int XKeyPress (int w, int client_data, int call_data, int continue_to_dispatch) 
 	xEvent.window = OS.XtWindow (parent.handle);
 //	OS.memmove (callData, xEvent, XKeyEvent.sizeof);
 	parent.XKeyPress (w, client_data, call_data, continue_to_dispatch);
-	return 0;
+	if (result == 1) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+	}
+	return result;
 }
 int XKeyRelease (int w, int client_data, int call_data, int continue_to_dispatch) {
 	XKeyEvent xEvent = new XKeyEvent ();
@@ -989,7 +982,6 @@ int XKeyRelease (int w, int client_data, int call_data, int continue_to_dispatch
 	return 0;
 }
 int XLeaveWindow (int w, int client_data, int call_data, int continue_to_dispatch) {
-	Display display = getDisplay ();
 	display.removeMouseHoverTimeOut ();
 	display.hideToolTip ();
 	XCrossingEvent xEvent = new XCrossingEvent ();
@@ -1019,7 +1011,6 @@ int XmNexposureCallback (int w, int client_data, int call_data) {
 	boolean enabled = getEnabled();
 
 	if ((parent.style & SWT.FLAT) != 0) {
-		Display display = getDisplay ();
 		boolean hasCursor = hasCursor ();
 		
 		/* Set the shadow thickness */
@@ -1036,13 +1027,15 @@ int XmNexposureCallback (int w, int client_data, int call_data) {
 		}
 	}
 
-	ToolDrawable wrapper = new ToolDrawable ();
-	wrapper.device = getDisplay ();
-	wrapper.display = xDisplay;
-	wrapper.drawable = xWindow;
-	wrapper.font = parent.font;
-	wrapper.colormap = argList [1];	
-	GC gc = new GC (wrapper);
+	GCData data = new GCData ();
+	data.device = display;
+	data.display = xDisplay;
+	data.drawable = xWindow;
+	data.font = parent.font;
+	data.colormap = argList [1];
+	int xGC = OS.XCreateGC (xDisplay, xWindow, 0, null);
+	if (xGC == 0) SWT.error (SWT.ERROR_NO_HANDLES);
+	GC gc = GC.motif_new (xGC, data);
 	
 	XmAnyCallbackStruct cb = new XmAnyCallbackStruct ();
 	OS.memmove (cb, call_data, XmAnyCallbackStruct.sizeof);
@@ -1054,7 +1047,6 @@ int XmNexposureCallback (int w, int client_data, int call_data) {
 	}
 	
 	if (!enabled) {
-		Display display = getDisplay ();
 		currentImage = disabledImage;
 		if (currentImage == null && image != null) {
 			currentImage = new Image (display, image, SWT.IMAGE_DISABLE);
@@ -1110,6 +1102,7 @@ int XmNexposureCallback (int w, int client_data, int call_data) {
 		gc.drawPolygon (arrow);
 	}
 	gc.dispose ();
+	OS.XFreeGC (xDisplay, xGC);
 	
 	if (!enabled && disabledImage == null) {
 		if (currentImage != null) currentImage.dispose ();
@@ -1117,7 +1110,6 @@ int XmNexposureCallback (int w, int client_data, int call_data) {
 	return 0;
 }
 int XPointerMotion (int w, int client_data, int call_data, int continue_to_dispatch) {
-	Display display = getDisplay ();
 	display.addMouseHoverTimeOut (handle);
 
 	/*
@@ -1142,7 +1134,7 @@ int XPointerMotion (int w, int client_data, int call_data, int continue_to_dispa
 	*/
 //	OS.memmove (callData, xEvent, XButtonEvent.sizeof);
 //	parent.XPointerMotion (w, client_data, call_data, continue_to_dispatch);
-	parent.sendMouseEvent (SWT.MouseMove, 0, xEvent);
+	parent.sendMouseEvent (SWT.MouseMove, xEvent);
 
 	return 0;
 }

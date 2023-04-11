@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -41,6 +41,7 @@ import org.eclipse.swt.graphics.*;
 public class ToolBar extends Composite {
 	int drawCount, itemCount;
 	ToolItem [] items;
+	ToolItem lastFocus;
 /**
  * Constructs a new instance of this class given its parent
  * and a style value describing its behavior and appearance.
@@ -71,14 +72,14 @@ public class ToolBar extends Composite {
  * @see SWT#HORIZONTAL
  * @see SWT#SHADOW_OUT
  * @see SWT#VERTICAL
- * @see Widget#checkSubclass
- * @see Widget#getStyle
+ * @see Widget#checkSubclass()
+ * @see Widget#getStyle()
  */
 public ToolBar (Composite parent, int style) {
 	super (parent, checkStyle (style));
 	
 	/*
-	* Ensure that either of HORIZONTAL or VERTICAL is set.
+	* Ensure that either HORIZONTAL or VERTICAL is set.
 	* NOTE: HORIZONTAL and VERTICAL have the same values
 	* as H_SCROLL and V_SCROLL so it is necessary to first
 	* clear these bits to avoid scroll bars and then reset
@@ -148,6 +149,18 @@ void destroyItem (ToolItem item) {
 	System.arraycopy (items, index + 1, items, index, --itemCount - index);
 	items [itemCount] = null;
 }
+public boolean forceFocus () {
+	checkWidget ();
+	Decorations shell = menuShell ();
+	shell.setSavedFocus (this);
+	shell.bringToTop (false);
+	if (lastFocus != null && lastFocus.setFocus ()) return true;
+	for (int i = 0; i < itemCount; i++) {
+		ToolItem item = items [i];
+		if (item.setFocus ()) return true;
+	}
+	return super.forceFocus ();
+}
 /**
  * Returns the item at the given, zero-relative index in the
  * receiver. Throws an exception if the index is out of range.
@@ -180,7 +193,7 @@ public ToolItem getItem (int index) {
  * @return the item at the given point
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the point is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -189,6 +202,7 @@ public ToolItem getItem (int index) {
  */
 public ToolItem getItem (Point pt) {
 	checkWidget();
+	if (pt == null) error (SWT.ERROR_NULL_ARGUMENT);
 	ToolItem [] items = getItems ();
 	for (int i=0; i<items.length; i++) {
 		Rectangle rect = items [i].getBounds ();
@@ -212,7 +226,7 @@ public int getItemCount () {
 	return itemCount;
 }
 /**
- * Returns an array of <code>TabItem</code>s which are the items
+ * Returns an array of <code>ToolItem</code>s which are the items
  * in the receiver. 
  * <p>
  * Note: This is not the actual structure used by the receiver
@@ -344,7 +358,7 @@ boolean mnemonicHit (char key) {
 			if (mnemonic != '\0') {
 				if (Character.toUpperCase (key) == Character.toUpperCase (mnemonic)) {
 					XmProcessTraversal (item.handle, OS.XmTRAVERSE_CURRENT);
-					item.click (false, null);
+					item.click (false, 0);
 					return true;
 				}
 			}
@@ -397,10 +411,13 @@ void setBackgroundPixel (int pixel) {
 		}
 	}
 }
-public void setBounds (int x, int y, int width, int height) {
-	super.setBounds (x, y, width, height);
-	Rectangle rect = getClientArea ();
-	relayout (rect.width, rect.height);
+boolean setBounds (int x, int y, int width, int height, boolean move, boolean resize) {
+	boolean changed = super.setBounds (x, y, width, height, move, resize);
+	if (changed && resize) {
+		Rectangle rect = getClientArea ();
+		relayout (rect.width, rect.height);
+	}
+	return changed;
 }
 public void setFont (Font font) {
 	checkWidget();
@@ -430,12 +447,7 @@ public void setRedraw (boolean redraw) {
 		drawCount++;
 	}
 }
-public void setSize (int width, int height) {
-	super.setSize (width, height);
-	Rectangle rect = getClientArea ();
-	relayout (rect.width, rect.height);
-}
-boolean setTabItemFocus () {
+boolean setTabItemFocus (boolean next) {
 	int index = 0;
 	while (index < items.length) {
 		ToolItem item = items [index];
@@ -445,9 +457,22 @@ boolean setTabItemFocus () {
 		index++;
 	}
 	if (index == items.length) return false;
-	return super.setTabItemFocus ();
+	return super.setTabItemFocus (next);
 }
 int traversalCode (int key, XKeyEvent xEvent) {
 	return super.traversalCode (key, xEvent) | SWT.TRAVERSE_MNEMONIC;
+}
+int xFocusIn (XFocusChangeEvent xEvent) {
+	int newFocus = OS.XmGetFocusWidget (handle); 
+	if (newFocus != focusHandle ()) {
+		/* a child ToolItem has received focus */
+		for (int i = 0; i < itemCount; i++) {
+			if (items [i].handle == newFocus) {
+				lastFocus = items [i];
+				break;
+			}
+		}
+	}
+	return super.xFocusIn (xEvent);
 }
 }

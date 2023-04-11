@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -46,7 +46,7 @@ public final class ImageData implements CloneableCompatibility {
 	/**
 	 * The color depth of the image, in bits per pixel.
 	 * <p>
-	 * Note that a depth of 8 or less does not necessary
+	 * Note that a depth of 8 or less does not necessarily
 	 * mean that the image is palette indexed, or
 	 * conversely that a depth greater than 8 means that
 	 * the image is direct color.  Check the associated
@@ -244,11 +244,9 @@ public final class ImageData implements CloneableCompatibility {
  * @param palette the palette of the image (must not be null)
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_INVALID_ARGUMENT - if the width or height is negative</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the width or height is negative, or if the depth is not
+ *        	one of 1, 2, 4, 8, 16, 24 or 32</li>
  *    <li>ERROR_NULL_ARGUMENT - if the palette is null</li>
- * </ul>
- * @exception SWTException <ul>
- *    <li>ERROR_UNSUPPORTED_DEPTH - if the depth argument is not one of 1, 2, 4, 8, 16, 24 or 32</li>
  * </ul>
  */
 public ImageData(int width, int height, int depth, PaletteData palette) {
@@ -270,11 +268,10 @@ public ImageData(int width, int height, int depth, PaletteData palette) {
  * @param data the data of the image
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_INVALID_ARGUMENT - if the width or height is negative</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the width or height is negative, or if the depth is not
+ *        	one of 1, 2, 4, 8, 16, 24 or 32</li>
  *    <li>ERROR_NULL_ARGUMENT - if the palette or data is null</li>
- * </ul>
- * @exception SWTException <ul>
- *    <li>ERROR_UNSUPPORTED_DEPTH - if the depth argument is not one of 1, 2, 4, 8, 16, 24 or 32</li>
+ *    <li>ERROR_CANNOT_BE_ZERO - if the scanlinePad is zero</li>
  * </ul>
  */
 public ImageData(int width, int height, int depth, PaletteData palette, int scanlinePad, byte[] data) {
@@ -305,7 +302,7 @@ public ImageData(int width, int height, int depth, PaletteData palette, int scan
  *    <li>ERROR_IO - if an IO error occurs while reading data</li>
  * </ul>
  *
- * @see ImageLoader#load
+ * @see ImageLoader#load(InputStream)
  */
 public ImageData(InputStream stream) {
 	ImageData[] data = new ImageLoader().load(stream);
@@ -403,6 +400,8 @@ ImageData(
 	if (width <= 0 || height <= 0) {
 		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
+	if (scanlinePad == 0) SWT.error (SWT.ERROR_CANNOT_BE_ZERO);
+
 	int bytesPerLine = (((width * depth + 7) / 8) + (scanlinePad - 1))
 		/ scanlinePad * scanlinePad;
 	setAllFields(
@@ -485,8 +484,7 @@ public static ImageData internal_new(
 
 ImageData colorMaskImage(int pixel) {
 	ImageData mask = new ImageData(width, height, 1, bwPalette(),
-		Image.DEFAULT_SCANLINE_PAD, null, 0, null,
-		null, -1, -1, SWT.IMAGE_UNDEFINED,
+		2, null, 0, null, null, -1, -1, SWT.IMAGE_UNDEFINED,
 		0, 0, 0, 0);
 	int[] row = new int[width];
 	for (int y = 0; y < height; y++) {
@@ -704,7 +702,7 @@ public void getPixels(int x, int y, int getWidth, byte[] pixels, int startIndex)
 	if (depth == 1) {
 		index = (y * bytesPerLine) + (x >> 3);
 		theByte = data[index] & 0xFF;
-		while (n > 1) {
+		while (n > 0) {
 			mask = 1 << (7 - (srcX & 0x7));
 			if ((theByte & mask) == 0) {
 				pixels[i] = 0;
@@ -931,7 +929,7 @@ public void getPixels(int x, int y, int getWidth, int[] pixels, int startIndex) 
 				pixels[i] = theByte & 0x0F;
 				i++;
 				n--;
-				srcX++;;
+				srcX++;
 				if (srcX >= width) {
 					srcY++;
 					index = srcY * bytesPerLine;
@@ -1024,7 +1022,7 @@ public void getPixels(int x, int y, int getWidth, int[] pixels, int startIndex) 
  *
  * @return the RGB values for the image or null if direct color
  *
- * @see PaletteData#getRGBs
+ * @see PaletteData#getRGBs()
  */
 public RGB[] getRGBs() {
 	return palette.getRGBs();
@@ -1611,6 +1609,21 @@ static int closestMatch(int depth, byte red, byte green, byte blue, int redMask,
 		}
 	}
 	return nearestPixel;
+}
+
+static final byte[] convertPad(byte[] data, int width, int height, int depth, int pad, int newPad) {
+	if (pad == newPad) return data;
+	int stride = (width * depth + 7) / 8;
+	int bpl = (stride + (pad - 1)) / pad * pad;	
+	int newBpl = (stride + (newPad - 1)) / newPad * newPad;
+	byte[] newData = new byte[height * newBpl];
+	int srcIndex = 0, destIndex = 0;
+	for (int y = 0; y < height; y++) {
+		System.arraycopy(data, srcIndex, newData, destIndex, stride);
+		srcIndex += bpl;
+		destIndex += newBpl;
+	}
+	return newData;
 }
 
 /**

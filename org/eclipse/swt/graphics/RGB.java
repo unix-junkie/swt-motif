@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -22,6 +22,12 @@ import org.eclipse.swt.*;
  * of each color is specified by a value in the range 0 to 255,
  * where 0 indicates no color (blackness) and 255 indicates
  * maximum intensity.
+ * <p>
+ * The hashCode() method in this class uses the values of the public
+ * fields to compute the hash value. When storing instances of the
+ * class in hashed collections, do not modify these fields after the
+ * object has been inserted.  
+ * </p>
  * <p>
  * Application code does <em>not</em> need to explicitly release the
  * resources managed by each instance when those instances are no longer
@@ -78,7 +84,7 @@ public RGB(int red, int green, int blue) {
  * @param object the object to compare with this object
  * @return <code>true</code> if the object is the same as this object and <code>false</code> otherwise
  *
- * @see #hashCode
+ * @see #hashCode()
  */
 public boolean equals (Object object) {
 	if (object == this) return true;
@@ -95,7 +101,7 @@ public boolean equals (Object object) {
  *
  * @return the receiver's hash
  *
- * @see #equals
+ * @see #equals(Object)
  */
 public int hashCode () {
 	return (blue << 16) | (green << 8) | red;

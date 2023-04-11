@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -100,13 +100,16 @@ import org.eclipse.swt.events.*;
  * @see SWT
  */
 public class Shell extends Decorations {
-	Display display;
-	int shellHandle;
+	int shellHandle, focusProxy;
 	boolean reparented, realized, configured;
 	int oldX, oldY, oldWidth, oldHeight;
 	Control lastActive;
+	Region region;
 
 	static final  byte [] WM_DELETE_WINDOW = Converter.wcsToMbcs(null, "WM_DELETE_WINDOW\0");
+	static final  byte [] _NET_WM_STATE = Converter.wcsToMbcs(null, "_NET_WM_STATE\0");
+	static final  byte [] _NET_WM_STATE_MAXIMIZED_VERT = Converter.wcsToMbcs(null, "_NET_WM_STATE_MAXIMIZED_VERT\0");
+	static final  byte [] _NET_WM_STATE_MAXIMIZED_HORZ = Converter.wcsToMbcs(null, "_NET_WM_STATE_MAXIMIZED_HORZ\0");
 /**
  * Constructs a new instance of this class. This is equivalent
  * to calling <code>Shell((Display) null)</code>.
@@ -307,7 +310,7 @@ public Shell (Shell parent) {
  * @see SWT#SYSTEM_MODAL
  */
 public Shell (Shell parent, int style) {
-	this (parent != null ? parent.getDisplay () : null, parent, style, 0);
+	this (parent != null ? parent.display : null, parent, style, 0);
 }
 
 static int checkStyle (int style) {
@@ -355,7 +358,7 @@ public void addShellListener(ShellListener listener) {
 	addListener(SWT.Deiconify,typedListener);
 }
 void adjustTrim () {
-	if (OS.XtIsSubclass (shellHandle, OS.OverrideShellWidgetClass ())) {
+	if (OS.XtIsSubclass (shellHandle, OS.overrideShellWidgetClass ())) {
 		return;
 	}
 	int [] argList = {OS.XmNoverrideRedirect, 0};
@@ -457,6 +460,9 @@ void adjustTrim () {
 		return;
 	}
 }
+int borderHandle () {
+	return handle;
+}
 void bringToTop (boolean force) {
 	/*
 	* Feature in X.  Calling XSetInputFocus() when the
@@ -464,12 +470,11 @@ void bringToTop (boolean force) {
 	* The fix is to call XSetInputFocus() when the widget
 	* is viewable.
 	*/
-	if ((style & SWT.ON_TOP) != 0) return;
 	if (minimized) return;
 	if (!isVisible ()) return;
 	int xDisplay = OS.XtDisplay (shellHandle);
 	if (xDisplay == 0) return;
-	int xWindow = OS.XtWindow (shellHandle);
+	int xWindow = OS.XtWindow (focusProxy != 0 ? focusProxy : shellHandle);
 	if (xWindow == 0) return;
 	if (!force) {
 		int [] buffer1 = new int [1], buffer2 = new int [1];
@@ -492,6 +497,7 @@ void bringToTop (boolean force) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  *
+ * @see SWT#Close
  * @see #dispose
  */
 public void close () {
@@ -539,6 +545,15 @@ public Rectangle computeTrim (int x, int y, int width, int height) {
 	trim.width += trimWidth () + (border * 2);
 	trim.height += trimHeight () + imeHeight () + (border * 2);
 	return trim;
+}
+void createFocusProxy () {
+	if (focusProxy != 0) return;
+	int [] argList = {OS.XmNx, -1, OS.XmNy, -1, OS.XmNwidth, 1, OS.XmNheight, 1};
+	focusProxy = OS.XmCreateDrawingArea (scrolledHandle, null, argList, argList.length / 2);
+	if (focusProxy == 0) error (SWT.ERROR_NO_HANDLES);
+	OS.XtSetMappedWhenManaged (focusProxy, false);
+	OS.XtManageChild (focusProxy);
+	OS.XtSetMappedWhenManaged (focusProxy, true);
 }
 void createHandle (int index) {
 	state |= HANDLE | CANVAS;
@@ -608,10 +623,10 @@ void createHandle (int index) {
 	byte [] appClass = display.appClass;
 	if (parent == null && (style & SWT.ON_TOP) == 0 && inputMode != OS.MWM_INPUT_FULL_APPLICATION_MODAL) {
 		int xDisplay = display.xDisplay;
-		int widgetClass = OS.TopLevelShellWidgetClass ();
+		int widgetClass = OS.topLevelShellWidgetClass ();
 		shellHandle = OS.XtAppCreateShell (display.appName, appClass, widgetClass, xDisplay, argList1, argList1.length / 2);
 	} else {
-		int widgetClass = OS.TransientShellWidgetClass ();
+		int widgetClass = OS.transientShellWidgetClass ();
 //		if ((style & SWT.ON_TOP) != 0) {
 //			widgetClass = OS.OverrideShellWidgetClass ();
 //		}
@@ -621,9 +636,24 @@ void createHandle (int index) {
 	}
 	OS.XtFree (ptr);
 	if (shellHandle == 0) error (SWT.ERROR_NO_HANDLES);
-
+	if (handle != 0) {
+		OS.XtSetMappedWhenManaged (shellHandle, false);
+		OS.XtRealizeWidget (shellHandle);
+		OS.XtSetMappedWhenManaged (shellHandle, true);
+		int xDisplay = display.xDisplay;
+		int xWindow = OS.XtWindow (shellHandle);
+		if (xWindow == 0) error (SWT.ERROR_NO_HANDLES);
+		/*
+		* NOTE:  The embedded parent handle must be realized
+		* before embedding and cannot be realized here because
+		* the handle belongs to another thread.
+		*/
+		OS.XReparentWindow (xDisplay, xWindow, handle, 0, 0);
+		handle = 0;
+	}
+	
 	/* Create scrolled handle */
-	createScrolledHandle (shellHandle);
+	createHandle (index, shellHandle, true);
 
 	/*
 	* Feature in Motif.  There is no way to get the single pixel
@@ -638,7 +668,7 @@ void createHandle (int index) {
 	}
 	
 	/*
-	* Feature in Motif. There is no Motif API to negociate for the
+	* Feature in Motif. There is no Motif API to negotiate for the
 	* status line. The fix is to force the status line to appear
 	* by creating a hidden text widget.  This is much safer than
 	* using X API because this may conflict with Motif.
@@ -654,7 +684,7 @@ void createHandle (int index) {
 }
 void deregister () {
 	super.deregister ();
-	WidgetTable.remove (shellHandle);
+	display.removeWidget (shellHandle);
 }
 void destroyWidget () {
 	/*
@@ -692,13 +722,6 @@ public void dispose () {
 //	Display oldDisplay = display;
 
 	/*
-	* Feature in Motif.  When an override-redirected shell
-	* is disposed, Motif does not assign a new active top
-	* level shell.  The parent shell appears to be active,
-	* but XGetInputFocus returns the root window, not the
-	* parent.  The fix is to make the parent be the active
-	* top level shell when the child shell is disposed.
-	* 
 	* Feature in Motif.  When the active shell is disposed,
 	* Motif assigns focus temporarily to the root window
 	* unless it has previously been told to do otherwise.
@@ -706,10 +729,8 @@ public void dispose () {
 	* shell when the child shell is disposed.
 	*/
 	if (parent != null) {
-		int [] argList = {OS.XmNoverrideRedirect, 0};
-		OS.XtGetValues (shellHandle, argList, argList.length / 2);
 		Shell activeShell = display.getActiveShell ();
-		if (argList [1] != 0 || activeShell == this) {
+		if (activeShell == this) {
 			Shell shell = parent.getShell ();
 			shell.bringToTop (false);
 		}
@@ -772,10 +793,7 @@ public Rectangle getBounds () {
 	int height = argList [3] + trimHeight + (border * 2);
 	return new Rectangle (root_x [0], root_y [0], width, height);
 }
-public Display getDisplay () {
-	if (display == null) error (SWT.ERROR_WIDGET_DISPOSED);
-	return display;
-}
+
 /**
  * Returns the receiver's input method editor mode. This
  * will be the result of bitwise OR'ing together one or
@@ -806,6 +824,50 @@ public Point getLocation () {
 		root_y [0] -= trimTop ();
 	}
 	return new Point (root_x [0], root_y [0]);
+}
+public boolean getMaximized () {
+	checkWidget();
+	int xDisplay = OS.XtDisplay (shellHandle);
+	int xWindow = OS.XtWindow (shellHandle);
+	if (xWindow != 0) {
+		int property = OS.XInternAtom (xDisplay, _NET_WM_STATE, true);
+		int[] type = new int[1], format = new int[1], nitems = new int[1], bytes_after = new int[1], atoms = new int[1];
+		OS.XGetWindowProperty (xDisplay, xWindow, property, 0, Integer.MAX_VALUE, false, OS.XA_ATOM, type, format, nitems, bytes_after, atoms);
+		boolean result = false;
+		if (type [0] != OS.None) {
+			int maximizedHorz = OS.XInternAtom (xDisplay, _NET_WM_STATE_MAXIMIZED_HORZ, true);
+			int maximizedVert = OS.XInternAtom (xDisplay, _NET_WM_STATE_MAXIMIZED_VERT, true);
+			int[] atom = new int[1];
+			for (int i=0; i<nitems [0]; i++) {
+				OS.memmove(atom, atoms [0] + i * 4, 4);
+				if (atom [0] == maximizedHorz || atom [0] == maximizedVert) {
+					result = true;
+					break;
+				}
+			}
+		}
+		if (atoms [0] != 0) OS.XFree (atoms [0]);
+		return result;
+	}
+	return super.getMaximized ();
+}
+/** 
+ * Returns the region that defines the shape of the shell,
+ * or null if the shell has the default shape.
+ *
+ * @return the region that defines the shape of the shell (or null)
+ *	
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.0
+ *
+ */
+public Region getRegion () {
+	checkWidget ();
+	return region;
 }
 public Shell getShell () {
 	checkWidget();
@@ -870,11 +932,14 @@ public boolean getVisible () {
 	OS.XtGetValues (shellHandle, argList, argList.length / 2);
 	return minimized && attributes.map_state == OS.IsUnviewable && argList [1] != 0;
 }
+boolean hasBorder () {
+	return false;
+}
 void hookEvents () {
 	super.hookEvents ();
 	int windowProc = display.windowProc;
 	OS.XtInsertEventHandler (shellHandle, OS.StructureNotifyMask, false, windowProc, STRUCTURE_NOTIFY, OS.XtListTail);
-	if (OS.XtIsSubclass (shellHandle, OS.OverrideShellWidgetClass ())) return;
+	if (OS.XtIsSubclass (shellHandle, OS.overrideShellWidgetClass ())) return;
 	OS.XtInsertEventHandler (shellHandle, OS.FocusChangeMask, false, windowProc, FOCUS_CHANGE, OS.XtListTail);
 	int [] argList = {OS.XmNdeleteResponse, OS.XmDO_NOTHING};
 	OS.XtSetValues (shellHandle, argList, argList.length / 2);
@@ -909,10 +974,18 @@ public boolean isVisible () {
 void manageChildren () {
 	OS.XtSetMappedWhenManaged (shellHandle, false);
 	super.manageChildren ();
-	int xDisplay = OS.XtDisplay (shellHandle);
-	if (xDisplay == 0) return;
-	int width = OS.XDisplayWidth (xDisplay, OS.XDefaultScreen (xDisplay)) * 5 / 8;
-	int height = OS.XDisplayHeight (xDisplay, OS.XDefaultScreen (xDisplay)) * 5 / 8;
+	int width = 0, height = 0;
+	if (OS.IsLinux) {
+		Monitor monitor = getMonitor ();
+		Rectangle rect = monitor.getClientArea ();
+		width = rect.width * 5 / 8;
+		height = rect.height * 5 / 8;
+	} else {
+		int xDisplay = OS.XtDisplay (shellHandle);
+		if (xDisplay == 0) return;
+		width = OS.XDisplayWidth (xDisplay, OS.XDefaultScreen (xDisplay)) * 5 / 8;
+		height = OS.XDisplayHeight (xDisplay, OS.XDefaultScreen (xDisplay)) * 5 / 8;
+	}
 	OS.XtResizeWidget (shellHandle, width, height, 0);
 }
 /**
@@ -920,8 +993,8 @@ void manageChildren () {
  * the display on which it was created (so that all other
  * shells on that display, which are not the receiver's
  * children will be drawn behind it), marks it visible,
- * and sets focus to its default button (if it has one)
- * and asks the window manager to make the shell active.
+ * sets the focus and asks the window manager to make the
+ * shell active.
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -943,7 +1016,9 @@ public void open () {
 }
 void propagateWidget (boolean enabled) {
 	super.propagateWidget (enabled);
-	propagateHandle (enabled, shellHandle);
+	/* Allow the busy cursor to be displayed in a disabled shell */
+	int xCursor = cursor != null && !enabled ? cursor.handle : OS.None;
+	propagateHandle (enabled, shellHandle, xCursor);
 }
 void realizeWidget () {
 	if (realized) return;
@@ -953,7 +1028,7 @@ void realizeWidget () {
 }
 void register () {
 	super.register ();
-	WidgetTable.put (shellHandle, this);
+	display.addWidget (shellHandle, this);
 }
 void releaseHandle () {
 	super.releaseHandle ();
@@ -969,8 +1044,8 @@ void releaseShells () {
 void releaseWidget () {
 	releaseShells ();
 	super.releaseWidget ();
-	display = null;
 	lastActive = null;
+	region = null;
 }
 /**
  * Removes the listener from the collection of listeners who will
@@ -1116,17 +1191,47 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
 	configured = true;
 	boolean isFocus = caret != null && caret.isFocusCaret ();
 	if (isFocus) caret.killFocus ();
+	if (resize) {
+		if (redrawWindow != 0) {
+			int xDisplay = OS.XtDisplay (handle);
+			OS.XResizeWindow (xDisplay, redrawWindow, width, height);
+		}
+	}
 	if (move && resize) {
 		OS.XtConfigureWidget (shellHandle, x, y, width, height, 0);
 	} else {
 		if (move) OS.XtMoveWidget (shellHandle, x, y);
 		if (resize) OS.XtResizeWidget (shellHandle, width, height, 0);
 	}
+	if (resize && OS.IsLinux) updateResizable (width, height);
 	if (isFocus) caret.setFocus ();
 	return move || resize;
 }
+public void setEnabled (boolean enabled) {
+	checkWidget ();
+	if (enabled == getEnabled ()) return;
+	super.setEnabled (enabled);
+	if (enabled && this == display.getActiveShell ()) {
+		if (!restoreFocus ()) traverseGroup (false);
+	}
+}
+public void setMaximized (boolean maximized) {
+	checkWidget();
+	super.setMaximized (maximized);
+	if (!OS.XtIsRealized (handle)) realizeWidget();
+	int xDisplay = OS.XtDisplay (shellHandle);
+	int xWindow = OS.XtWindow (shellHandle);
+	if (xWindow != 0) {
+		int property = OS.XInternAtom (xDisplay, _NET_WM_STATE, true);
+		int maximizedHorz = OS.XInternAtom (xDisplay, _NET_WM_STATE_MAXIMIZED_HORZ, true);
+		int maximizedVert = OS.XInternAtom (xDisplay, _NET_WM_STATE_MAXIMIZED_VERT, true);
+		int[] atoms = new int[]{maximizedHorz, maximizedVert};
+		OS.XChangeProperty (xDisplay, xWindow, property, OS.XA_ATOM, 32, OS.PropModeReplace, atoms, atoms.length);
+	}
+}
 public void setMinimized (boolean minimized) {
 	checkWidget();
+	if (minimized == this.minimized) return;
 	
 	/* 
 	* Bug in MOTIF.  For some reason, the receiver does not keep the
@@ -1139,23 +1244,76 @@ public void setMinimized (boolean minimized) {
 	* the old value.  The fix is to force XmNiconic to be up to date
 	* before setting the desired value.
 	*/
-	int [] argList = {OS.XmNiconic, 0};
+	int [] argList = {
+		OS.XmNiconic, 0,
+		OS.XmNinitialState, 0,
+	};
 	OS.XtGetValues (shellHandle, argList, argList.length / 2);
 	if ((argList [1] != 0) != this.minimized) {
 		argList [1] = this.minimized ? 1 : 0;
 		OS.XtSetValues (shellHandle, argList, argList.length / 2);
 	}
-	
+
 	/* Minimize or restore the shell */
-	argList [1] = (this.minimized = minimized) ? 1 : 0;
+	super.setMinimized (minimized);
+	argList [1] = minimized ? 1 : 0;
+	argList [3] = minimized ? OS.IconicState : OS.NormalState;
 	OS.XtSetValues (shellHandle, argList, argList.length / 2);
 
 	/* Force the XWindowAttributes to be up to date */
 	int xDisplay = OS.XtDisplay (handle);
 	if (xDisplay != 0) OS.XSync (xDisplay, false);
+	
+	/* Make the restored shell be the active shell */
+	if (!minimized) {
+		int [] argList2 = {OS.XmNmappedWhenManaged, 0};
+		OS.XtGetValues (shellHandle, argList2, argList2.length / 2);
+		if (argList2 [1] != 0) {
+			do {
+				display.update ();
+			} while (!isVisible ());
+			setActive ();
+		}
+	}
 }
 void setParentTraversal () {
 	/* Do nothing - Child shells do not affect the traversal of their parent shell */
+}
+/**
+ * Sets the shape of the shell to the region specified
+ * by the argument.  When the argument is null, the
+ * default shape of the shell is restored.  The shell
+ * must be created with the style SWT.NO_TRIM in order
+ * to specify a region.
+ *
+ * @param region the region that defines the shape of the shell (or null)
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the region has been disposed</li>
+ * </ul>  
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.0
+ *
+ */
+public void setRegion (Region region) {
+	checkWidget ();
+	if ((style & SWT.NO_TRIM) == 0) return;
+	if (region != null && region.isDisposed()) error (SWT.ERROR_INVALID_ARGUMENT);
+	if (!OS.XtIsRealized (shellHandle)) realizeWidget ();
+	int xDisplay = OS.XtDisplay (shellHandle);
+	if (xDisplay == 0) return;
+	int xWindow = OS.XtWindow (shellHandle);
+	if (xWindow == 0) return;
+	if (region != null) {
+		OS.XShapeCombineRegion (xDisplay, xWindow, OS.ShapeBounding, 0, 0, region.handle, OS.ShapeSet);
+	} else {
+		OS.XShapeCombineMask (xDisplay, xWindow, OS.ShapeBounding, 0, 0, 0, OS.ShapeSet);
+	}
+	this.region = region;
 }
 public void setText (String string) {
 	checkWidget();
@@ -1170,7 +1328,6 @@ public void setText (String string) {
 	/* Use the character encoding for the default locale */
 	if (string.length () == 0) string = " ";
 	byte [] buffer1 = Converter.wcsToMbcs (null, string, true);
-	int length = buffer1.length - 1;
 	
 	/* 
 	* Bug in Motif.  For some reason, if the title string
@@ -1179,6 +1336,7 @@ public void setText (String string) {
 	* The fix is to pad the title.
 	*/
 	byte [] buffer2 = buffer1;
+	int length = buffer1.length - 1;
 	if ((length % 4) != 0) {
 		buffer2 = new byte [(length + 3) / 4 * 4];
 		System.arraycopy (buffer1, 0, buffer2, 0, length);
@@ -1187,7 +1345,7 @@ public void setText (String string) {
 	/* Set the title for the shell */
 	int ptr = OS.XtMalloc (buffer2.length + 1);
 	OS.memmove (ptr, buffer2, buffer2.length);
-	int [] argList = {OS.XmNtitle, ptr};
+	int [] argList = {OS.XmNtitle, ptr, OS.XmNiconName, ptr};
 	OS.XtSetValues (shellHandle, argList, argList.length / 2);
 	OS.XtFree (ptr);
 }
@@ -1197,6 +1355,8 @@ public void setVisible (boolean visible) {
 
 	/* Show the shell */
 	if (visible) {
+		sendEvent (SWT.Show);
+		if (isDisposed ()) return;
 
 		/* Map the widget */
 		OS.XtSetMappedWhenManaged (shellHandle, true);
@@ -1213,29 +1373,33 @@ public void setVisible (boolean visible) {
 		*/
 		do {
 			display.update ();
+			if (isDisposed ()) return;
 		} while (!isVisible ());
 		adjustTrim ();
 		
-		sendEvent (SWT.Show);
-		return;
-	}
-
-	/* Hide the shell */
-	OS.XtSetMappedWhenManaged (shellHandle, false);
-	if (OS.XtIsTopLevelShell (shellHandle)) {
-		OS.XtUnmapWidget (shellHandle);
+		int mask = SWT.PRIMARY_MODAL | SWT.APPLICATION_MODAL | SWT.APPLICATION_MODAL;
+		if ((style & mask) != 0) {
+			OS.XUngrabPointer (display.xDisplay, OS.CurrentTime);
+		}
 	} else {
-		OS.XtPopdown (shellHandle);
+	
+		/* Hide the shell */
+		OS.XtSetMappedWhenManaged (shellHandle, false);
+		if (OS.XtIsTopLevelShell (shellHandle)) {
+			OS.XtUnmapWidget (shellHandle);
+		} else {
+			OS.XtPopdown (shellHandle);
+		}
+	
+		/* If the shell is iconified, hide the icon */
+		int xDisplay = OS.XtDisplay (shellHandle);
+		if (xDisplay == 0) return;
+		int xWindow = OS.XtWindow (shellHandle);
+		if (xWindow == 0) return;
+		OS.XWithdrawWindow (xDisplay, xWindow, OS.XDefaultScreen (xDisplay));
+	
+		sendEvent (SWT.Hide);
 	}
-
-	/* If the shell is iconified, hide the icon */
-	int xDisplay = OS.XtDisplay (shellHandle);
-	if (xDisplay == 0) return;
-	int xWindow = OS.XtWindow (shellHandle);
-	if (xWindow == 0) return;
-	OS.XWithdrawWindow (xDisplay, xWindow, OS.XDefaultScreen (xDisplay));
-
-	sendEvent (SWT.Hide);
 }
 void setZOrder (Control control, boolean above) {
 	setZOrder (control, above, false);
@@ -1325,6 +1489,16 @@ int trimWidth () {
 	}
 	return 0;
 }
+void updateResizable (int width, int height) {
+	if (!OS.XtIsRealized (shellHandle)) return;
+	if ((style & SWT.RESIZE) == 0) {
+		XSizeHints hints = new XSizeHints();
+		hints.flags = OS.PMinSize | OS.PMaxSize;
+		hints.min_width = hints.max_width = width;
+		hints.min_height = hints.max_height = height;
+		OS.XSetWMNormalHints (OS.XtDisplay (shellHandle), OS.XtWindow (shellHandle), hints);
+	}
+}
 int WM_DELETE_WINDOW (int w, int client_data, int call_data) {
 	closeWidget ();
 	return 0;
@@ -1333,17 +1507,34 @@ int XFocusChange (int w, int client_data, int call_data, int continue_to_dispatc
 	XFocusChangeEvent xEvent = new XFocusChangeEvent ();
 	OS.memmove (xEvent, call_data, XFocusChangeEvent.sizeof);
 	int handle = OS.XtWindowToWidget (xEvent.display, xEvent.window);
-	if (handle != shellHandle) return super.XFocusChange (w, client_data, call_data, continue_to_dispatch);
+	if (handle != shellHandle) {
+		return super.XFocusChange (w, client_data, call_data, continue_to_dispatch);
+	}
 	if (xEvent.mode != OS.NotifyNormal) return 0;
+	if (xEvent.type == OS.FocusIn && xEvent.detail == OS.NotifyInferior) {
+		if (focusProxy != 0) {
+			int xWindow = OS.XtWindow (focusProxy);
+			int xDisplay = OS.XtDisplay (focusProxy);
+			OS.XSetInputFocus (xDisplay, xWindow, OS.RevertToParent, OS.CurrentTime);
+		}
+	}
 	switch (xEvent.detail) {
 		case OS.NotifyNonlinear:
 		case OS.NotifyNonlinearVirtual: {
 			switch (xEvent.type) {
-				case OS.FocusIn: 
-					postEvent (SWT.Activate);
+				case OS.FocusIn:
+					if (display.postFocusOut) {
+						postEvent (SWT.Activate);
+					} else {
+						sendEvent (SWT.Activate);
+					}
 					break;
 				case OS.FocusOut:
-					postEvent (SWT.Deactivate);
+					if (display.postFocusOut) {
+						postEvent (SWT.Deactivate);
+					} else {
+						sendEvent (SWT.Deactivate);
+					}
 					break;
 			}
 		}
@@ -1353,6 +1544,10 @@ int XFocusChange (int w, int client_data, int call_data, int continue_to_dispatc
 int XStructureNotify (int w, int client_data, int call_data, int continue_to_dispatch) {
 	XConfigureEvent xEvent = new XConfigureEvent ();
 	OS.memmove (xEvent, call_data, XConfigureEvent.sizeof);
+	int handle = OS.XtWindowToWidget (xEvent.display, xEvent.window);
+	if (handle != shellHandle) {
+		return super.XStructureNotify (w, client_data, call_data, continue_to_dispatch);
+	}
 	switch (xEvent.type) {
 		case OS.ReparentNotify: {
 			if (reparented) return 0;
@@ -1363,6 +1558,7 @@ int XStructureNotify (int w, int client_data, int call_data, int continue_to_dis
 			OS.XtGetValues (shellHandle, argList, argList.length / 2);	
 			xEvent.x = root_x [0];  xEvent.y = root_y [0];
 			xEvent.width = argList [1];  xEvent.height = argList [3];
+			if (OS.IsLinux) updateResizable (xEvent.width, xEvent.height);
 			// FALL THROUGH
 		}
 		case OS.ConfigureNotify:
@@ -1370,17 +1566,18 @@ int XStructureNotify (int w, int client_data, int call_data, int continue_to_dis
 			configured = false;
 			if (oldX != xEvent.x || oldY != xEvent.y) sendEvent (SWT.Move);
 			if (oldWidth != xEvent.width || oldHeight != xEvent.height) {
-				XAnyEvent event = new XAnyEvent ();
+				int xEvent1 = OS.XtMalloc (XEvent.sizeof);
 				display.resizeWindow = xEvent.window;
 				display.resizeWidth = xEvent.width;
 				display.resizeHeight = xEvent.height;
 				display.resizeCount = 0;
 				int checkResizeProc = display.checkResizeProc;
-				OS.XCheckIfEvent (xEvent.display, event, checkResizeProc, 0);
+				OS.XCheckIfEvent (xEvent.display, xEvent1, checkResizeProc, 0);
 				if (display.resizeCount == 0) {
 					sendEvent (SWT.Resize);
 					if (layout != null) layout (false);
 				}
+				OS.XtFree (xEvent1);
 			}
 			if (xEvent.x != 0) oldX = xEvent.x;
 			if (xEvent.y != 0) oldY = xEvent.y;

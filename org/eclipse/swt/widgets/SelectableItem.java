@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -33,6 +33,10 @@ abstract class SelectableItem extends Item {
 SelectableItem(SelectableItemWidget parent, int style) {
 	super(parent, style);
 	setParent(parent);	
+}
+
+void clear() {
+	isChecked = isGrayed = false;
 }
 public void dispose() {
 	if (isDisposed()) return;
@@ -91,7 +95,7 @@ void drawInsertMark(GC gc, Point position) {
 	if (parent.isInsertAfter()) {
 		insertMarkYOffset = selectionExtent.y - markerWidth;
 	}
-	gc.setBackground(getDisplay().getSystemColor(SWT.COLOR_BLACK));
+	gc.setBackground(display.getSystemColor(SWT.COLOR_BLACK));
 	gc.fillRectangle(position.x, position.y + insertMarkYOffset, selectionExtent.x, markerWidth);
 	gc.setBackground(parent.getBackground());
 }
@@ -136,16 +140,9 @@ public boolean getChecked() {
 	}
 	return checked;
 }
-/**
- * Answer the display of the receiver's parent widget.
- */
-public Display getDisplay() {
-	SelectableItemWidget parent = getSelectableParent();
 
-	if (parent == null) {
-		error(SWT.ERROR_WIDGET_DISPOSED);
-	}
-	return parent.getDisplay();
+public Font getFont() {
+	return parent.getFont();
 }
 
 /**
@@ -185,8 +182,6 @@ SelectableItemWidget getSelectableParent() {
  * selection rectangle.
  */
 Color getSelectionBackgroundColor() {
-	Display display = getSelectableParent().getDisplay();	
-
 	return display.getSystemColor(SWT.COLOR_LIST_SELECTION);
 }
 /**
@@ -199,8 +194,6 @@ abstract Point getSelectionExtent();
  * selection rectangle.
  */
 Color getSelectionForegroundColor() {
-	Display display = getSelectableParent().getDisplay();	
-
 	return display.getSystemColor(SWT.COLOR_LIST_SELECTION_TEXT);
 }
 /**

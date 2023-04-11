@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -34,6 +34,7 @@ public class ACC {
 	public static final int STATE_INVISIBLE = 0x8000;
 	public static final int STATE_OFFSCREEN = 0x10000;
 	public static final int STATE_SIZEABLE = 0x20000;
+	public static final int STATE_LINKED = 0x400000;
 
 	public static final int ROLE_CLIENT_AREA = 0xa;
 	public static final int ROLE_WINDOW = 0x9;
@@ -65,8 +66,12 @@ public class ACC {
 	public static final int ROLE_TABITEM = 0x25;
 	public static final int ROLE_PROGRESSBAR = 0x30;
 	public static final int ROLE_SLIDER = 0x33;
+	public static final int ROLE_LINK = 0x1e;
 
 	public static final int CHILDID_SELF = -1;
 	public static final int CHILDID_NONE = -2;
 	public static final int CHILDID_MULTIPLE = -3;
+	
+	public static final int TEXT_INSERT = 0;
+	public static final int TEXT_DELETE = 1;
 }

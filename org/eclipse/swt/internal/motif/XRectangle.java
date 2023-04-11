@@ -12,9 +12,9 @@ package org.eclipse.swt.internal.motif;
 
  
 public class XRectangle {
-	public short x, y, width, height;
+	public short x;
+	public short y;
+	public short width;
+	public short height;
 	public static final int sizeof = 8;
-public String toString () {
-	return "XRectangle {" + x + ", " + y + ", " + width + ", " + height + "}";
-}
 }

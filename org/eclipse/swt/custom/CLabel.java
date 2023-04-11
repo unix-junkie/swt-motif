@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -35,6 +35,10 @@ import org.eclipse.swt.accessibility.*;
  * <dt><b>Events:</b>
  * <dd></dd>
  * </dl>
+ * 
+ * </p><p>
+ * IMPORTANT: This class is <em>not</em> intended to be subclassed.
+ * </p>
  */
 public class CLabel extends Canvas {
 
@@ -43,7 +47,7 @@ public class CLabel extends Canvas {
 	/** Left and right margins */
 	private static final int INDENT = 3;
 	/** a string inserted in the middle of text that has been shortened */
-	private static final String ellipsis = "..."; //$NON-NLS-1$
+	private static final String ELLIPSIS = "..."; //$NON-NLS-1$ // could use the ellipsis glyph on some platforms "\u2026"
 	/** the alignment. Either CENTER, RIGHT, LEFT. Default is LEFT*/
 	private int align = SWT.LEFT;
 	private int hIndent = INDENT;
@@ -62,6 +66,7 @@ public class CLabel extends Canvas {
 	private Image backgroundImage;
 	private Color[] gradientColors;
 	private int[] gradientPercents;
+	private boolean gradientVertical;
 
 /**
  * Constructs a new instance of this class given its parent
@@ -92,7 +97,7 @@ public class CLabel extends Canvas {
  * @see SWT#SHADOW_IN
  * @see SWT#SHADOW_OUT
  * @see SWT#SHADOW_NONE
- * @see #getStyle
+ * @see #getStyle()
  */
 public CLabel(Composite parent, int style) {
 	super(parent, checkStyle(style));
@@ -120,6 +125,7 @@ public CLabel(Composite parent, int style) {
  * Check the style bits to ensure that no invalid styles are applied.
  */
 private static int checkStyle (int style) {
+	if ((style & SWT.BORDER) != 0) style |= SWT.SHADOW_IN;
 	int mask = SWT.SHADOW_IN | SWT.SHADOW_OUT | SWT.SHADOW_NONE | SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT;
 	style = style & mask;
 	style |= SWT.NO_FOCUS;
@@ -136,6 +142,15 @@ private static int checkStyle (int style) {
 	if ("carbon".equals(platform) || "gtk".equals(platform)) return style; //$NON-NLS-1$ //$NON-NLS-2$
 	return style | SWT.NO_BACKGROUND;
 }
+
+//protected void checkSubclass () {
+//	String name = getClass().getName ();
+//	String validName = CLabel.class.getName();
+//	if (!validName.equals(name)) {
+//		SWT.error (SWT.ERROR_INVALID_SUBCLASS);
+//	}
+//}
+
 public Point computeSize(int wHint, int hHint, boolean changed) {
 	checkWidget();
 	Point e = getTotalSize(image, text);
@@ -286,9 +301,13 @@ private void initAccessible() {
 		public void getState(AccessibleControlEvent e) {
 			e.detail = ACC.STATE_READONLY;
 		}
+		
+		public void getValue(AccessibleControlEvent e) {
+			e.result = getText();
+		}
 	});
 }
-private void onDispose(DisposeEvent event) {
+void onDispose(DisposeEvent event) {
 	gradientColors = null;
 	gradientPercents = null;
 	backgroundImage = null;
@@ -299,7 +318,7 @@ private void onDispose(DisposeEvent event) {
 /* 
  * Process the paint event
  */
-private void onPaint(PaintEvent event) {
+void onPaint(PaintEvent event) {
 	Rectangle rect = getClientArea();
 	if (rect.width == 0 || rect.height == 0) return;
 	
@@ -343,8 +362,18 @@ private void onPaint(PaintEvent event) {
 		if (backgroundImage != null) {
 			// draw a background image behind the text
 			Rectangle imageRect = backgroundImage.getBounds();
-			gc.drawImage(backgroundImage, 0, 0, imageRect.width, imageRect.height,
-				0, 0, rect.width, rect.height);
+			// tile image to fill space
+			gc.setBackground(getBackground());
+			gc.fillRectangle(rect);
+			int xPos = 0;
+			while (xPos < rect.width) {
+				int yPos = 0;
+				while (yPos < rect.height) {
+					gc.drawImage(backgroundImage, xPos, yPos);
+					yPos += imageRect.height;
+				}
+				xPos += imageRect.width;
+			}
 		} else if (gradientColors != null) {
 			// draw a gradient behind the text
 			final Color oldBackground = gc.getBackground();
@@ -355,14 +384,29 @@ private void onPaint(PaintEvent event) {
 				final Color oldForeground = gc.getForeground();
 				Color lastColor = gradientColors[0];
 				if (lastColor == null) lastColor = oldBackground;
-				for (int i = 0, pos = 0; i < gradientPercents.length; ++i) {
+				int pos = 0;
+				for (int i = 0; i < gradientPercents.length; ++i) {
 					gc.setForeground(lastColor);
 					lastColor = gradientColors[i + 1];
 					if (lastColor == null) lastColor = oldBackground;
 					gc.setBackground(lastColor);
-					final int gradientWidth = (gradientPercents[i] * rect.width / 100) - pos;
-					gc.fillGradientRectangle(pos, 0, gradientWidth, rect.height, false);
-					pos += gradientWidth;
+					if (gradientVertical) {
+						final int gradientHeight = (gradientPercents[i] * rect.height / 100) - pos;
+						gc.fillGradientRectangle(0, pos, rect.width, gradientHeight, true);
+						pos += gradientHeight;
+					} else {
+						final int gradientWidth = (gradientPercents[i] * rect.width / 100) - pos;
+						gc.fillGradientRectangle(pos, 0, gradientWidth, rect.height, false);
+						pos += gradientWidth;
+					}
+				}
+				if (gradientVertical && pos < rect.height) {
+					gc.setBackground(getBackground());
+					gc.fillRectangle(0, pos, rect.width, rect.height - pos);
+				}
+				if (!gradientVertical && pos < rect.width) {
+					gc.setBackground(getBackground());
+					gc.fillRectangle(pos, 0, rect.width - pos, rect.height);
 				}
 				gc.setForeground(oldForeground);
 			}
@@ -441,7 +485,7 @@ public void setBackground (Color color) {
 /**
  * Specify a gradient of colours to be drawn in the background of the CLabel.
  * <p>For example, to draw a gradient that varies from dark blue to blue and then to
- * white and stays white for the right hald of the label, use the following call 
+ * white and stays white for the right half of the label, use the following call 
  * to setBackground:</p>
  * <pre>
  *	clabel.setBackground(new Color[]{display.getSystemColor(SWT.COLOR_DARK_BLUE), 
@@ -465,7 +509,38 @@ public void setBackground (Color color) {
  *    <li>ERROR_INVALID_ARGUMENT - if the values of colors and percents are not consistant</li>
  * </ul>
  */
-public void setBackground(Color[] colors, int[] percents) {	
+public void setBackground(Color[] colors, int[] percents) {
+	setBackground(colors, percents, false);
+}
+/**
+ * Specify a gradient of colours to be drawn in the background of the CLabel.
+ * <p>For example, to draw a gradient that varies from dark blue to white in the vertical,
+ * direction use the following call 
+ * to setBackground:</p>
+ * <pre>
+ *	clabel.setBackground(new Color[]{display.getSystemColor(SWT.COLOR_DARK_BLUE), 
+ *		                           display.getSystemColor(SWT.COLOR_WHITE)},
+ *		                 new int[] {100}, true);
+ * </pre>
+ *
+ * @param colors an array of Color that specifies the colors to appear in the gradient 
+ *               in order of appearance from left/top to right/bottom;  The value <code>null</code> 
+ *               clears the background gradient; the value <code>null</code> can be used 
+ *               inside the array of Color to specify the background color.
+ * @param percents an array of integers between 0 and 100 specifying the percent of the width/height 
+ *                 of the widget at which the color should change; the size of the percents 
+ *                 array must be one less than the size of the colors array.
+ * @param vertical indicate the direction of the gradient.  True is vertical and false is horizontal.
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the values of colors and percents are not consistant</li>
+ * </ul>
+ * 
+ * @since 3.0
+ */
+public void setBackground(Color[] colors, int[] percents, boolean vertical) {	
 	checkWidget();
 	if (colors != null) {
 		if (percents == null || percents.length != colors.length - 1) {
@@ -473,7 +548,7 @@ public void setBackground(Color[] colors, int[] percents) {
 		}
 		if (getDisplay().getDepth() < 15) {
 			// Don't use gradients on low color displays
-			colors = new Color[] { colors[0] };
+			colors = new Color[] {colors[colors.length - 1]};
 			percents = new int[] { };
 		}
 		for (int i = 0; i < percents.length; i++) {
@@ -504,7 +579,7 @@ public void setBackground(Color[] colors, int[] percents) {
 					if (!same) break;
 				}
 			}
-			if (same) return;
+			if (same && this.gradientVertical == vertical) return;
 		}
 	} else {
 		backgroundImage = null;
@@ -513,6 +588,7 @@ public void setBackground(Color[] colors, int[] percents) {
 	if (colors == null) {
 		gradientColors = null;
 		gradientPercents = null;
+		gradientVertical = false;
 	} else {
 		gradientColors = new Color[colors.length];
 		for (int i = 0; i < colors.length; ++i)
@@ -520,6 +596,7 @@ public void setBackground(Color[] colors, int[] percents) {
 		gradientPercents = new int[percents.length];
 		for (int i = 0; i < percents.length; ++i)
 			gradientPercents[i] = percents[i];
+		gradientVertical = vertical;
 	}
 	// Refresh with the new settings
 	redraw();
@@ -594,7 +671,7 @@ public void setText(String text) {
  */
 protected String shortenText(GC gc, String t, int width) {
 	if (t == null) return null;
-	int w = gc.textExtent(ellipsis).x;
+	int w = gc.textExtent(ELLIPSIS).x;
 	int l = t.length();
 	int pivot = l/2;
 	int s = pivot;
@@ -605,7 +682,7 @@ protected String shortenText(GC gc, String t, int width) {
 		int l1 = gc.textExtent(s1).x;
 		int l2 = gc.textExtent(s2).x;
 		if (l1+w+l2 < width) {
-			t = s1 + ellipsis + s2;
+			t = s1 + ELLIPSIS + s2;
 			break;
 		}
 		s--;

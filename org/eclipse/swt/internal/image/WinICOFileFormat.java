@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -16,6 +16,21 @@ import org.eclipse.swt.graphics.*;
 import java.io.*;
 
 final class WinICOFileFormat extends FileFormat {
+	
+static final byte[] convertPad(byte[] data, int width, int height, int depth, int pad, int newPad) {
+	if (pad == newPad) return data;
+	int stride = (width * depth + 7) / 8;
+	int bpl = (stride + (pad - 1)) / pad * pad;
+	int newBpl = (stride + (newPad - 1)) / newPad * newPad;
+	byte[] newData = new byte[height * newBpl];
+	int srcIndex = 0, destIndex = 0;
+	for (int y = 0; y < height; y++) {
+		System.arraycopy(data, srcIndex, newData, destIndex, newBpl);
+		srcIndex += bpl;
+		destIndex += newBpl;
+	}
+	return newData;
+}
 /**
  * Answer the size in bytes of the file representation of the given
  * icon
@@ -24,7 +39,8 @@ int iconSize(ImageData i) {
 	int shapeDataStride = (i.width * i.depth + 31) / 32 * 4;
 	int maskDataStride = (i.width + 31) / 32 * 4;
 	int dataSize = (shapeDataStride + maskDataStride) * i.height;
-	return WinBMPFileFormat.BMPHeaderFixedSize + (i.palette.colors.length * 4) + dataSize;
+	int paletteSize = i.palette.colors != null ? i.palette.colors.length * 4 : 0;
+	return WinBMPFileFormat.BMPHeaderFixedSize + paletteSize + dataSize;
 }
 boolean isFileFormat(LEDataInputStream stream) {
 	try {
@@ -37,10 +53,18 @@ boolean isFileFormat(LEDataInputStream stream) {
 	}
 }
 boolean isValidIcon(ImageData i) {
-	if (!((i.depth == 1) || (i.depth == 4) || (i.depth == 8)))
-		return false;
-	int size = i.palette.colors.length;
-	return ((size == 2) || (size == 16) || (size == 32) || (size == 256));
+	switch (i.depth) {
+		case 1:
+		case 4:
+		case 8:
+			if (i.palette.isDirect) return false;
+			int size = i.palette.colors.length;
+			return size == 2 || size == 16 || size == 32 || size == 256;
+		case 24:
+		case 32:
+			return i.palette.isDirect;
+	}
+	return false;
 }
 int loadFileHeader(LEDataInputStream byteStream) {
 	int[] fileHeader = new int[3];
@@ -97,21 +121,21 @@ ImageData loadIcon(int[] iconHeader) {
 	bmpFormat.inputStream = inputStream;
 	PaletteData palette = bmpFormat.loadPalette(infoHeader);
 	byte[] shapeData = bmpFormat.loadData(infoHeader);
+	int width = (infoHeader[4] & 0xFF) | ((infoHeader[5] & 0xFF) << 8) | ((infoHeader[6] & 0xFF) << 16) | ((infoHeader[7] & 0xFF) << 24);
+	int height = (infoHeader[8] & 0xFF) | ((infoHeader[9] & 0xFF) << 8) | ((infoHeader[10] & 0xFF) << 16) | ((infoHeader[11] & 0xFF) << 24);
 	int depth = (infoHeader[14] & 0xFF) | ((infoHeader[15] & 0xFF) << 8);
 	infoHeader[14] = 1;
 	infoHeader[15] = 0;
 	byte[] maskData = bmpFormat.loadData(infoHeader);
+	maskData = convertPad(maskData, width, height, 1, 4, 2);
 	bitInvertData(maskData, 0, maskData.length);
-	int infoWidth = (infoHeader[4] & 0xFF) | ((infoHeader[5] & 0xFF) << 8) | ((infoHeader[6] & 0xFF) << 16) | ((infoHeader[7] & 0xFF) << 24);
-	int infoHeight = (infoHeader[8] & 0xFF) | ((infoHeader[9] & 0xFF) << 8) | ((infoHeader[10] & 0xFF) << 16) | ((infoHeader[11] & 0xFF) << 24);
 	return ImageData.internal_new(
-		infoWidth,
-		infoHeight,
+		width,
+		height,
 		depth,
 		palette,
 		4,
 		shapeData,
-//		4,
 		2,
 		maskData,
 		null,
@@ -170,7 +194,7 @@ byte[] loadInfoHeader(int[] iconHeader) {
 	int bitCount = (infoHeader[14] & 0xFF) | ((infoHeader[15] & 0xFF) << 8);
 	if (height == infoHeight && bitCount == 1) height /= 2;
 	if (!((width == infoWidth) && (height * 2 == infoHeight) &&
-		((bitCount == 1) || (bitCount == 4) || (bitCount == 8))))
+		(bitCount == 1 || bitCount == 4 || bitCount == 8 || bitCount == 24 || bitCount == 32)))
 			SWT.error(SWT.ERROR_INVALID_IMAGE);
 	infoHeader[8] = (byte)(height & 0xFF);
 	infoHeader[9] = (byte)((height >> 8) & 0xFF);
@@ -194,13 +218,13 @@ void unloadIcon(ImageData icon) {
 		outputStream.writeInt(sizeImage);
 		outputStream.writeInt(0);
 		outputStream.writeInt(0);
-		outputStream.writeInt(icon.palette.colors.length);
+		outputStream.writeInt(icon.palette.colors != null ? icon.palette.colors.length : 0);
 		outputStream.writeInt(0);
 	} catch (IOException e) {
 		SWT.error(SWT.ERROR_IO, e);
 	}
 	
-	byte[] rgbs = new WinBMPFileFormat().paletteToBytes(icon.palette);
+	byte[] rgbs = WinBMPFileFormat.paletteToBytes(icon.palette);
 	try {
 		outputStream.write(rgbs);
 	} catch (IOException e) {
@@ -219,7 +243,7 @@ void unloadIconHeader(ImageData i) {
 	try {
 		outputStream.writeByte((byte)i.width);
 		outputStream.writeByte((byte)i.height);
-		outputStream.writeShort(i.palette.colors.length);
+		outputStream.writeShort(i.palette.colors != null ? i.palette.colors.length : 0);
 		outputStream.writeShort(0);
 		outputStream.writeShort(0);
 		outputStream.writeInt(iconSize);
@@ -246,13 +270,14 @@ void unloadIntoByteStream(ImageData image) {
  * and inverted.
  */
 void unloadMaskData(ImageData icon) {
+	ImageData mask = icon.getTransparencyMask();
 	int bpl = (icon.width + 7) / 8;
-	int pad = 4;
+	int pad = mask.scanlinePad;
 	int srcBpl = (bpl + pad - 1) / pad * pad;
 	int destBpl = (bpl + 3) / 4 * 4;
 	byte[] buf = new byte[destBpl];
 	int offset = (icon.height - 1) * srcBpl;
-	byte[] data = icon.getTransparencyMask().data;
+	byte[] data = mask.data;
 	try {
 		for (int i = 0; i < icon.height; i++) {
 			System.arraycopy(data, offset, buf, 0, bpl);
@@ -269,7 +294,7 @@ void unloadMaskData(ImageData icon) {
  */
 void unloadShapeData(ImageData icon) {
 	int bpl = (icon.width * icon.depth + 7) / 8;
-	int pad = 4;
+	int pad = icon.scanlinePad;
 	int srcBpl = (bpl + pad - 1) / pad * pad;
 	int destBpl = (bpl + 3) / 4 * 4;
 	byte[] buf = new byte[destBpl];

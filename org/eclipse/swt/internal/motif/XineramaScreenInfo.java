@@ -10,16 +10,11 @@
  *******************************************************************************/
 package org.eclipse.swt.internal.motif;
 
- 
-public class XmDropFinishCallback {
-	public int   reason;           // the reason callback was called
-	public int   event;            // event structure that triggered callback
-	public int   timeStamp;        // time at which drop completed
-	public byte  operation;        // current operation
-	public byte  operations;       // supported operations
-	public byte  dropSiteStatus;   // valid, invalid or none
-	public byte  dropAction;       // drop, cancel, help or interrupt
-	public byte  completionStatus; // success or failure
-
-	public static final int sizeof = 17;
+public class XineramaScreenInfo {
+	public int screen_number;
+	public short x_org;
+	public short y_org;
+	public short width;
+	public short height;
+	public static final int sizeof = 12;
 }

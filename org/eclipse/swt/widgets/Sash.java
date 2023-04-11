@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -37,8 +37,6 @@ public class Sash extends Control {
 	boolean dragging;
 	int startX, startY, lastX, lastY;
 	int cursor;
-	
-	// constants
 	private final static int INCREMENT = 1;
 	private final static int PAGE_INCREMENT = 9;
 
@@ -157,18 +155,25 @@ void drawBand (int x, int y, int width, int height) {
 	OS.XFreePixmap (display, stipplePixmap);
 	OS.XFreeGC (display, gc);
 }
+void propagateWidget (boolean enabled) {
+	int xCursor = enabled && super.cursor != null ? super.cursor.handle : cursor;
+	propagateHandle (enabled, handle, xCursor);
+}
 void realizeChildren () {
 	super.realizeChildren ();
-	int window = OS.XtWindow (handle);
-	if (window == 0) return;
-	int display = OS.XtDisplay (handle);
-	if (display == 0) return;
+	int xWindow = OS.XtWindow (handle);
+	if (xWindow == 0) return;
+	int xDisplay = OS.XtDisplay (handle);
+	if (xDisplay == 0) return;
 	if ((style & SWT.HORIZONTAL) != 0) {
-		cursor = OS.XCreateFontCursor (display, OS.XC_sb_v_double_arrow);
+		cursor = OS.XCreateFontCursor (xDisplay, OS.XC_sb_v_double_arrow);
 	} else {
-		cursor = OS.XCreateFontCursor (display, OS.XC_sb_h_double_arrow);
+		cursor = OS.XCreateFontCursor (xDisplay, OS.XC_sb_h_double_arrow);
 	}
-	OS.XDefineCursor (display, window, cursor);
+	if (super.cursor == null && isEnabled ()) {
+		OS.XDefineCursor (xDisplay, xWindow, cursor);
+		OS.XFlush (xDisplay);
+	}
 }
 void releaseWidget () {
 	super.releaseWidget ();
@@ -202,15 +207,21 @@ public void removeSelectionListener(SelectionListener listener) {
 	eventTable.unhook(SWT.Selection, listener);
 	eventTable.unhook(SWT.DefaultSelection,listener);	
 }
+public void setCursor (Cursor cursor) {
+	checkWidget();
+	super.setCursor (cursor);
+	if (cursor == null && this.cursor != 0) {
+		int xWindow = OS.XtWindow (handle);
+		if (xWindow == 0) return;
+		int xDisplay = OS.XtDisplay (handle);
+		if (xDisplay == 0) return;
+		OS.XDefineCursor (xDisplay, xWindow, this.cursor);
+		OS.XFlush (xDisplay);
+	}
+}
 public boolean setFocus () {
 	checkWidget();
-	int [] argList = new int [] {OS.XmNtraversalOn, 1};
-	OS.XtSetValues (handle, argList, argList.length / 2);
-	overrideTranslations ();
-	if (super.setFocus ()) return true;
-	argList [1] = 0;
-	OS.XtSetValues (handle, argList, argList.length / 2);
-	return false;
+	return forceFocus ();
 }
 int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatch) {
 	int result = super.XButtonPress (w, client_data, call_data, continue_to_dispatch);
@@ -218,7 +229,10 @@ int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatc
 	XButtonEvent xEvent = new XButtonEvent ();
 	OS.memmove (xEvent, call_data, XButtonEvent.sizeof);
 	if (xEvent.button != 1) return result;
-	startX = xEvent.x;  startY = xEvent.y;
+	short [] x_root = new short [1], y_root = new short [1];
+	OS.XtTranslateCoords (handle, (short) 0, (short) 0, x_root, y_root);
+	startX = xEvent.x_root - x_root [0];
+	startY = xEvent.y_root - y_root [0];
 	int [] argList = {OS.XmNx, 0, OS.XmNy, 0, OS.XmNwidth, 0, OS.XmNheight, 0, OS.XmNborderWidth, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	int border = argList [9], width = argList [5] + (border * 2), height = argList [7] + (border * 2);
@@ -227,8 +241,10 @@ int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatc
 	Event event = new Event ();
 	event.detail = SWT.DRAG;
 	event.time = xEvent.time;
-	event.x = lastX;  event.y = lastY;
-	event.width = width;  event.height = height;
+	event.x = lastX;
+	event.y = lastY;
+	event.width = width;
+	event.height = height;
 	/*
 	 * It is possible (but unlikely) that client code could have disposed
 	 * the widget in the selection event.  If this happens end the processing
@@ -258,8 +274,10 @@ int XButtonRelease (int w, int client_data, int call_data, int continue_to_dispa
 	/* The event must be sent because its doit flag is used. */
 	Event event = new Event ();
 	event.time = xEvent.time;
-	event.x = lastX;  event.y = lastY;
-	event.width = width;  event.height = height;
+	event.x = lastX;
+	event.y = lastY;
+	event.width = width;
+	event.height = height;
 	drawBand (lastX, lastY, width, height);
 	sendEvent (SWT.Selection, event);
 	/* widget could be disposed here */
@@ -272,14 +290,6 @@ int xFocusIn (XFocusChangeEvent xEvent) {
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	lastX = argList [1];
 	lastY = argList [3];
-	return result;
-}
-
-int xFocusOut (XFocusChangeEvent xEvent) {
-	int result = super.xFocusOut (xEvent);
-	if (handle == 0) return result;
-	int [] argList = new int [] {OS.XmNtraversalOn, 0};
-	OS.XtSetValues (handle, argList, argList.length / 2);
 	return result;
 }
 int XKeyPress (int w, int client_data, int call_data, int continue_to_dispatch) {	
@@ -325,7 +335,7 @@ int XKeyPress (int w, int client_data, int call_data, int continue_to_dispatch) 
 			if (newX == lastX && newY == lastY) return result;
 			
 			/* Ensure that the pointer image does not change */
-			int xDisplay = getDisplay().xDisplay;
+			int xDisplay = display.xDisplay;
 			int xWindow = OS.XtWindow (parent.handle);
 			int ptrGrabResult = OS.XGrabPointer (
 				xDisplay,
@@ -341,8 +351,10 @@ int XKeyPress (int w, int client_data, int call_data, int continue_to_dispatch) 
 			/* The event must be sent because its doit flag is used. */
 			Event event = new Event ();
 			event.time = xEvent.time;
-			event.x = newX;  event.y = newY;
-			event.width = width;  event.height = height;
+			event.x = newX;
+			event.y = newY;
+			event.width = width;
+			event.height = height;
 			sendEvent (SWT.Selection, event);
 			if (ptrGrabResult == OS.GrabSuccess) OS.XUngrabPointer (xDisplay, OS.CurrentTime);
 					
@@ -374,6 +386,9 @@ int XPointerMotion (int w, int client_data, int call_data, int continue_to_dispa
 	XMotionEvent xEvent = new XMotionEvent ();
 	OS.memmove (xEvent, call_data, XMotionEvent.sizeof);
 	if (!dragging || (xEvent.state & OS.Button1Mask) == 0) return result;
+	short [] x_root = new short [1], y_root = new short [1];
+	OS.XtTranslateCoords (handle, (short) 0, (short) 0, x_root, y_root);
+	int eventX = xEvent.x_root - x_root [0], eventY = xEvent.y_root - y_root [0];
 	int [] argList1 = {OS.XmNx, 0, OS.XmNy, 0, OS.XmNwidth, 0, OS.XmNheight, 0, OS.XmNborderWidth, 0};
 	OS.XtGetValues (handle, argList1, argList1.length / 2);
 	int border = argList1 [9], x = ((short) argList1 [1]) - border, y = ((short) argList1 [3]) - border;
@@ -385,9 +400,9 @@ int XPointerMotion (int w, int client_data, int call_data, int continue_to_dispa
 	int parentHeight = argList2 [3] + (parentBorder * 2);
 	int newX = lastX, newY = lastY;
 	if ((style & SWT.VERTICAL) != 0) {
-		newX = Math.min (Math.max (0, xEvent.x + x - startX - parentBorder), parentWidth - width);
+		newX = Math.min (Math.max (0, eventX + x - startX - parentBorder), parentWidth - width);
 	} else {
-		newY = Math.min (Math.max (0, xEvent.y + y - startY - parentBorder), parentHeight - height);
+		newY = Math.min (Math.max (0, eventY + y - startY - parentBorder), parentHeight - height);
 	}
 	if (newX == lastX && newY == lastY) return result;
 	drawBand (lastX, lastY, width, height);
@@ -395,8 +410,10 @@ int XPointerMotion (int w, int client_data, int call_data, int continue_to_dispa
 	Event event = new Event ();
 	event.detail = SWT.DRAG;
 	event.time = xEvent.time;
-	event.x = newX;  event.y = newY;
-	event.width = width;  event.height = height;
+	event.x = newX;
+	event.y = newY;
+	event.width = width;
+	event.height = height;
 	/*
 	 * It is possible (but unlikely) that client code could have disposed
 	 * the widget in the selection event.  If this happens end the processing

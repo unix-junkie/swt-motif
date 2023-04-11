@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -21,6 +21,33 @@
 #define INC_swt_H
 
 #include "jni.h"
+
+extern int IS_JNI_1_2;
+
+/* 64 bit support */
+#ifndef SWT_PTR_SIZE_64
+
+#define GetSWT_PTRField GetIntField
+#define SetSWT_PTRField SetIntField
+#define NewSWT_PTRArray NewIntArray
+#define CallStaticSWT_PTRMethodV CallStaticIntMethodV
+#define CallSWT_PTRMethodV CallIntMethodV
+#define SWT_PTRArray jintArray
+#define SWT_PTR jint
+#define SWT_PTR_SIGNATURE "I"
+
+#else
+
+#define GetSWT_PTRField GetLongField
+#define SetSWT_PTRField SetLongField
+#define NewSWT_PTRArray NewLongArray
+#define CallStaticSWT_PTRMethodV CallStaticLongMethodV
+#define CallSWT_PTRMethodV CallLongMethodV
+#define SWT_PTRArray jlongArray
+#define SWT_PTR jlong
+#define SWT_PTR_SIGNATURE "J"
+
+#endif
 
 /* For debugging */
 #define DEBUG_PRINTF(x)
@@ -48,8 +75,5 @@
 #else
 #define DEBUG_CHECK_NULL(env, address)
 #endif
-
-#define DECL_GLOB(pSym)
-#define PGLOB(x) x
 
 #endif /* ifndef INC_swt_H */

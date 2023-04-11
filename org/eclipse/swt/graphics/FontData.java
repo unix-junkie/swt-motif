@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -15,7 +15,6 @@ import org.eclipse.swt.*;
  
 /**
  * Instances of this class describe operating system fonts.
- * Only the public API of this type is platform independent.
  * <p>
  * For platform-independent behaviour, use the get and set methods
  * corresponding to the following properties:
@@ -266,6 +265,47 @@ public int getHeight() {
 	return points / 10;
 }
 /**
+ * Returns the locale of the receiver.
+ * <p>
+ * The locale determines which platform character set this
+ * font is going to use. Widgets and graphics operations that
+ * use this font will convert UNICODE strings to the platform
+ * character set of the specified locale.
+ * </p>
+ * <p>
+ * On platforms where there are multiple character sets for a
+ * given language/country locale, the variant portion of the
+ * locale will determine the character set.
+ * </p>
+ * 
+ * @return the <code>String</code> representing a Locale object
+ * @since 3.0
+ */
+public String getLocale () {
+	StringBuffer buffer = new StringBuffer ();
+	char sep = '_';
+	if (lang != null) {
+		buffer.append (lang);
+		buffer.append (sep);
+	}
+	if (country != null) {
+		buffer.append (country);
+		buffer.append (sep);
+	}
+	if (variant != null) {
+		buffer.append (variant);
+	}
+	
+	String result = buffer.toString ();
+	int length = result.length ();
+	if (length > 0) {
+		if (result.charAt (length - 1) == sep) {
+			result = result.substring (0, length - 1);
+		}
+	} 
+	return result;
+}
+/**
  * Returns the name of the receiver.
  * On platforms that support font foundries, the return value will
  * be the foundry followed by a dash ("-") followed by the face name.
@@ -399,7 +439,7 @@ public void setName(String name) {
  * character set of the specified locale.
  * </p>
  * <p>
- * On platforms which there are multiple character sets for a
+ * On platforms where there are multiple character sets for a
  * given language/country locale, the variant portion of the
  * locale will determine the character set.
  * </p>

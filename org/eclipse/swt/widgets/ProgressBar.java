@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -35,7 +35,7 @@ import org.eclipse.swt.graphics.*;
 public class ProgressBar extends Control {
 	int timerId;
 	static final int DELAY = 100;
-	int lastForeground = defaultForeground ();
+	int foreground;
 
 /**
  * Constructs a new instance of this class given its parent
@@ -80,13 +80,13 @@ public ProgressBar (Composite parent, int style) {
 	super (parent, checkStyle (style | SWT.BORDER));
 }
 static int checkStyle (int style) {
+	style |= SWT.NO_FOCUS;
 	return checkBits (style, SWT.HORIZONTAL, SWT.VERTICAL, 0, 0, 0, 0);
 }
 public Point computeSize (int wHint, int hHint, boolean changed) {
 	checkWidget();
 	int border = getBorderWidth ();
 	int width = border * 2, height = border * 2;
-	Display display = getDisplay ();
 	int hScroll = display.scrolledMarginX;
 	int vScroll = display.scrolledMarginY;
 	if ((style & SWT.HORIZONTAL) != 0) {
@@ -123,8 +123,11 @@ void createHandle (int index) {
 	if (handle == 0) error (SWT.ERROR_NO_HANDLES);
 	if ((style & SWT.INDETERMINATE) != 0) createTimer ();
 }
+void createWidget (int index) {
+	super.createWidget (index);
+	foreground = defaultForeground ();
+}
 void createTimer () {
-	Display display = getDisplay ();
 	int xDisplay = display.xDisplay;
 	int windowTimerProc = display.windowTimerProc;
 	int xtContext = OS.XtDisplayToApplicationContext (xDisplay);
@@ -145,9 +148,7 @@ void disableButtonPress () {
 	OS.XChangeWindowAttributes (xDisplay, xWindow, OS.CWEventMask, attributes);
 }
 int getForegroundPixel () {
-	boolean invisible = lastForeground != -1;
-	if (invisible) return lastForeground;
-	return super.getForegroundPixel ();
+	return foreground == -1 ? super.getForegroundPixel () : foreground;
 }
 /**
  * Returns the maximum value which the receiver will allow.
@@ -199,9 +200,7 @@ public int getSelection () {
 	};
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	int minimum = argList [1], sliderSize = argList [3];
-	boolean invisible = lastForeground != -1;
-	if (invisible) sliderSize = 0;
-	return minimum + sliderSize;
+	return minimum + (foreground != -1 ? 0 : sliderSize);
 }
 void propagateWidget (boolean enabled) {
 	super.propagateWidget (enabled);
@@ -215,63 +214,26 @@ void releaseWidget () {
 	super.releaseWidget ();
 	destroyTimer ();
 }
-/**
- * Sets the receiver's background color to the color specified
- * by the argument, or to the default system color for the control
- * if the argument is null.
- *
- * @param color the new color (or null)
- *
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li> 
- * </ul>
- * @exception SWTException <ul>
- *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- */
-public void setBackground (Color color) {
+void setBackgroundPixel (int pixel) {
 	checkWidget();
-	super.setBackground (color);
-	boolean invisible = lastForeground != -1;
-	if (invisible) {
-		int [] argList = {
-			OS.XmNtroughColor, 0
-		};
-		OS.XtGetValues (handle, argList, argList.length / 2);
-		setForegroundPixel (argList [1]);
-	}
+	super.setBackgroundPixel (pixel);
+	if (foreground != -1) super.setForegroundPixel (pixel);
 }
-
-/**
- * Sets the receiver's foreground color to the color specified by the argument,
- * or to the default system color for the control if the argument is null.
- *
- * @param color the new color (or null)
- *
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li>
- * </ul>
- * @exception SWTException <ul>
- *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- */
-public void setForeground (Color color) {
+void setForegroundPixel (int pixel) {
 	checkWidget();
-	boolean invisible = lastForeground != -1;
-	if (invisible) {
-		lastForeground = color.handle.pixel;
+	if (foreground == -1) {
+		super.setForegroundPixel (pixel);
 	} else {
-		super.setForeground (color);
+		foreground = pixel;
 	}
 }
 /**
- * Sets the maximum value which the receiver will allow
- * to be the argument which must be greater than or
- * equal to zero.
+ * Sets the maximum value that the receiver will allow.  This new
+ * value will be ignored if it is not greater than the receiver's current
+ * minimum value.  If the new maximum is applied then the receiver's
+ * selection value will be adjusted if necessary to fall within its new range.
  *
- * @param value the new maximum (must be zero or greater)
+ * @param value the new maximum, which must be greater than the current minimum
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -282,18 +244,18 @@ public void setMaximum (int value) {
 	checkWidget();
 	if (value < 0) return;
 	int [] argList = {OS.XmNmaximum, value, OS.XmNvalue, 0};
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XtSetValues (handle, argList, argList.length / 2);
 	display.setWarnings (warnings);
 }
 /**
- * Sets the minimum value which the receiver will allow
- * to be the argument which must be greater than or
- * equal to zero.
+ * Sets the minimum value that the receiver will allow.  This new
+ * value will be ignored if it is negative or is not less than the receiver's
+ * current maximum value.  If the new minimum is applied then the receiver's
+ * selection value will be adjusted if necessary to fall within its new range.
  *
- * @param value the new minimum (must be zero or greater)
+ * @param value the new minimum, which must be nonnegative and less than the current maximum
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -319,7 +281,6 @@ public void setMinimum (int value) {
 	if (value > selection) selection = value;
 	argList [1] = value;
 	argList [7] = value;
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XtSetValues (handle, argList, argList.length / 2);
@@ -360,25 +321,21 @@ void setThumb (int sliderSize) {
 	};
 	OS.XtGetValues (handle, argList1, argList1.length / 2);
 	int troughColor = argList1 [1];
-
-	boolean invisible = lastForeground != -1;
 	if (sliderSize == 0) {
-		if (!invisible) {
-			lastForeground = getForegroundPixel ();
-			setForegroundPixel (troughColor);
+		if (foreground == -1) {
+			foreground = getForegroundPixel ();
+			super.setForegroundPixel (troughColor);
 		}
 	} else {
-		if (invisible) {
-			setForegroundPixel (lastForeground);
-			lastForeground = -1;
+		if (foreground != -1) {
+			super.setForegroundPixel (foreground);
+			foreground = -1;
 		}
 	}
 	int [] argList2 = new int [] {
-		OS.XmNsliderSize, (sliderSize == 0) ? 1 : sliderSize,
+		OS.XmNsliderSize, sliderSize == 0 ? 1 : sliderSize,
 		OS.XmNvalue, argList1 [3]
 	};
-	
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XtSetValues (handle, argList2, argList2.length / 2);

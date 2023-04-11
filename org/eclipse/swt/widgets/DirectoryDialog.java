@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -18,6 +18,12 @@ import org.eclipse.swt.*;
 /**
  * Instances of this class allow the user to navigate
  * the file system and select a directory.
+ * <dl>
+ * <dt><b>Styles:</b></dt>
+ * <dd>(none)</dd>
+ * <dt><b>Events:</b></dt>
+ * <dd>(none)</dd>
+ * </dl>
  * <p>
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
@@ -27,17 +33,10 @@ public class DirectoryDialog extends Dialog {
 	String filterPath = "";
 	boolean cancel = true;
 	String message = "";
+	static final String SEPARATOR = System.getProperty ("file.separator");
+	
 /**
- * Constructs a new instance of this class given only its
- * parent.
- * <p>
- * Note: Currently, null can be passed in for the parent.
- * This has the effect of creating the dialog on the currently active
- * display if there is one. If there is no current display, the 
- * dialog is created on a "default" display. <b>Passing in null as
- * the parent is not considered to be good coding style,
- * and may not be supported in a future release of SWT.</b>
- * </p>
+ * Constructs a new instance of this class given only its parent.
  *
  * @param parent a shell which will be the parent of the new instance
  *
@@ -64,15 +63,9 @@ public DirectoryDialog (Shell parent) {
  * lists the style constants that are applicable to the class.
  * Style bits are also inherited from superclasses.
  * </p>
- * Note: Currently, null can be passed in for the parent.
- * This has the effect of creating the dialog on the currently active
- * display if there is one. If there is no current display, the 
- * dialog is created on a "default" display. <b>Passing in null as
- * the parent is not considered to be good coding style,
- * and may not be supported in a future release of SWT.</b>
- * </p>
  *
  * @param parent a shell which will be the parent of the new instance
+ * @param style the style of dialog to construct
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
@@ -130,7 +123,7 @@ public String open () {
 	if (destroyContext = (appContext == null)) appContext = new Display ();
 	int display = appContext.xDisplay;
 	int parentHandle = appContext.shellHandle;
-	if ((parent != null) && (parent.getDisplay () == appContext)) {
+	if ((parent != null) && (parent.display == appContext)) {
 		if (OS.IsAIX) parent.realizeWidget ();		/* Fix for bug 17507 */
 		parentHandle = parent.shellHandle;
 	}
@@ -229,7 +222,7 @@ public String open () {
 	OS.XmStringFree (xmStringPtr3);
 	OS.XmStringFree (xmStringPtr4);
 
-	// Add label widget for message text.
+	/* Add label widget for message text. */
 	/* Use the character encoding for the default locale */
 	byte [] buffer4 = Converter.wcsToMbcs (null, message, true);
 	int xmString1 = OS.XmStringGenerate(buffer4, null, OS.XmCHARSET_TEXT, null);
@@ -251,7 +244,7 @@ public String open () {
 	cancel = true;
 	OS.XtManageChild (dialog);
 
-	// Should be a pure OS message loop (no SWT AppContext)
+	/* Should be a pure OS message loop (no SWT AppContext) */
 	while (OS.XtIsRealized (dialog) && OS.XtIsManaged (dialog))
 		if (!appContext.readAndDispatch ()) appContext.sleep ();
 
@@ -261,13 +254,14 @@ public String open () {
 		int [] argList2 = {OS.XmNdirMask, 0};
 		OS.XtGetValues (dialog, argList2, argList2.length / 2);
 		int xmString3 = argList2 [1];
+		int [] table = new int [] {appContext.tabMapping, appContext.crMapping};
 		int ptr = OS.XmStringUnparse (
 			xmString3,
 			null,
 			OS.XmCHARSET_TEXT,
 			OS.XmCHARSET_TEXT,
-			null,
-			0,
+			table,
+			table.length,
 			OS.XmOUTPUT_ALL);
 		if (ptr != 0) {
 			int length = OS.strlen (ptr);
@@ -279,14 +273,12 @@ public String open () {
 		}
 		OS.XmStringFree (xmString3);
 		int length = directoryPath.length ();
-		if (length != 0) {
-			if (directoryPath.charAt (length -1) == '/') {
-				directoryPath = directoryPath.substring (0, length - 1);
-			} else {
-				if (length > 1 && directoryPath.charAt (length - 2) == '/' && directoryPath.charAt (length - 1) == '*') {
-					directoryPath = directoryPath.substring (0, length - 2);
-				}
-			}
+		if (directoryPath.charAt (length - 1) == '*') {
+			directoryPath = directoryPath.substring (0, length - 1);
+			length--;
+		}
+		if (directoryPath.endsWith (SEPARATOR) && !directoryPath.equals (SEPARATOR)) {
+			directoryPath = directoryPath.substring (0, length - 1);
 		}
 		filterPath = directoryPath;
 	}
@@ -315,8 +307,13 @@ public void setFilterPath (String string) {
  * visible on the dialog while it is open.
  *
  * @param string the message
+ * 
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the string is null</li>
+ * </ul>
  */
 public void setMessage (String string) {
+	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
 	message = string;
 }
 }

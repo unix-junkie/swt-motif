@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -33,8 +33,6 @@ public class TableColumn extends Item {
 	static final int FIRST = 0;							// index of the first column
 	static final int FILL = -1;							// index that identifies the column used to 
 														// fill space not used by other columns.
-	private static final int DEFAULT_WIDTH = 10;
-
 	private Table parent;
 	private int index;									// 0-based column index
 	private Rectangle bounds = new Rectangle(0, 0, 0, 0);
@@ -131,7 +129,6 @@ public TableColumn(Table parent, int style, int index) {
 	}
 	setIndex(index);	
 	parent.addColumn(this);
-	setWidth(DEFAULT_WIDTH);
 	setDefaultWidth(true);
 	addListener(SWT.Dispose, new Listener() {
 		public void handleEvent(Event event) {disposeColumn();}
@@ -217,7 +214,6 @@ static TableColumn createDefaultColumn(Table parent) {
 	TableColumn defaultColumn = new TableColumn(parent);
 	
 	defaultColumn.setIndex(FIRST);
-	defaultColumn.setWidth(DEFAULT_WIDTH);
 	defaultColumn.setDefaultWidth(true);
 	return defaultColumn;
 }
@@ -264,12 +260,6 @@ public int getAlignment () {
  */
 Rectangle getBounds() {
 	return new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height);	// copy the object to prevent changes
-}
-public Display getDisplay() {
-	if (parent == null) {		// access parent field directly to prevent endless recursion
-		error(SWT.ERROR_WIDGET_DISPOSED);
-	}
-	return parent.getDisplay();
 }
 /**
  * Answer the index of the receiver. Specifies the position of the
@@ -529,12 +519,12 @@ public void setWidth(int width) {
 		parent.redraw(																
 			redrawX - 2, 0, 
 			2, parent.getClientArea().height, false);	// redraw 2 pixels wide to redraw item focus rectangle and grid line
-	}
-	
-	sendEvent(SWT.Resize, new Event ());	
-	int count = parent.getColumnCount();
-	for (int i = index + 1; i < count; i++) {
-		parent.getColumn(i).sendEvent(SWT.Move, new Event ());
+
+		sendEvent(SWT.Resize);
+		int count = parent.getColumnCount();
+		for (int i = index + 1; i < count; i++) {
+			parent.getColumn(i).sendEvent(SWT.Move);
+		}
 	}
 }
 }

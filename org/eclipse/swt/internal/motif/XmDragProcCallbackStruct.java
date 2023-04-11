@@ -11,6 +11,14 @@
 package org.eclipse.swt.internal.motif;
 
  
-public abstract class XInputEvent extends XWindowEvent {
-	public int state;	/* key or button mask */
+public class XmDragProcCallbackStruct extends XmAnyCallbackStruct {
+	public int timeStamp;
+	public int dragContext;
+	public short x;
+	public short y;
+	public byte dropSiteStatus;
+	public byte operation;
+	public byte operations;
+	public byte animate;
+	public static final int sizeof = 24;
 }

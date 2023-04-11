@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -244,11 +244,15 @@ public void save(String filename, int format) {
  * GIF/PNG or progressive JPEG images.
  *
  * @param listener the ImageLoaderListener to add
- *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ * </ul>
+ * 
  * @see ImageLoaderListener
  * @see ImageLoaderEvent
  */
 public void addImageLoaderListener(ImageLoaderListener listener) {
+	if (listener == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
 	if (imageLoaderListeners == null) {
 		imageLoaderListeners = new Vector();
 	}
@@ -259,10 +263,14 @@ public void addImageLoaderListener(ImageLoaderListener listener) {
  * Removes a listener that was receiving image loader events.
  *
  * @param listener the ImageLoaderListener to remove
- *
- * @see #addImageLoaderListener
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ * </ul>
+ * 
+ * @see #addImageLoaderListener(ImageLoaderListener)
  */
 public void removeImageLoaderListener(ImageLoaderListener listener) {
+	if (listener == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
 	if (imageLoaderListeners == null) return;
 	imageLoaderListeners.removeElement(listener);
 }
@@ -273,8 +281,8 @@ public void removeImageLoaderListener(ImageLoaderListener listener) {
  *
  * @return <code>true</code> if there are <code>ImageLoaderListener</code>s, and <code>false</code> otherwise
  *
- * @see #addImageLoaderListener
- * @see #removeImageLoaderListener
+ * @see #addImageLoaderListener(ImageLoaderListener)
+ * @see #removeImageLoaderListener(ImageLoaderListener)
  */
 public boolean hasListeners() {
 	return imageLoaderListeners != null && imageLoaderListeners.size() > 0;

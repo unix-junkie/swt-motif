@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -54,12 +54,12 @@ void initializeComponentParameters() {
 		int cid = reference[ofs] & 0xFF;
 		int dc = (reference[ofs + 1] & 0xFF) / 16;
 		int ac = (reference[ofs + 1] & 0xFF) % 16;
-		if (componentParameters.length < cid) {
-			int[][] newParams = new int[cid][];
+		if (componentParameters.length <= cid) {
+			int[][] newParams = new int[cid + 1][];
 			System.arraycopy(componentParameters, 0, newParams, 0, componentParameters.length);
 			componentParameters = newParams;
 		}
-		componentParameters[cid - 1] = new int[] { dc, ac };
+		componentParameters[cid] = new int[] { dc, ac };
 	}
 }
 

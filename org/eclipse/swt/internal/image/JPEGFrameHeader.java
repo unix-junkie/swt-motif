@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -88,7 +88,7 @@ final class JPEGFrameHeader extends JPEGVariableSizeSegment {
 		for (int i = 0; i < nf; i++) {
 			int ofs = i * 3 + 10;
 			int ci = reference[ofs] & 0xFF;
-			componentIdentifiers[i] = ci - 1;
+			componentIdentifiers[i] = ci;
 			int hi = (reference[ofs + 1] & 0xFF) / 16;
 			int vi = (reference[ofs + 1] & 0xFF) % 16;
 			int tqi = reference[ofs + 2] & 0xFF;
@@ -102,12 +102,12 @@ final class JPEGFrameHeader extends JPEGVariableSizeSegment {
 			compParam[0] = tqi;
 			compParam[1] = hi;
 			compParam[2] = vi;
-			if (compSpecParams.length < ci) {
-				int[][] newParams = new int[ci][];
+			if (compSpecParams.length <= ci) {
+				int[][] newParams = new int[ci + 1][];
 				System.arraycopy(compSpecParams, 0, newParams, 0, compSpecParams.length);
 				compSpecParams = newParams;
 			}
-			compSpecParams[ci - 1] = compParam;
+			compSpecParams[ci] = compParam;
 		}
 		int x = getSamplesPerLine();
 		int y = getNumberOfLines();

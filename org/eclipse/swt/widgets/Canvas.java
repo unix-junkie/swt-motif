@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -137,23 +137,23 @@ public void scroll (int destX, int destY, int x, int y, int width, int height, b
 	int deltaX = destX - x, deltaY = destY - y;
 	if (deltaX == 0 && deltaY == 0) return;
 	if (!isVisible ()) return;
-		
-	/* Hide the caret */
 	boolean isFocus = caret != null && caret.isFocusCaret ();
 	if (isFocus) caret.killFocus ();
-	
-	/* Flush outstanding exposes */
 	int xDisplay = OS.XtDisplay (handle);
 	if (xDisplay == 0) return;
 	int xWindow = OS.XtWindow (handle);
 	if (xWindow == 0) return;
-	XAnyEvent xEvent = new XAnyEvent ();
-	OS.XSync (xDisplay, false);  OS.XSync (xDisplay, false);
-	while (OS.XCheckWindowEvent (xDisplay, xWindow, OS.ExposureMask, xEvent)) {
-		OS.XtDispatchEvent (xEvent);
+	int [] argList = {OS.XmNwidth, 0, OS.XmNheight, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	if (Math.min(x + width, argList [1]) >= Math.max (x, 0) &&  Math.min(y + height, 0 + argList [3]) >= Math.max (y, 0)) {
+		int xEvent = OS.XtMalloc (XEvent.sizeof);
+		OS.XSync (xDisplay, false);
+		OS.XSync (xDisplay, false);
+		while (OS.XCheckWindowEvent (xDisplay, xWindow, OS.ExposureMask, xEvent)) {
+			OS.XtDispatchEvent (xEvent);
+		}
+		OS.XtFree (xEvent);
 	}
-
-	/* Scroll the window */
 	int xGC = OS.XCreateGC (xDisplay, xWindow, 0, null);
 	OS.XCopyArea (xDisplay, xWindow, xWindow, xGC, x, y, width, height, destX, destY);
 	OS.XFreeGC (xDisplay, xGC);
@@ -172,8 +172,17 @@ public void scroll (int destX, int destY, int x, int y, int width, int height, b
 			OS.XClearArea (xDisplay, xWindow, x, newY, width, Math.abs (deltaY), true);
 		}
 	}
-	
-	/* Show the caret */
+	if (all) {
+		Control [] children = _getChildren ();
+		for (int i=0; i<children.length; i++) {
+			Control child = children [i];
+			Rectangle rect = child.getBounds ();
+			if (Math.min(x + width, rect.x + rect.width) >= Math.max (x, rect.x) && 
+				Math.min(y + height, rect.y + rect.height) >= Math.max (y, rect.y)) {
+					child.setLocation (rect.x + deltaX, rect.y + deltaY);
+			}
+		}
+	}
 	if (isFocus) caret.setFocus ();
 }
 /**

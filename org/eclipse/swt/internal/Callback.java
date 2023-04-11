@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -27,13 +27,23 @@ public class Callback {
 	
 	Object object;
 	String method, signature;
-	int argCount, address;
+	int argCount;
+	int /*long*/ address;
 	boolean isStatic, isArrayBased;
 
 	/* Load the SWT library */
 	static {
 		Library.loadLibrary ("swt"); //$NON-NLS-1$
 	}
+
+	static final int PTR_SIZEOF = PTR_sizeof();
+	static final String PTR_SIGNATURE = PTR_SIZEOF == 4 ? "I" : "J"; //$NON-NLS-1$  //$NON-NLS-2$
+	static final String SIGNATURE_0 = getSignature(0);
+	static final String SIGNATURE_1 = getSignature(1);
+	static final String SIGNATURE_2 = getSignature(2);
+	static final String SIGNATURE_3 = getSignature(3);
+	static final String SIGNATURE_4 = getSignature(4);
+	static final String SIGNATURE_N = "(["+PTR_SIGNATURE+")"+PTR_SIGNATURE; //$NON-NLS-1$  //$NON-NLS-2$
 
 /**
  * Constructs a new instance of this class given an object
@@ -75,24 +85,24 @@ public Callback (Object object, String method, int argCount, boolean isArrayBase
 	
 	/* Inline the common cases */
 	if (isArrayBased) {
-		signature = "([I)I"; //$NON-NLS-1$
+		signature = SIGNATURE_N;
 	} else {
 		switch (argCount) {
-			case 0: signature = "()I"; break; //$NON-NLS-1$
-			case 1: signature = "(I)I"; break; //$NON-NLS-1$
-			case 2: signature = "(II)I"; break; //$NON-NLS-1$
-			case 3: signature = "(III)I"; break; //$NON-NLS-1$
-			case 4: signature = "(IIII)I"; break; //$NON-NLS-1$
+			case 0: signature = SIGNATURE_0; break; //$NON-NLS-1$
+			case 1: signature = SIGNATURE_1; break; //$NON-NLS-1$
+			case 2: signature = SIGNATURE_2; break; //$NON-NLS-1$
+			case 3: signature = SIGNATURE_3; break; //$NON-NLS-1$
+			case 4: signature = SIGNATURE_4; break; //$NON-NLS-1$
 			default:
-				signature = "("; //$NON-NLS-1$
-				for (int i=0; i<argCount; i++) signature += "I"; //$NON-NLS-1$
-				signature += ")I"; //$NON-NLS-1$
+				signature = getSignature(argCount);
 		}
 	}
 	
 	/* Bind the address */
 	address = bind (this);
 }
+
+static final native int PTR_sizeof ();
 
 /**
  * Allocates the native level resources associated with the
@@ -101,7 +111,7 @@ public Callback (Object object, String method, int argCount, boolean isArrayBase
  *
  * @param callback the callback to bind
  */
-static native synchronized int bind (Callback callback);
+static native synchronized int /*long*/ bind (Callback callback);
 
 /**
  * Releases the native level resources associated with the callback,
@@ -122,7 +132,7 @@ public void dispose () {
  *
  * @return the callback address
  */
-public int getAddress () {
+public int /*long*/ getAddress () {
 	return address;
 }
 
@@ -146,6 +156,13 @@ public static native String getPlatform ();
  */
 public static native int getEntryCount ();
 
+static String getSignature(int argCount) {
+	String signature = "("; //$NON-NLS-1$
+	for (int i = 0; i < argCount; i++) signature += PTR_SIGNATURE;
+	signature += ")" + PTR_SIGNATURE; //$NON-NLS-1$
+	return signature;
+}
+
 /**
  * Indicates whether or not callbacks which are triggered at the
  * native level should cause the messages described by the matching
@@ -156,7 +173,7 @@ public static native int getEntryCount ();
  * Note: This should not be called by application code.
  * </p>
  *
- * @param ignore true if callbacks should not be invoked
+ * @param enable true if callbacks should be invoked
  */
 public static final native synchronized void setEnabled (boolean enable);
 

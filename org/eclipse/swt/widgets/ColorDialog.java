@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -40,6 +40,7 @@ public class ColorDialog extends Dialog {
 	private Label sampleLabel, selectionLabel;
 	private Canvas sampleCanvas, selectionCanvas;
 	private Button okButton, cancelButton;
+	private int colorChooserWidth, colorChooserHeight;
 
 	private boolean okSelected;
 	private RGB rgb;
@@ -50,7 +51,7 @@ public class ColorDialog extends Dialog {
 /**
  * Constructs a new instance of this class given only its parent.
  *
- * @param parent a composite control which will be the parent of the new instance (cannot be null)
+ * @param parent a composite control which will be the parent of the new instance
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
@@ -104,8 +105,8 @@ void createChildren() {
 	GridLayout layout = new GridLayout (2, false);
 	dialog.setLayout(layout);
 	
-	int colorChooserWidth = colorSwatchExtent * colorGrid.length;
-	int colorChooserHeight = colorSwatchExtent * colorGrid[0].length;
+	colorChooserWidth = colorSwatchExtent * colorGrid.length - 1;
+	colorChooserHeight = colorSwatchExtent * colorGrid[0].length - 1;
 	colorsCanvas = new Canvas(dialog, SWT.BORDER);
 	GridData data = new GridData ();
 	data.widthHint = colorChooserWidth;
@@ -230,7 +231,7 @@ void handleEvents(Event event) {
 	}	
 }
 void initialize4BitColors() {
-	Display display = shell.getDisplay();
+	Display display = shell.display;
 	
 	colorGrid[0][0] = new Color(display, 0, 0, 0);
 	colorGrid[0][1] = new Color(display, 255, 255, 255);
@@ -253,7 +254,7 @@ void initialize4BitColors() {
 	colorGrid[7][1] = new Color(display, 255, 0, 255);
 }
 void initialize8BitColors() {
-	Display display = shell.getDisplay();	
+	Display display = shell.display;
 	int numRows = colorGrid[0].length;
 	int iterationStep = 64;
 	int row = 0, column = 0;
@@ -276,7 +277,7 @@ void initialize8BitColors() {
 	}
 }
 void initialize16BitColors() {
-	Display display = shell.getDisplay();
+	Display display = shell.display;
 	int numRows = colorGrid[0].length;
 	int iterationStep = 51;
 	int row = 0, column = 0;
@@ -301,7 +302,7 @@ void initialize16BitColors() {
 	}
 }
 void initializeWidgets() {
-	Display display = shell.getDisplay();
+	Display display = shell.display;
 	if (rgb != null) {
 		Color selectionColor = new Color(display, rgb);
 		selectionCanvas.setBackground(selectionColor);
@@ -328,6 +329,8 @@ void mouseDown(Event event) {
 void mouseMove(Event event) {
 	int swatchExtent = colorSwatchExtent;
 	// adjust for events received from moving over the Canvas' border
+	if (!(0 <= event.x && event.x <= colorChooserWidth)) return;
+	if (!(0 <= event.y && event.y <= colorChooserHeight)) return;
 	int xgrid = Math.min(colorGrid.length - 1, event.x / swatchExtent);
 	int ygrid = Math.min(colorGrid[0].length - 1, event.y / swatchExtent);
 	Color color = colorGrid[xgrid][ygrid];
@@ -349,7 +352,8 @@ void mouseMove(Event event) {
  */
 public RGB open() {
 	shell = new Shell(parent, getStyle() | SWT.TITLE | SWT.BORDER | SWT.APPLICATION_MODAL);
-	setColorDepth(shell.getDisplay().getDepth());
+	Display display = shell.display;
+	setColorDepth(display.getDepth());
 	createChildren();
 	installListeners();
 	openModal();
@@ -378,7 +382,8 @@ void openDialog() {
 	Point pt = dialog.computeSize(-1, -1, false);
 	
 	// Ensure that the width of the shell fits the display.
-	Rectangle displayRect = dialog.getDisplay().getBounds();
+	Display display = dialog.display;
+	Rectangle displayRect = display.getBounds();
 	int widthLimit = displayRect.width * 7 / 8;
 	int heightLimit = displayRect.height * 7 / 8;
 	if (pt.x > widthLimit) {
@@ -403,7 +408,7 @@ void openDialog() {
 	dialog.open();
 }
 void openModal() {
-	Display display = shell.getDisplay();
+	Display display = shell.display;
 	initializeWidgets();
 	openDialog();
 	while (shell.isDisposed() == false && shell.getVisible() == true) {
@@ -442,7 +447,7 @@ void setColorDepth(int bits) {
  * Sets the receiver's selected color to be the argument.
  *
  * @param rgb the new RGB value for the selected color, may be
- *        null to let the platform to select a default when
+ *        null to let the platform select a default when
  *        open() is called
  * @see PaletteData#getRGBs
  */

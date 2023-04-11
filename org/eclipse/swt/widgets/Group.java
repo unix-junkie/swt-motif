@@ -38,6 +38,7 @@ import org.eclipse.swt.*;
  */
 public class Group extends Composite {
 	int labelHandle;
+	String text = "";
 
 /**
  * Constructs a new instance of this class given its parent
@@ -149,16 +150,6 @@ void createHandle (int index) {
 	labelHandle = OS.XmCreateLabel (handle, null, argList3, argList3.length / 2);
 	if (labelHandle == 0) error (SWT.ERROR_NO_HANDLES);
 }
-void createWidget (int index) {
-	super.createWidget (index);
-	/*
-	* Bug in Motif. For some reason, if a form has not been realized,
-	* calling XtResizeWidget () on the form does not lay out properly.
-	* The fix is to force the widget to be realized by forcing the shell
-	* to be realized. 
-	*/
-	getShell ().realizeWidget ();
-}
 void enableWidget (boolean enabled) {
 	super.enableWidget (enabled);
 	enableHandle (enabled, labelHandle);
@@ -168,6 +159,13 @@ int fontHandle () {
 }
 public Rectangle getClientArea () {
 	checkWidget();
+	/*
+	* Bug in Motif. For some reason, if a form has not been realized,
+	* calling XtResizeWidget () on the form does not lay out properly.
+	* The fix is to force the widget to be realized by forcing the shell
+	* to be realized. 
+	*/
+	if (!OS.XtIsRealized (handle)) getShell ().realizeWidget ();
 	int [] argList = {
 		OS.XmNwidth, 0, 
 		OS.XmNheight, 0, 
@@ -205,24 +203,7 @@ public Rectangle getClientArea () {
  */
 public String getText () {
 	checkWidget();
-	int [] argList = {OS.XmNlabelString, 0};
-	OS.XtGetValues (labelHandle, argList, 1);
-	int xmString = argList [1];
-	int address = OS.XmStringUnparse (
-		xmString,
-		null,
-		OS.XmCHARSET_TEXT,
-		OS.XmCHARSET_TEXT,
-		null,
-		0,
-		OS.XmOUTPUT_ALL);
-	if (address == 0) return "";
-	int length = OS.strlen (address);
-	byte [] buffer = new byte [length];
-	OS.memmove (buffer, address, length);
-	OS.XtFree (address);
-	OS.XmStringFree (xmString);
-	return new String (Converter.mbcsToWcs (getCodePage (), buffer));
+	return text;
 }
 boolean mnemonicHit (char key) {
 	return setFocus ();
@@ -234,7 +215,7 @@ boolean mnemonicMatch (char key) {
 }
 void propagateWidget (boolean enabled) {
 	super.propagateWidget (enabled);
-	propagateHandle (enabled, labelHandle);
+	propagateHandle (enabled, labelHandle, OS.None);
 }
 void redrawWidget (int x, int y, int width, int height, boolean all) {
 	super.redrawWidget (x, y, width, height, all);
@@ -247,6 +228,18 @@ void redrawWidget (int x, int y, int width, int height, boolean all) {
 void releaseHandle () {
 	super.releaseHandle ();
 	labelHandle = 0;
+}
+void setBackgroundPixel (int pixel) {
+	super.setBackgroundPixel (pixel);
+	int [] argList = {OS.XmNforeground, 0};
+	OS.XtGetValues (labelHandle, argList, argList.length / 2);
+	OS.XmChangeColor (labelHandle, pixel);
+	OS.XtSetValues (labelHandle, argList, argList.length / 2);
+}
+void setForegroundPixel (int pixel) {
+	int [] argList = {OS.XmNforeground, pixel};
+	OS.XtSetValues (labelHandle, argList, argList.length / 2);
+	super.setForegroundPixel (pixel);
 }
 /**
  * Sets the receiver's text, which is the string that will
@@ -262,10 +255,10 @@ void releaseHandle () {
  *'&amp' can be escaped by doubling it in the string, causing
  * a single '&amp' to be displayed.
  * </p>
- * @param text the new text
+ * @param string the new text
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the text is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -275,18 +268,10 @@ void releaseHandle () {
 public void setText (String string) {
 	checkWidget();
 	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
+	text = string;
 	char [] text = new char [string.length ()];
 	string.getChars (0, text.length, text, 0);
-	int i=0, j=0, mnemonic=0;
-	while (i < text.length) {
-		if ((text [j++] = text [i++]) == Mnemonic) {
-			if (i == text.length) {continue;}
-			if (text [i] == Mnemonic) {i++; continue;}
-			if (mnemonic == 0) mnemonic = text [i];
-			j--;
-		}
-	}
-	while (j < text.length) text [j++] = 0;
+	int mnemonic = fixMnemonic (text);
 	byte [] buffer = Converter.wcsToMbcs (getCodePage (), text, true);
 	int xmString = OS.XmStringParseText (
 		buffer,

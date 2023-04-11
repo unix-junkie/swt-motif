@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -40,8 +40,12 @@ import org.eclipse.swt.SWT;
  */
 public final class Compatibility {
 
-static double pi = 3.1415926535;
-static double toRadians = pi / 180;
+/**
+ * Returns the PI constant as a double.
+ */
+public static double PI = Math.PI;
+
+static double toRadians = PI / 180;
 
 /**
  * Answers the length of the side adjacent to the given angle
@@ -144,6 +148,7 @@ public static int pow2(int n) {
  * 
  * @param filename the name of the file to open
  * @return a stream on the file if it could be opened.
+ * @exception IOException
  */
 public static InputStream newFileInputStream(String filename) throws IOException {
 	return new FileInputStream(filename);
@@ -154,6 +159,7 @@ public static InputStream newFileInputStream(String filename) throws IOException
  * 
  * @param filename the name of the file to open
  * @return a stream on the file if it could be opened.
+ * @exception IOException
  */
 public static OutputStream newFileOutputStream(String filename) throws IOException {
 	return new FileOutputStream(filename);
@@ -192,7 +198,7 @@ public static boolean isSpaceChar(char c) {
 /**
  * Answers whether the character is a whitespace character.
  *
- * @param ch the character to test
+ * @param c the character to test
  * @return true if the character is whitespace
  */
 public static boolean isWhitespace(char c) {
@@ -206,7 +212,7 @@ public static boolean isWhitespace(char c) {
  * The new process inherits the environment of the caller.
  * </p>
  *
- * @param program the name of the program to execute
+ * @param prog the name of the program to execute
  *
  * @exception IOException
  *  if the program cannot be executed
@@ -244,7 +250,7 @@ private static ResourceBundle msgs = null;
  * @param key the key to look up
  * @return the message for the given key
  * 
- * @see SWT#getMessage
+ * @see SWT#getMessage(String)
  */
 public static String getMessage(String key) {
 	String answer = key;
@@ -287,21 +293,6 @@ public static void interrupt() {
  */
 public static boolean equalsIgnoreCase(String s1, String s2) {
 	return s1.equalsIgnoreCase(s2);
-}
-
-/**
- * Copies a range of characters into a new String.
- *
- * @param buffer the StringBuffer we want to copy from
- * @param start the offset of the first character
- * @param end the offset one past the last character
- * @return a new String containing the characters from start to end - 1
- *
- * @exception	IndexOutOfBoundsException 
- *   when <code>start < 0, start > end</code> or <code>end > length()</code>
- */
-public static String substring(StringBuffer buffer, int start, int end) {
-	return buffer.substring(start, end);
 }
 
 }

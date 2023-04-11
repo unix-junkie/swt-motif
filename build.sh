@@ -1,6 +1,6 @@
 #*******************************************************************************
-# Copyright (c) 2000, 2003 IBM Corporation and others.
-# All rights reserved. This program and the accompanying materials 
+# Copyright (c) 2000, 2004 IBM Corporation and others.
+# All rights reserved. This program and the accompanying materials
 # are made available under the terms of the Common Public License v1.0
 # which accompanies this distribution, and is available at
 # http://www.eclipse.org/legal/cpl-v10.html
@@ -9,32 +9,13 @@
 #     IBM Corporation - initial API and implementation
 #     Kevin Cornell (Rational Software Corporation)
 #     Tom Tromey (Red Hat, Inc.)
+#     Sridhar Bidigalu (ICS)
 #*******************************************************************************
 
 #!/bin/sh
 
 # Determine the operating system being built
 OS=`uname -s`
-
-# Some UNIX/Linux compilers don't like <CR>'s in files (DOS format).
-if [ "$OS" = "SunOS" ]; then
-    fixup_files=`/usr/xpg4/bin/grep -l "\
-" *.[ch]`
-else
-    fixup_files=`grep -l "\
-" *.[ch]`
-fi
-
-if test -n "$fixup_files"; then
-    echo "Converting files from DOS to UNIX format:"
-    for file in $fixup_files; do
-        echo "    $file"
-        ex $file << EOF 2> /dev/null
-g/\$/s///
-w
-EOF
-    done
-fi
 
 # build according to the operating system
 case $OS in
@@ -54,7 +35,7 @@ case $OS in
             make -f make_linux.mak clean
         else
             echo "Building Linux version of SWT and GNOME DLLs."
-            make -f make_linux.mak make_swt make_gnome
+            make -f make_linux.mak make_swt make_awt make_gnome make_gtk
 
             build_kde=`rpm -q kdebase | grep "not installed"`
             if [ "$build_kde" = "" ]; then
@@ -75,13 +56,33 @@ case $OS in
         ;;
 
         "HP-UX")
-	if  [ "$1" = "clean" ]; then
-            make -f make_hpux.mak clean
-        else
-            echo "Building HP-UX version of SWT and CDE DLLs."
-            make -f make_hpux.mak make_swt
-            make -f make_hpux.mak make_cde
-        fi
+        # Determine the model number system being built
+        MODEL=`uname -m`
+       
+        case $MODEL in
+
+        "ia64")
+           # ia64 based systems
+           if  [ "$1" = "clean" ]; then
+               make -f make_hpux_ia64.mak clean
+           else
+               echo "Building HP-UX ia64 version of SWT and CDE DLLs."
+               make -f make_hpux_ia64.mak make_swt
+               make -f make_hpux_ia64.mak make_cde
+           fi
+           ;;
+
+        *)
+          # PA_RISC based systems 
+	      if  [ "$1" = "clean" ]; then
+               make -f make_hpux_PA_RISC.mak clean
+          else
+               echo "Building HP-UX PA_RISC version of SWT and CDE DLLs."
+               make -f make_hpux_PA_RISC.mak make_swt
+               make -f make_hpux_PA_RISC.mak make_cde
+           fi
+           ;;
+        esac
         ;;
 
     *)

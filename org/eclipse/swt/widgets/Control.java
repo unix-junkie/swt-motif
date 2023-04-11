@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -27,7 +27,8 @@ import org.eclipse.swt.accessibility.*;
  * <dd>LEFT_TO_RIGHT, RIGHT_TO_LEFT</dd>
  * <dt><b>Events:</b>
  * <dd>FocusIn, FocusOut, Help, KeyDown, KeyUp, MouseDoubleClick, MouseDown, MouseEnter,
- *     MouseExit, MouseHover, MouseUp, MouseMove, Move, Paint, Resize</dd>
+ *     MouseExit, MouseHover, MouseUp, MouseMove, Move, Paint, Resize, Traverse,
+ *     DragDetect, MenuDetect</dd>
  * </dl>
  * <p>
  * Only one of LEFT_TO_RIGHT or RIGHT_TO_LEFT may be specified.
@@ -35,13 +36,13 @@ import org.eclipse.swt.accessibility.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
- * 
- * Note: Only one of LEFT_TO_RIGHT and RIGHT_TO_LEFT may be specified.
  */
 public abstract class Control extends Widget implements Drawable {
+	int drawCount, redrawWindow;
 	Composite parent;
-	Font font;
+	Cursor cursor;
 	Menu menu;
+	Font font;
 	String toolTipText;
 	Object layoutData;
 	Accessible accessible;
@@ -314,6 +315,9 @@ public void addTraverseListener (TraverseListener listener) {
 	TypedListener typedListener = new TypedListener (listener);
 	addListener (SWT.Traverse,typedListener);
 }
+int borderHandle () {
+	return topHandle ();
+}
 /**
  * Returns the preferred size of the receiver.
  * <p>
@@ -472,7 +476,6 @@ void createWidget (int index) {
 	* disable the built in drag and drop for all widgets
 	* by overriding the drag start traslation.
 	*/
-	Display display = getDisplay ();
 	OS.XtOverrideTranslations (handle, display.dragTranslations);
 	
 	/*
@@ -489,13 +492,16 @@ void createWidget (int index) {
 	font = defaultFont ();
 }
 int defaultBackground () {
-	return getDisplay ().defaultBackground;
+	return display.defaultBackground;
 }
 Font defaultFont () {
-	return getDisplay ().defaultFont;
+	return display.defaultFont;
 }
 int defaultForeground () {
-	return getDisplay ().defaultForeground;
+	return display.defaultForeground;
+}
+boolean drawGripper (int x, int y, int width, int height) {
+	return false;
 }
 void enableWidget (boolean enabled) {
 	enableHandle (enabled, handle);
@@ -504,19 +510,21 @@ char findMnemonic (String string) {
 	int index = 0;
 	int length = string.length ();
 	do {
-		while (index < length && string.charAt (index) != Mnemonic) index++;
+		while (index < length && string.charAt (index) != '&') index++;
 		if (++index >= length) return '\0';
-		if (string.charAt (index) != Mnemonic) return string.charAt (index);
+		if (string.charAt (index) != '&') return string.charAt (index);
 		index++;
 	} while (index < length);
  	return '\0';
 }
-void fixFocus () {
+void fixFocus (Control focusControl) {
 	Shell shell = getShell ();
 	Control control = this;
 	while ((control = control.parent) != null) {
-		if (control.setFocus () || control == shell) return;
+		if (control.setFocus ()) return;
+		if (control == shell) break;
 	}
+	shell.setSavedFocus (focusControl);
 }
 int focusHandle () {
 	return handle;
@@ -553,7 +561,22 @@ public boolean forceFocus () {
 			focusHandle = handle;
 		}
 	}
-	return XmProcessTraversal (focusHandle, OS.XmTRAVERSE_CURRENT);
+	int [] argList = new int [] {OS.XmNtraversalOn, 0};
+	OS.XtGetValues (focusHandle, argList, argList.length / 2);
+	boolean force = argList [1] == 0;
+	if (force) {
+		state |= FOCUS_FORCED;
+		argList [1] = 1;
+		OS.XtSetValues (focusHandle, argList, argList.length / 2);
+		overrideTranslations ();
+	}
+	if (XmProcessTraversal (focusHandle, OS.XmTRAVERSE_CURRENT)) return true;
+	if (force) {
+		state &= ~FOCUS_FORCED;
+		argList [1] = 0;
+		OS.XtSetValues (focusHandle, argList, argList.length / 2);
+	}
+	return false;
 }
 
 /**
@@ -593,7 +616,7 @@ public Accessible getAccessible () {
  */
 public Color getBackground () {
 	checkWidget();
-	return Color.motif_new (getDisplay (), getXColor (getBackgroundPixel ()));
+	return Color.motif_new (display, getXColor (getBackgroundPixel ()));
 }
 int getBackgroundPixel () {
 	int [] argList = {OS.XmNbackground, 0};
@@ -612,14 +635,16 @@ int getBackgroundPixel () {
  */
 public int getBorderWidth () {
 	checkWidget();
-	int topHandle = topHandle ();
+	int borderHandle = borderHandle ();
 	int [] argList = {OS.XmNborderWidth, 0};
-	OS.XtGetValues (topHandle, argList, argList.length / 2);
+	OS.XtGetValues (borderHandle, argList, argList.length / 2);
 	return argList [1];
 }
 /**
  * Returns a rectangle describing the receiver's size and location
- * relative to its parent (or its display if its parent is null).
+ * relative to its parent (or its display if its parent is null),
+ * unless the receiver is a shell. In this case, the location is
+ * relative to the display.
  *
  * @return the receiver's bounding rectangle
  *
@@ -645,21 +670,6 @@ Point getClientLocation () {
 }
 String getCodePage () {
 	return font.codePage;
-}
-/**
- * Returns the display that the receiver was created on.
- *
- * @return the receiver's display
- *
- * @exception SWTException <ul>
- *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- */
-public Display getDisplay () {
-	Composite parent = this.parent;
-	if (parent == null) error (SWT.ERROR_WIDGET_DISPOSED);
-	return parent.getDisplay ();
 }
 /**
  * Returns <code>true</code> if the receiver is enabled, and
@@ -719,8 +729,7 @@ int getFontAscent (int font) {
 		if (buffer [0] == 0) { 
 			/* FontList contains a single font */
 			OS.memmove (fontStruct, fontPtr, XFontStruct.sizeof);
-			int fontAscent = Math.max (fontStruct.ascent, fontStruct.max_bounds_ascent);
-			if (fontAscent > ascent) ascent = fontAscent;
+			if (fontStruct.ascent > ascent) ascent = fontStruct.ascent;
 		} else {
 			/* FontList contains a fontSet */
 			int nFonts = OS.XFontsOfFontSet (fontPtr, fontStructPtr, fontNamePtr);
@@ -730,8 +739,7 @@ int getFontAscent (int font) {
 			/* Go through each fontStruct in the font set */
 			for (int i=0; i<nFonts; i++) { 
 				OS.memmove (fontStruct, fontStructs[i], XFontStruct.sizeof);
-				int fontAscent = Math.max (fontStruct.ascent, fontStruct.max_bounds_ascent);
-				if (fontAscent > ascent) ascent = fontAscent;
+				if (fontStruct.ascent > ascent) ascent = fontStruct.ascent;
 			}
 		}
 	}
@@ -740,11 +748,11 @@ int getFontAscent (int font) {
 	return ascent;
 }
 
-int getFontHeight () {
+int getFontHeight (int font) {
 
 	/* Create a font context to iterate over each element in the font list */
 	int [] buffer = new int [1];
-	if (!OS.XmFontListInitFontContext (buffer, font.handle)) {
+	if (!OS.XmFontListInitFontContext (buffer, font)) {
 		error (SWT.ERROR_NO_HANDLES);
 	}
 	int context = buffer [0];
@@ -762,9 +770,7 @@ int getFontHeight () {
 		if (buffer [0] == 0) { 
 			/* FontList contains a single font */
 			OS.memmove (fontStruct, fontPtr, XFontStruct.sizeof);
-			int fontAscent = Math.max (fontStruct.ascent, fontStruct.max_bounds_ascent);
-			int fontDescent = Math.max (fontStruct.descent, fontStruct.max_bounds_descent);
-			int fontHeight = fontAscent + fontDescent;
+			int fontHeight = fontStruct.ascent + fontStruct.descent;
 			if (fontHeight > height) height = fontHeight;
 		} else {
 			/* FontList contains a fontSet */
@@ -775,9 +781,7 @@ int getFontHeight () {
 			/* Go through each fontStruct in the font set */
 			for (int i=0; i<nFonts; i++) { 
 				OS.memmove (fontStruct, fontStructs[i], XFontStruct.sizeof);
-				int fontAscent = Math.max (fontStruct.ascent, fontStruct.max_bounds_ascent);
-				int fontDescent = Math.max (fontStruct.descent, fontStruct.max_bounds_descent);
-				int fontHeight = fontAscent + fontDescent;
+				int fontHeight = fontStruct.ascent + fontStruct.descent;
 				if (fontHeight > height) height = fontHeight;
 			}
 		}
@@ -806,15 +810,12 @@ int getFontHeight () {
  */
 public Color getForeground () {
 	checkWidget();
-	return Color.motif_new (getDisplay (), getXColor (getForegroundPixel ()));
+	return Color.motif_new (display, getXColor (getForegroundPixel ()));
 }
 int getForegroundPixel () {
 	int [] argList = {OS.XmNforeground, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	return argList [1];
-}
-short [] getIMCaretPos () {
-	return new short[]{0, 0};
 }
 Caret getIMCaret () {
 	return null;
@@ -835,7 +836,9 @@ public Object getLayoutData () {
 }
 /**
  * Returns a point describing the receiver's location relative
- * to its parent (or its display if its parent is null).
+ * to its parent (or its display if its parent is null), unless
+ * the receiver is a shell. In this case, the point is 
+ * relative to the display. 
  *
  * @return the receiver's location
  *
@@ -869,6 +872,44 @@ public Point getLocation () {
 public Menu getMenu () {
 	checkWidget();
 	return menu;
+}
+/**
+ * Returns the receiver's monitor.
+ * 
+ * @return the receiver's monitor
+ * 
+ * @since 3.0
+ */
+public Monitor getMonitor () {
+	checkWidget();
+	Monitor [] monitors = display.getMonitors ();
+	if (monitors.length == 1) return monitors [0];
+	int index = -1, value = -1;
+	Rectangle bounds = getBounds ();
+	if (this != getShell ()) {
+		bounds = display.map (this.parent, null, bounds);
+	}
+	for (int i=0; i<monitors.length; i++) {
+		Rectangle rect = bounds.intersection (monitors [i].getBounds ());
+		int area = rect.width * rect.height;
+		if (area > 0 && area > value) {
+			index = i;
+			value = area;
+		}
+	}
+	if (index >= 0) return monitors [index];
+	int centerX = bounds.x + bounds.width / 2, centerY = bounds.y + bounds.height / 2;
+	for (int i=0; i<monitors.length; i++) {
+		Rectangle rect = monitors [i].getBounds ();
+		int x = centerX < rect.x ? rect.x - centerX : centerX > rect.x + rect.width ? centerX - rect.x - rect.width : 0;
+		int y = centerY < rect.y ? rect.y - centerY : centerY > rect.y + rect.height ? centerY - rect.y - rect.height : 0;
+		int distance = x * x + y * y;
+		if (index == -1 || distance < value) {
+			index = i;
+			value = distance;
+		} 
+	}
+	return monitors [index];
 }
 int getNavigationType () {
 	int [] argList = {OS.XmNnavigationType, 0};
@@ -999,7 +1040,7 @@ XColor getXColor (int pixel) {
 	return color;
 }
 boolean hasFocus () {
-	return this == getDisplay ().getFocusControl ();
+	return this == display.getFocusControl ();
 }
 /**
  * Returns true if the widget has native IM support
@@ -1008,7 +1049,7 @@ boolean hasIMSupport() {
 	return false;
 }
 void hookEvents () {
-	int windowProc = getDisplay ().windowProc;
+	int windowProc = display.windowProc;
 	OS.XtAddEventHandler (handle, OS.ButtonPressMask, false, windowProc, BUTTON_PRESS);
 	OS.XtAddEventHandler (handle, OS.ButtonReleaseMask, false, windowProc, BUTTON_RELEASE);
 	OS.XtAddEventHandler (handle, OS.PointerMotionMask, false, windowProc, POINTER_MOTION);
@@ -1030,9 +1071,8 @@ int hoverProc (int id) {
 	return hoverProc (id, true);
 }
 int hoverProc (int id, boolean showTip) {
-	Display display = getDisplay ();
 	if (showTip) display.showToolTip (handle, toolTipText);
-	sendMouseEvent (SWT.MouseHover, 0);
+	sendMouseEvent (SWT.MouseHover);
 	return 0;
 }
 /**	 
@@ -1068,13 +1108,12 @@ public int internal_new_GC (GCData data) {
 		if ((data.style & mask) == 0) {
 			data.style |= style & (mask | SWT.MIRRORED);
 		}
-		data.device = getDisplay ();
+		data.device = display;
 		data.display = xDisplay;
 		data.drawable = xWindow;
 		data.foreground = argList [1];
 		data.background = argList [3];
-		data.fontList = font.handle;
-		data.codePage = font.codePage;
+		data.font = font;
 		data.colormap = argList [5];
 	}
 	return xGC;
@@ -1089,7 +1128,7 @@ public int internal_new_GC (GCData data) {
  * application code.
  * </p>
  *
- * @param handle the platform specific GC handle
+ * @param hDC the platform specific GC handle
  * @param data the platform specific GC data 
  */
 public void internal_dispose_GC (int xGC, GCData data) {
@@ -1119,9 +1158,7 @@ public boolean isEnabled () {
 	checkWidget();
 	return getEnabled () && parent.isEnabled ();
 }
-boolean isFocusAncestor () {
-	Display display = getDisplay ();
-	Control control = display.getFocusControl ();
+boolean isFocusAncestor (Control control) {
 	while (control != null && control != this) {
 		control = control.parent;
 	}
@@ -1236,7 +1273,7 @@ boolean mnemonicMatch (char key) {
  * the top of the drawing order will not be covered by other
  * controls even if they occupy intersecting areas.
  *
- * @param the sibling control (or null)
+ * @param control the sibling control (or null)
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_INVALID_ARGUMENT - if the control has been disposed</li> 
@@ -1245,6 +1282,8 @@ boolean mnemonicMatch (char key) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @see #moveBelow
  */
 public void moveAbove (Control control) {
 	checkWidget();
@@ -1261,7 +1300,7 @@ public void moveAbove (Control control) {
  * the bottom of the drawing order will be covered by all other
  * controls which occupy intersecting areas.
  *
- * @param the sibling control (or null)
+ * @param control the sibling control (or null)
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_INVALID_ARGUMENT - if the control has been disposed</li> 
@@ -1270,6 +1309,8 @@ public void moveAbove (Control control) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @see #moveAbove
  */
 public void moveBelow (Control control) {
 	checkWidget();
@@ -1280,7 +1321,6 @@ public void moveBelow (Control control) {
 	setZOrder (control, false);
 }
 void overrideTranslations () {
-	Display display = getDisplay ();
 	OS.XtOverrideTranslations (handle, display.tabTranslations);
 	OS.XtOverrideTranslations (handle, display.arrowTranslations);
 	int focusHandle = focusHandle ();
@@ -1317,6 +1357,8 @@ public void pack () {
  * manager caches can be retained. 
  * </p>
  *
+ * @param changed whether or not the receiver's contents have changed
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -1332,15 +1374,27 @@ void propagateChildren (boolean enabled) {
 	propagateWidget (enabled);
 }
 void propagateWidget (boolean enabled) {
-	propagateHandle (enabled, handle);
+	int xCursor = enabled && cursor != null ? cursor.handle : OS.None;
+	propagateHandle (enabled, handle, xCursor);
 }
 void realizeChildren () {
-	if (!isEnabled ()) propagateWidget (false);
+	if (isEnabled ()) {
+		if (cursor == null) return;
+		int xWindow = OS.XtWindow (handle);
+		if (xWindow == 0) return;
+		int xDisplay = OS.XtDisplay (handle);
+		if (xDisplay == 0) return;
+		OS.XDefineCursor (xDisplay, xWindow, cursor.handle);
+		OS.XFlush (xDisplay);
+	} else {
+		propagateWidget (false);
+	}
 }
 /**
  * Causes the entire bounds of the receiver to be marked
  * as needing to be redrawn. The next time a paint request
- * is processed, the control will be completely painted.
+ * is processed, the control will be completely painted,
+ * including the background.
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1348,6 +1402,11 @@ void realizeChildren () {
  * </ul>
  *
  * @see #update
+ * @see PaintListener
+ * @see SWT#Paint
+ * @see SWT#NO_BACKGROUND
+ * @see SWT#NO_REDRAW_RESIZE
+ * @see SWT#NO_MERGE_PAINTS
  */
 public void redraw () {
 	checkWidget();
@@ -1357,11 +1416,12 @@ public void redraw () {
  * Causes the rectangular area of the receiver specified by
  * the arguments to be marked as needing to be redrawn. 
  * The next time a paint request is processed, that area of
- * the receiver will be painted. If the <code>all</code> flag
- * is <code>true</code>, any children of the receiver which
- * intersect with the specified area will also paint their
- * intersecting areas. If the <code>all</code> flag is 
- * <code>false</code>, the children will not be painted.
+ * the receiver will be painted, including the background.
+ * If the <code>all</code> flag is <code>true</code>, any
+ * children of the receiver which intersect with the specified
+ * area will also paint their intersecting areas. If the
+ * <code>all</code> flag is <code>false</code>, the children
+ * will not be painted.
  *
  * @param x the x coordinate of the area to draw
  * @param y the y coordinate of the area to draw
@@ -1375,6 +1435,11 @@ public void redraw () {
  * </ul>
  *
  * @see #update
+ * @see PaintListener
+ * @see SWT#Paint
+ * @see SWT#NO_BACKGROUND
+ * @see SWT#NO_REDRAW_RESIZE
+ * @see SWT#NO_MERGE_PAINTS
  */
 public void redraw (int x, int y, int width, int height, boolean all) {
 	checkWidget ();
@@ -1396,15 +1461,16 @@ void releaseWidget () {
 		int fontHandle = fontHandle ();
 		int [] argList2 = {OS.XmNfontList, fontList};
 		OS.XtSetValues (fontHandle, argList2, argList2.length / 2);
+		OS.XmImSetValues (fontHandle, argList2, argList2.length / 2);
 	}
 	super.releaseWidget ();
-	Display display = getDisplay ();
 	display.releaseToolTipHandle (handle);
 	toolTipText = null;
 	if (menu != null && !menu.isDisposed ()) {
 		menu.dispose ();
 	}
 	menu = null;
+	cursor = null;
 	if (!hasIMSupport()) {
 		OS.XmImUnregister (handle);
 		int focusHandle = focusHandle ();
@@ -1638,7 +1704,10 @@ void sendHelpEvent (int callData) {
 		control = control.parent;
 	}
 }
-void sendIMKeyEvent (int type, XKeyEvent xEvent) {
+boolean sendIMKeyEvent (int type, XKeyEvent xEvent) {
+	return sendIMKeyEvent (type, xEvent, 0);
+}
+boolean sendIMKeyEvent (int type, XKeyEvent xEvent, int textHandle) {
 	/*
 	* Bug in Motif. On Linux only, XmImMbLookupString () does not return 
 	* XBufferOverflow as the status if the buffer is too small. The fix
@@ -1652,70 +1721,121 @@ void sendIMKeyEvent (int type, XKeyEvent xEvent) {
 		buffer = new byte [length];
 		length = OS.XmImMbLookupString (focusHandle, xEvent, buffer, length, unused, status);
 	}
-	if (length == 0) return;
+	if (length == 0) return true;
 	
 	/* Convert from MBCS to UNICODE and send the event */
 	/* Use the character encoding for the default locale */
-	char [] result = Converter.mbcsToWcs (null, buffer);
-	sendIMKeyEvent (type, xEvent, buffer, result);
-}
-void sendIMKeyEvent (int type, XKeyEvent xEvent, byte [] mbcs, char [] chars) {
-	int index = 0;
+	char [] chars = Converter.mbcsToWcs (null, buffer);
+	int index = 0, count = 0;
 	while (index < chars.length) {
-		if (chars [index] == 0) break;
+		if (chars [index] == 0) {
+			chars [count] = 0;
+			break;
+		}
 		Event event = new Event ();
 		event.time = xEvent.time;
 		event.character = chars [index];
-		setInputState (event, xEvent);
-		postEvent (type, event);
+		setInputState (event, xEvent.state);
+		sendEvent (type, event);
+		// widget could be disposed at this point
+	
+		/*
+		* It is possible (but unlikely), that application
+		* code could have disposed the widget in the key
+		* events.  If this happens, end the processing of
+		* the key by returning false.
+		*/
+		if (isDisposed ()) return false;
+		if (event.doit) chars [count++] = chars [index];
 		index++;
 	}
+	if (count == 0) return false;
+	if (textHandle != 0) {
+		/*
+		* Bug in Motif. On Solaris and Linux, XmImMbLookupString() clears
+		* the characters from the IME. This causes the characters to be
+		* stolen from the text widget. The fix is to detect that the IME
+		* has been cleared and use XmTextInsert() to insert the stolen
+		* characters. This problem does not happen on AIX.
+		*/
+		byte [] testBuffer = new byte [5];
+		int testLength = OS.XmImMbLookupString (textHandle, xEvent, testBuffer, testBuffer.length, unused, unused);
+		if (testLength == 0 || index != count) {
+			int [] start = new int [1], end = new int [1];
+			OS.XmTextGetSelectionPosition (textHandle, start, end);
+			if (start [0] == end [0]) {
+				start [0] = end [0] = OS.XmTextGetInsertionPosition (textHandle);
+			}
+			boolean warnings = display.getWarnings ();
+			display.setWarnings (false);
+			if (index != count) {
+				buffer = Converter.wcsToMbcs (getCodePage (), chars, true);
+			}
+			OS.XmTextReplace (textHandle, start [0], end [0], buffer);
+			int position = start [0] + count;
+			OS.XmTextSetInsertionPosition (textHandle, position);
+			display.setWarnings (warnings);
+			return false;
+		}
+	}
+	return true;
 }
-void sendKeyEvent (int type, XKeyEvent xEvent) {
+boolean sendKeyEvent (int type, XKeyEvent xEvent) {
 	Event event = new Event ();
 	event.time = xEvent.time;
-	setKeyState (event, xEvent);
+	if (!setKeyState (event, xEvent)) return true;
 	Control control = this;
 	if ((state & CANVAS) != 0) {
 		if ((style & SWT.NO_FOCUS) != 0) {
-			Display display = getDisplay ();
 			control = display.getFocusControl ();
 		}
 	}
 	if (control != null) {
-		control.postEvent (type, event);
+		control.sendEvent (type, event);
+		// widget could be disposed at this point
+	
+		/*
+		* It is possible (but unlikely), that application
+		* code could have disposed the widget in the key
+		* events.  If this happens, end the processing of
+		* the key by returning false.
+		*/
+		if (isDisposed ()) return false;
 	}
+	return event.doit;
 }
-void sendMouseEvent (int type, int button) {
-	int xDisplay = OS.XtDisplay (handle);
-	int xWindow = OS.XtWindow (handle);
+void sendMouseEvent (int type) {
+	int xDisplay = OS.XtDisplay (handle), xWindow = OS.XtWindow (handle);
 	int [] windowX = new int [1], windowY = new int [1], mask = new int [1], unused = new int [1];
 	OS.XQueryPointer (xDisplay, xWindow, unused, unused, unused, unused, windowX, windowY, mask);
+	sendMouseEvent (type, 0, 0, windowX [0], windowY [0], mask [0]);
+}
+void sendMouseEvent (int type, int button, int time, int x, int y, int state) {
 	Event event = new Event ();
-	event.x = windowX [0];
-	event.y = windowY [0];
-	setInputState (event, mask [0]);
+	event.time = time;
+	event.button = button;
+	event.x = x;
+	event.y = y;
+	setInputState (event, state);
 	postEvent (type, event);
 }
-void sendMouseEvent (int type, int button, XCrossingEvent xEvent) {
-	Event event = new Event ();
-	event.time = xEvent.time;
-	event.button = button;
-	event.x = xEvent.x;
-	event.y = xEvent.y;
-	int [] unused = new int [1], mask = new int [1];
-	OS.XQueryPointer (xEvent.display, xEvent.window, unused, unused, unused, unused, unused, unused, mask);
-	setInputState (event, mask [0]);
-	postEvent (type, event);
+void sendMouseEvent (int type, XButtonEvent xEvent) {
+	short [] x_root = new short [1], y_root = new short [1];
+	OS.XtTranslateCoords (handle, (short) 0, (short) 0, x_root, y_root);
+	int x = xEvent.x_root - x_root [0], y = xEvent.y_root - y_root [0];
+	sendMouseEvent (type, xEvent.button, xEvent.time, x, y, xEvent.state);
 }
-void sendMouseEvent (int type, int button, XInputEvent xEvent) {
-	Event event = new Event ();
-	event.time = xEvent.time;
-	event.button = button;
-	event.x = xEvent.x;
-	event.y = xEvent.y;
-	setInputState (event, xEvent);
-	postEvent (type, event);
+void sendMouseEvent (int type, XCrossingEvent xEvent) {
+	short [] x_root = new short [1], y_root = new short [1];
+	OS.XtTranslateCoords (handle, (short) 0, (short) 0, x_root, y_root);
+	int x = xEvent.x_root - x_root [0], y = xEvent.y_root - y_root [0];
+	sendMouseEvent (type, 0, xEvent.time, x, y, xEvent.state);
+}
+void sendMouseEvent (int type, XMotionEvent xEvent) {	
+	short [] x_root = new short [1], y_root = new short [1];
+	OS.XtTranslateCoords (handle, (short) 0, (short) 0, x_root, y_root);
+	int x = xEvent.x_root - x_root [0], y = xEvent.y_root - y_root [0];
+	sendMouseEvent (type, 0, xEvent.time, x, y, xEvent.state);
 }
 /**
  * Sets the receiver's background color to the color specified
@@ -1768,6 +1888,10 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
 		boolean sameOrigin = (x == (short) argList [1]) && (y == (short) argList [3]);
 		boolean sameExtent = (width == argList [5]) && (height == argList [7]);
 		if (sameOrigin && sameExtent) return false;
+		if (redrawWindow != 0) {
+			int xDisplay = OS.XtDisplay (handle);
+			OS.XResizeWindow (xDisplay, redrawWindow, width, height);
+		}
 		OS.XtConfigureWidget (topHandle, x, y, width, height, argList [9]);
 		updateIM ();
 		if (!sameOrigin) sendEvent (SWT.Move);
@@ -1793,6 +1917,10 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
 		width = Math.max (width - (argList [5] * 2), 1);
 		height = Math.max (height - (argList [5] * 2), 1);
 		if (width == argList [1] && height == argList [3]) return false;
+		if (redrawWindow != 0) {
+			int xDisplay = OS.XtDisplay (handle);
+			OS.XResizeWindow (xDisplay, redrawWindow, width, height);
+		}
 		OS.XtResizeWidget (topHandle, width, height, argList [5]);
 		updateIM ();
 		sendEvent (SWT.Resize);
@@ -1804,7 +1932,9 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
  * Sets the receiver's size and location to the rectangular
  * area specified by the arguments. The <code>x</code> and 
  * <code>y</code> arguments are relative to the receiver's
- * parent (or its display if its parent is null).
+ * parent (or its display if its parent is null), unless 
+ * the receiver is a shell. In this case, the <code>x</code>
+ * and <code>y</code> arguments are relative to the display.
  * <p>
  * Note: Attempting to set the width or height of the
  * receiver to a negative number will cause that
@@ -1846,7 +1976,7 @@ public void setBounds (int x, int y, int width, int height) {
 public void setBounds (Rectangle rect) {
 	checkWidget ();
 	if (rect == null) error (SWT.ERROR_NULL_ARGUMENT);
-	setBounds (rect.x, rect.y, rect.width, rect.height, true, true);
+	setBounds (rect.x, rect.y, rect.width, rect.height);
 }
 /**
  * If the argument is <code>true</code>, causes the receiver to have
@@ -1902,22 +2032,22 @@ public void setCapture (boolean capture) {
  */
 public void setCursor (Cursor cursor) {
 	checkWidget();
-	int display = OS.XtDisplay (handle);
-	if (display == 0) return;
-	int window = OS.XtWindow (handle);
-	if (window == 0) {
-		if (!OS.XtIsRealized (handle)) getShell ().realizeWidget ();
-		window = OS.XtWindow (handle);
-		if (window == 0) return;
+	if (cursor != null && cursor.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
+	this.cursor = cursor;
+	if (!isEnabled ()) {
+		if (this != getShell ()) return;
 	}
+	int xDisplay = OS.XtDisplay (handle);
+	if (xDisplay == 0) return;
+	int xWindow = OS.XtWindow (handle);
+	if (xWindow == 0) return;
 	if (cursor == null) {
-		OS.XUndefineCursor (display, window);
+		OS.XUndefineCursor (xDisplay, xWindow);
 	} else {
 		if (cursor.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
-		int xCursor = cursor.handle;
-		OS.XDefineCursor (display, window, xCursor);
-		OS.XFlush (display);
+		OS.XDefineCursor (xDisplay, xWindow, cursor.handle);
 	}
+	OS.XFlush (xDisplay);
 }
 /**
  * Enables the receiver if the argument is <code>true</code>,
@@ -1934,17 +2064,23 @@ public void setCursor (Cursor cursor) {
  */
 public void setEnabled (boolean enabled) {
 	checkWidget();
+	if (enabled == getEnabled ()) return;
+	Control control = null;
 	boolean fixFocus = false;
-	if (!enabled) fixFocus = isFocusAncestor ();
+	if (!enabled) {
+		control = display.getFocusControl ();
+		fixFocus = isFocusAncestor (control);
+	}
 	enableWidget (enabled);
-	if (fixFocus) fixFocus ();
+	if (fixFocus) fixFocus (control);
 	if (!enabled || (isEnabled () && enabled)) {
 		propagateChildren (enabled);
 	}
 }
 /**
  * Causes the receiver to have the <em>keyboard focus</em>, 
- * such that all keyboard events will be delivered to it.
+ * such that all keyboard events will be delivered to it.  Focus
+ * reassignment will respect applicable platform constraints.
  *
  * @return <code>true</code> if the control got focus, and <code>false</code> if it was unable to.
  *
@@ -1957,6 +2093,7 @@ public void setEnabled (boolean enabled) {
  */
 public boolean setFocus () {
 	checkWidget();
+	if ((style & SWT.NO_FOCUS) != 0) return false;
 	return forceFocus ();
 }
 /**
@@ -2026,11 +2163,6 @@ public void setForeground (Color color) {
 void setForegroundPixel (int pixel) {
 	int [] argList = {OS.XmNforeground, pixel};
 	OS.XtSetValues (handle, argList, argList.length / 2);
-	int xDisplay = OS.XtDisplay (handle);
-	if (xDisplay == 0) return;
-	int xWindow = OS.XtWindow (handle);
-	if (xWindow == 0) return;
-	OS.XClearArea (xDisplay, xWindow, 0, 0, 0, 0, true);
 }
 /**
  * Sets the layout data associated with the receiver to the argument.
@@ -2049,7 +2181,9 @@ public void setLayoutData (Object layoutData) {
 /**
  * Sets the receiver's location to the point specified by
  * the arguments which are relative to the receiver's
- * parent (or its display if its parent is null).
+ * parent (or its display if its parent is null), unless 
+ * the receiver is a shell. In this case, the point is 
+ * relative to the display. 
  *
  * @param x the new x coordinate for the receiver
  * @param y the new y coordinate for the receiver
@@ -2065,8 +2199,10 @@ public void setLocation (int x, int y) {
 }
 /**
  * Sets the receiver's location to the point specified by
- * the argument which is relative to the receiver's
- * parent (or its display if its parent is null).
+ * the arguments which are relative to the receiver's
+ * parent (or its display if its parent is null), unless 
+ * the receiver is a shell. In this case, the point is 
+ * relative to the display. 
  *
  * @param location the new location for the receiver
  *
@@ -2179,13 +2315,50 @@ boolean setRadioSelection (boolean value) {
  */
 public void setRedraw (boolean redraw) {
 	checkWidget();
+	if (redraw) {
+		if (--drawCount == 0) {
+			if (redrawWindow != 0) {
+				int xDisplay = OS.XtDisplay (handle);
+				if (xDisplay == 0) return;
+				int xWindow = OS.XtWindow (handle);
+				if (xWindow == 0) return;
+				OS.XDestroyWindow (xDisplay, redrawWindow);
+				OS.XSelectInput (xDisplay, xWindow, OS.XtBuildEventMask (handle));
+				redrawWindow = 0;
+			}
+		}
+	} else {
+		if (drawCount++ == 0) {
+			int xDisplay = OS.XtDisplay (handle);
+			if (xDisplay == 0) return;
+			int xWindow = OS.XtWindow (handle);
+			if (xWindow == 0) return;
+			Rectangle rect = getBounds();
+			XSetWindowAttributes attributes = new XSetWindowAttributes ();
+			attributes.background_pixmap = OS.None;
+			attributes.event_mask = OS.ExposureMask;
+			int mask = OS.CWDontPropagate | OS.CWEventMask | OS.CWBackPixmap;
+			redrawWindow = OS.XCreateWindow (xDisplay, xWindow, 0, 0, rect.width, rect.height,
+					0,OS.CopyFromParent, OS.CopyFromParent, OS.CopyFromParent, mask, attributes);
+			if (redrawWindow != 0) {
+				int mouseMask = OS.ButtonPressMask | OS.ButtonReleaseMask |
+					OS.LeaveWindowMask | OS.PointerMotionMask |
+					OS.PointerMotionMask | OS.PointerMotionHintMask |
+					OS.ButtonMotionMask | OS.Button1MotionMask | OS.Button2MotionMask |
+					OS.Button3MotionMask | OS.Button4MotionMask | OS.Button5MotionMask; 
+				OS.XSelectInput (xDisplay, xWindow, OS.XtBuildEventMask (handle) & ~mouseMask);
+				OS.XRaiseWindow (xDisplay, redrawWindow);
+				OS.XMapWindow (xDisplay, redrawWindow);
+			}
+		}
+	}
 }
-boolean setTabGroupFocus () {
-	return setTabItemFocus ();
+boolean setTabGroupFocus (boolean next) {
+	return setTabItemFocus (next);
 }
-boolean setTabItemFocus () {
+boolean setTabItemFocus (boolean next) {
 	if (!isShowing ()) return false;
-	return setFocus ();
+	return forceFocus ();
 }
 /**
  * Sets the receiver's size to the point specified by the arguments.
@@ -2216,7 +2389,6 @@ public void setSize (int width, int height) {
  * </p>
  *
  * @param size the new size for the receiver
- * @param height the new height for the receiver
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the point is null</li>
@@ -2244,7 +2416,6 @@ public void setSize (Point size) {
  */
 public void setToolTipText (String string) {
 	checkWidget();
-	Display display = getDisplay ();
 	display.setToolTipText (handle, toolTipText = string);
 }
 /**
@@ -2269,10 +2440,21 @@ public void setVisible (boolean visible) {
 	int [] argList = {OS.XmNmappedWhenManaged, 0};
 	OS.XtGetValues (topHandle, argList, argList.length / 2);
 	if ((argList [1] != 0) == visible) return;
+	Control control = null;
 	boolean fixFocus = false;
-	if (!visible) fixFocus = isFocusAncestor ();	
+	if (!visible) {
+		control = display.getFocusControl ();
+		fixFocus = isFocusAncestor (control);	
+	}
 	OS.XtSetMappedWhenManaged (topHandle, visible);	
-	if (fixFocus) fixFocus ();	
+	if (fixFocus) fixFocus (control);
+	/*
+	* It is possible (but unlikely) that application code could
+	* have disposed the widget in the FocusOut event that is
+	* triggered by invoking fixFocus() if the widget being hidden
+	* has focus.  If this happens, just return; 
+	*/
+	if (isDisposed ()) return;
 	sendEvent (visible ? SWT.Show : SWT.Hide);
 }
 void setZOrder (Control control, boolean above) {
@@ -2296,7 +2478,8 @@ void setZOrder (Control control, boolean above, boolean fixChildren) {
 	}
 	int window1 = OS.XtWindow (topHandle1);
 	if (window1 == 0) return;
-	if (control == null) {
+	int redrawWindow = fixChildren ? parent.redrawWindow : 0;
+	if (control == null && redrawWindow == 0) {
 		if (above) {
 			OS.XRaiseWindow (display, window1);
 			if (fixChildren) parent.moveAbove (topHandle1, 0);
@@ -2306,17 +2489,23 @@ void setZOrder (Control control, boolean above, boolean fixChildren) {
 		}
 		return;
 	}
-	int topHandle2 = control.topHandle ();
-	if (display != OS.XtDisplay (topHandle2)) return;
-	if (!OS.XtIsRealized (topHandle2)) {
-		Shell shell = control.getShell ();
-		shell.realizeWidget ();
+	int window2, topHandle2 = 0;
+	if (control != null) {
+		topHandle2 = control.topHandle ();
+		if (display != OS.XtDisplay (topHandle2)) return;
+		if (!OS.XtIsRealized (topHandle2)) {
+			Shell shell = control.getShell ();
+			shell.realizeWidget ();
+		}
+		window2 = OS.XtWindow (topHandle2);
+	} else {
+		window2 = redrawWindow;
 	}
-	int window2 = OS.XtWindow (topHandle2);
 	if (window2 == 0) return;
 	XWindowChanges struct = new XWindowChanges ();
 	struct.sibling = window2;
 	struct.stack_mode = above ? OS.Above : OS.Below;
+	if (window2 == redrawWindow) struct.stack_mode = OS.Below;
 	/*
 	* Feature in X. If the receiver is a top level, XConfigureWindow ()
 	* will fail (with a BadMatch error) for top level shells because top
@@ -2333,6 +2522,20 @@ void setZOrder (Control control, boolean above, boolean fixChildren) {
 		if (fixChildren) parent.moveAbove (topHandle1, topHandle2);
 	} else {
 		if (fixChildren) parent.moveBelow (topHandle1, topHandle2);
+	}
+}
+void showMenu (int x, int y) {
+	Event event = new Event ();
+	event.x = x;
+	event.y = y;
+	sendEvent (SWT.MenuDetect, event);
+	if (event.doit) {
+		if (menu != null && !menu.isDisposed ()) {
+			if (event.x != x || event.y != y) {
+				menu.setLocation (event.x, event.y);
+			}
+			menu.setVisible (true);
+		}
 	}
 }
 /**
@@ -2421,29 +2624,32 @@ public Point toDisplay (Point point) {
 	if (point == null) error (SWT.ERROR_NULL_ARGUMENT);
 	return toDisplay (point.x, point.y);
 }
-boolean translateAccelerator (int key, int keysym, XKeyEvent xEvent) {
-	return menuShell ().translateAccelerator (key, keysym, xEvent);
+boolean translateAccelerator (char key, int keysym, XKeyEvent xEvent, boolean doit) {
+	return menuShell ().translateAccelerator (key, keysym, xEvent, doit);
 }
-boolean translateMnemonic (char key, XKeyEvent xEvent) {
+boolean translateMnemonic (Event event, Control control) {
+	if (control == this) return false;
 	if (!isVisible () || !isEnabled ()) return false;
-	Event event = new Event();
-	event.doit = mnemonicMatch (key);
-	event.detail = SWT.TRAVERSE_MNEMONIC;
-	event.time = xEvent.time;
-	setKeyState (event, xEvent);
+	event.doit = mnemonicMatch (event.character);
 	return traverse (event);
 }
-boolean translateMnemonic (int key, XKeyEvent xEvent) {
+boolean translateMnemonic (char key, int keysym, XKeyEvent xEvent) {
+	if (key < 0x20) return false;
 	if (xEvent.state == 0) {
 		int code = traversalCode (key, xEvent);
 		if ((code & SWT.TRAVERSE_MNEMONIC) == 0) return false;
 	} else {
-		if (xEvent.state != OS.Mod1Mask) return false;
+		int mask = OS.ControlMask | OS.ShiftMask | OS.Mod1Mask;
+		if ((xEvent.state & mask) != OS.Mod1Mask) return false;
 	}
 	Decorations shell = menuShell ();
 	if (shell.isVisible () && shell.isEnabled ()) {
-		char ch = mbcsToWcs (key);
-		return ch >= 0x20 && shell.translateMnemonic (ch, xEvent);
+		Event event = new Event();
+		event.time = xEvent.time;
+		event.detail = SWT.TRAVERSE_MNEMONIC;
+		if (setKeyState (event, xEvent)) {
+			return translateMnemonic (event, null) || shell.translateMnemonic (event, this);
+		}
 	}
 	return false;
 }
@@ -2452,8 +2658,7 @@ boolean translateTraversal (int key, XKeyEvent xEvent) {
 	int code = traversalCode (key, xEvent);
 	boolean all = false;
 	switch (key) {
-		case OS.XK_Escape:
-		case OS.XK_Cancel: {
+		case OS.XK_Escape: {
 			all = true;
 			detail = SWT.TRAVERSE_ESCAPE;
 			break;
@@ -2466,21 +2671,6 @@ boolean translateTraversal (int key, XKeyEvent xEvent) {
 		}
 		case OS.XK_Tab: {
 			boolean next = (xEvent.state & OS.ShiftMask) == 0;
-			/*
-			* NOTE: This code causes Shift+Tab and Ctrl+Tab to
-			* always attempt traversal which is not correct.
-			* The default should be the same as a plain Tab key.
-			* This behavior is currently relied on by StyledText.
-			* 
-			* The correct behavior is to give every key to any
-			* control that wants to see every key.  The default
-			* behavior for a Canvas should be to see every key.
-			*/
-			switch (xEvent.state) {
-				case OS.ControlMask:
-				case OS.ShiftMask:
-					code |= SWT.TRAVERSE_TAB_PREVIOUS | SWT.TRAVERSE_TAB_NEXT;
-			}
 			detail = next ? SWT.TRAVERSE_TAB_NEXT : SWT.TRAVERSE_TAB_PREVIOUS;
 			break;
 		}
@@ -2496,16 +2686,6 @@ boolean translateTraversal (int key, XKeyEvent xEvent) {
 		case OS.XK_Page_Down: {
 			all = true;
 			if ((xEvent.state & OS.ControlMask) == 0) return false;
-			/*
-			* NOTE: This code causes Ctrl+PgUp and Ctrl+PgDn to always
-			* attempt traversal which is not correct.  This behavior is
-			* currently relied on by StyledText.
-			* 
-			* The correct behavior is to give every key to any
-			* control that wants to see every key.  The default
-			* behavior for a Canvas should be to see every key.
-			*/
-			code |= SWT.TRAVERSE_PAGE_NEXT | SWT.TRAVERSE_PAGE_PREVIOUS;
 			detail = key == OS.XK_Page_Down ? SWT.TRAVERSE_PAGE_NEXT : SWT.TRAVERSE_PAGE_PREVIOUS;
 			break;
 		}
@@ -2516,14 +2696,12 @@ boolean translateTraversal (int key, XKeyEvent xEvent) {
 	event.doit = (code & detail) != 0;
 	event.detail = detail;
 	event.time = xEvent.time;
-	setKeyState (event, xEvent);
+	if (!setKeyState (event, xEvent)) return false;
 	Shell shell = getShell ();
 	Control control = this;
 	do {
 		if (control.traverse (event)) return true;
-		if (!event.doit && control.hooks (SWT.Traverse)) {
-			return false;
-		}
+		if (!event.doit && control.hooks (SWT.Traverse)) return false;
 		if (control == shell) return false;
 		control = control.parent;
 	} while (all && control != null);
@@ -2533,7 +2711,7 @@ int traversalCode (int key, XKeyEvent xEvent) {
 	int [] argList = new int [] {OS.XmNtraversalOn, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	if (argList [1] == 0) return 0;
-	int code = SWT.TRAVERSE_RETURN | SWT.TRAVERSE_TAB_NEXT | SWT.TRAVERSE_TAB_PREVIOUS;
+	int code = SWT.TRAVERSE_RETURN | SWT.TRAVERSE_TAB_NEXT | SWT.TRAVERSE_TAB_PREVIOUS | SWT.TRAVERSE_PAGE_NEXT | SWT.TRAVERSE_PAGE_PREVIOUS;
 	Shell shell = getShell ();
 	if (shell.parent != null) code |= SWT.TRAVERSE_ESCAPE;
 	if (getNavigationType () == OS.XmNONE) {
@@ -2543,7 +2721,7 @@ int traversalCode (int key, XKeyEvent xEvent) {
 }
 boolean traverse (Event event) {
 	sendEvent (SWT.Traverse, event);
-	if (isDisposed ()) return false;
+	if (isDisposed ()) return true;
 	if (!event.doit) return false;
 	switch (event.detail) {
 		case SWT.TRAVERSE_NONE:				return true;
@@ -2576,7 +2754,6 @@ boolean traverse (Event event) {
  */
 public boolean traverse (int traversal) {
 	checkWidget();
-	if (!isFocusControl () && !setFocus ()) return false;
 	Event event = new Event ();
 	event.doit = true;
 	event.detail = traversal;
@@ -2605,12 +2782,12 @@ boolean traverseGroup (boolean next) {
 	int start = index, offset = (next) ? 1 : -1;
 	while ((index = ((index + offset + length) % length)) != start) {
 		Control control = list [index];
-		if (!control.isDisposed () && control.setTabGroupFocus ()) {
-			if (!isDisposed () && !isFocusControl ()) return true;
+		if (!control.isDisposed () && control.setTabGroupFocus (next)) {
+			return true;
 		}
 	}
 	if (group.isDisposed ()) return false;
-	return group.setTabGroupFocus ();
+	return group.setTabGroupFocus (next);
 }
 boolean traverseItem (boolean next) {
 	Control [] children = parent._getChildren ();
@@ -2626,11 +2803,12 @@ boolean traverseItem (boolean next) {
 	* or out events.  Ensure that a disposed widget is
 	* not accessed.
 	*/
+	if (index == length) return false;
 	int start = index, offset = (next) ? 1 : -1;
 	while ((index = (index + offset + length) % length) != start) {
 		Control child = children [index];
 		if (!child.isDisposed () && child.isTabItem ()) {
-			if (child.setTabItemFocus ()) return true;
+			if (child.setTabItemFocus (next)) return true;
 		}
 	}
 	return false;
@@ -2654,6 +2832,8 @@ boolean traverseReturn () {
  * </ul>
  *
  * @see #redraw
+ * @see PaintListener
+ * @see SWT#Paint
  */
 public void update () {
 	checkWidget();
@@ -2662,18 +2842,19 @@ public void update () {
 void update (boolean all) {
 //	checkWidget();
 	if (all) {
-		Display display = getDisplay ();
 		display.update ();		
 	} else {
 		int display = OS.XtDisplay (handle);
 		if (display == 0) return;
 		int window = OS.XtWindow (handle);
 		if (window == 0) return;
-		XAnyEvent event = new XAnyEvent ();
-		OS.XSync (display, false);  OS.XSync (display, false);
+		int event = OS.XtMalloc (XEvent.sizeof);
+		OS.XSync (display, false);
+		OS.XSync (display, false);
 		while (OS.XCheckWindowEvent (display, window, OS.ExposureMask, event)) {
 			OS.XtDispatchEvent (event);
 		}
+		OS.XtFree (event);
 	}
 }
 void updateIM () {
@@ -2726,26 +2907,28 @@ void updateIM () {
 	if (ptr2 != 0) OS.XtFree (ptr2);
 }
 int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatch) {
-	Display display = getDisplay ();
 	Shell shell = getShell ();
 	display.hideToolTip ();
 	XButtonEvent xEvent = new XButtonEvent ();
 	OS.memmove (xEvent, call_data, XButtonEvent.sizeof);
-	sendMouseEvent (SWT.MouseDown, xEvent.button, xEvent);
+	sendMouseEvent (SWT.MouseDown, xEvent);
 	if (xEvent.button == 2 && hooks (SWT.DragDetect)) {
-		postEvent (SWT.DragDetect);
+		Event event = new Event ();
+		event.x = xEvent.x;
+		event.y = xEvent.y;
+		postEvent (SWT.DragDetect, event);
 	}
-	if (xEvent.button == 3 && menu != null) {
-		setFocus ();
-//		menu.setLocation (xEvent.x_root, xEvent.y_root);
-		display.runDeferredEvents ();
-		menu.setVisible (true);
+	if (xEvent.button == 3) {
+		if (menu != null || hooks (SWT.MenuDetect)) {
+			if (!isFocusControl ()) setFocus ();
+		}
+		showMenu (xEvent.x_root, xEvent.y_root);
 	}
 	int clickTime = display.getDoubleClickTime ();
 	int lastTime = display.lastTime, eventTime = xEvent.time;
 	int lastButton = display.lastButton, eventButton = xEvent.button;
 	if (lastButton == eventButton && lastTime != 0 && Math.abs (lastTime - eventTime) <= clickTime) {
-		sendMouseEvent (SWT.MouseDoubleClick, eventButton, xEvent);
+		sendMouseEvent (SWT.MouseDoubleClick, xEvent);
 	}
 	display.lastTime = eventTime == 0 ? 1 : eventTime;
 	display.lastButton = eventButton;
@@ -2762,11 +2945,10 @@ int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatc
 	return 0;
 }
 int XButtonRelease (int w, int client_data, int call_data, int continue_to_dispatch) {
-	Display display = getDisplay ();
 	display.hideToolTip ();
 	XButtonEvent xEvent = new XButtonEvent ();
 	OS.memmove (xEvent, call_data, XButtonEvent.sizeof);
-	sendMouseEvent (SWT.MouseUp, xEvent.button, xEvent);
+	sendMouseEvent (SWT.MouseUp, xEvent);
 	return 0;
 }
 int XEnterWindow (int w, int client_data, int call_data, int continue_to_dispatch) {
@@ -2774,7 +2956,7 @@ int XEnterWindow (int w, int client_data, int call_data, int continue_to_dispatc
 	OS.memmove (xEvent, call_data, XCrossingEvent.sizeof);
 	if (xEvent.mode != OS.NotifyNormal) return 0;
 	if (xEvent.subwindow != 0) return 0;
-	sendMouseEvent (SWT.MouseEnter, 0, xEvent);
+	sendMouseEvent (SWT.MouseEnter, xEvent);
 	return 0;
 }
 int XExposure (int w, int client_data, int call_data, int continue_to_dispatch) {
@@ -2820,7 +3002,7 @@ int XFocusChange (int w, int client_data, int call_data, int continue_to_dispatc
 	OS.XGetInputFocus (xDisplay, xWindow, unused);
 	if (xWindow [0] != 0) {
 		int widget = OS.XtWindowToWidget (xDisplay, xWindow [0]);
-		if (widget != 0 && OS.XtClass (widget) == OS.XmMenuShellWidgetClass ()) return 0;
+		if (widget != 0 && OS.XtClass (widget) == OS.xmMenuShellWidgetClass ()) return 0;
 	}
 	
 	/* Process the focus change for the widget */
@@ -2843,7 +3025,6 @@ int XFocusChange (int w, int client_data, int call_data, int continue_to_dispatc
 		}
 		case OS.FocusOut: {
 			Shell shell = getShell ();
-			Display display = getDisplay ();
 			
 			xFocusOut (xEvent);
 			// widget could be disposed at this point
@@ -2855,6 +3036,7 @@ int XFocusChange (int w, int client_data, int call_data, int continue_to_dispatc
 			* events.
 			*/
 			if (!shell.isDisposed ()) {
+				Display display = shell.display;
 				Control control = display.getFocusControl ();
 				if (control == null || shell != control.getShell () ) {
 					shell.setActiveControl (null);
@@ -2898,15 +3080,22 @@ int xFocusOut (XFocusChangeEvent xEvent) {
 	* X input method font back to the default font when the
 	* widget loses focus and restore it when the widget gets
 	* focus.
+	* 
+	* NOTE: On AIX, changing the IM font when focus is lost because
+	* the shell was resized by the user causes the ConfigureNotify
+	* event for the shell to be lost.  The event is not in the
+	* event queue and therefore not dispatched.  The fix is to avoid
+	* the workaround for AIX.
 	*/
-	int fontList = defaultFont ().handle;
-	if (font.handle != fontList) {
-		int [] argList2 = {OS.XmNfontList, fontList};
-		OS.XmImSetValues (focusHandle, argList2, argList2.length / 2);
+	if (!OS.IsAIX) {
+		int fontList = defaultFont ().handle;
+		if (font.handle != fontList) {
+			int [] argList2 = {OS.XmNfontList, fontList};
+			OS.XmImSetValues (focusHandle, argList2, argList2.length / 2);
+		}
 	}
 	
 	/* Set the focus out event */
-	Display display = getDisplay ();
 	if (display.postFocusOut) {
 		postEvent (SWT.FocusOut);
 	} else {
@@ -2914,15 +3103,30 @@ int xFocusOut (XFocusChangeEvent xEvent) {
 		// widget could be disposed at this point
 	}
 
+	/* Restore XmNtraversalOn if it was focus was forced */
+	if (handle == 0) return 0;
+	if ((style & SWT.NO_FOCUS) != 0) {
+		int [] argList = new int [] {OS.XmNtraversalOn, 0};
+		OS.XtGetValues (focusHandle, argList, argList.length / 2);
+		if (argList [1] != 0 && (state & FOCUS_FORCED) != 0) {
+			argList [1] = 0;
+			OS.XtSetValues (focusHandle, argList, argList.length / 2);
+		}
+	}
 	return 0;
 }
 int XKeyPress (int w, int client_data, int call_data, int continue_to_dispatch) {
 	XKeyEvent xEvent = new XKeyEvent ();
 	OS.memmove (xEvent, call_data, XKeyEvent.sizeof);
+	boolean doit = true;
 	if (xEvent.keycode != 0) {
-		sendKeyEvent (SWT.KeyDown, xEvent);
+		doit = sendKeyEvent (SWT.KeyDown, xEvent);
 	} else {
-		sendIMKeyEvent (SWT.KeyDown, xEvent);
+		doit = sendIMKeyEvent (SWT.KeyDown, xEvent);
+	}
+	if (!doit) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
 	}
 	return 0;
 }
@@ -2934,22 +3138,23 @@ int XKeyRelease (int w, int client_data, int call_data, int continue_to_dispatch
 		int [] keysym = new int [1];	
 		OS.XLookupString (xEvent, buffer, buffer.length, keysym, null);
 		if (keysym [0] == OS.XK_F10) {
-			menu.setVisible (true);
-			return 0;
+			showMenu (xEvent.x_root, xEvent.y_root);
 		}
 	}
-	sendKeyEvent (SWT.KeyUp, xEvent);
+	if (!sendKeyEvent (SWT.KeyUp, xEvent)) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
+	}
 	return 0;
 }
 int XLeaveWindow (int w, int client_data, int call_data, int continue_to_dispatch) {
-	Display display = getDisplay ();
 	display.removeMouseHoverTimeOut ();
 	display.hideToolTip ();
 	XCrossingEvent xEvent = new XCrossingEvent ();
 	OS.memmove (xEvent, call_data, XCrossingEvent.sizeof);
 	if (xEvent.mode != OS.NotifyNormal) return 0;
 	if (xEvent.subwindow != 0) return 0;
-	sendMouseEvent (SWT.MouseExit, 0, xEvent);
+	sendMouseEvent (SWT.MouseExit, xEvent);
 	return 0;
 }
 int XmNhelpCallback (int w, int client_data, int call_data) {
@@ -2957,11 +3162,10 @@ int XmNhelpCallback (int w, int client_data, int call_data) {
 	return 0;
 }
 int XPointerMotion (int w, int client_data, int call_data, int continue_to_dispatch) {
-	Display display = getDisplay ();
 	display.addMouseHoverTimeOut (handle);
 	XMotionEvent xEvent = new XMotionEvent ();
 	OS.memmove (xEvent, call_data, XMotionEvent.sizeof);
-	sendMouseEvent (SWT.MouseMove, 0, xEvent);
+	sendMouseEvent (SWT.MouseMove, xEvent);
 	return 0;
 }
 }

@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -180,6 +180,7 @@ public Image(Device device, int width, int height) {
  * @exception SWTException <ul>
  *    <li>ERROR_INVALID_IMAGE - if the image is not a bitmap or an icon, or
  *          is otherwise in an invalid state</li>
+ *    <li>ERROR_UNSUPPORTED_DEPTH - if the depth of the Image is not supported</li>
  * </ul>
  * @exception SWTError <ul>
  *    <li>ERROR_NO_HANDLES if a handle could not be obtained for image creation</li>
@@ -510,6 +511,9 @@ public Image(Device device, Rectangle bounds) {
  * @exception SWTError <ul>
  *    <li>ERROR_NO_HANDLES if a handle could not be obtained for image creation</li>
  * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_UNSUPPORTED_DEPTH - if the depth of the ImageData is not supported</li>
+ * </ul>
  */
 public Image(Device device, ImageData image) {
 	if (device == null) device = Device.getDevice();
@@ -588,6 +592,7 @@ public Image(Device device, ImageData source, ImageData mask) {
  * @exception SWTException <ul>
  *    <li>ERROR_INVALID_IMAGE - if the image file contains invalid data </li>
  *    <li>ERROR_IO - if an IO error occurs while reading data</li>
+ *    <li>ERROR_UNSUPPORTED_DEPTH - if the InputStream describes an image with an unsupported depth</li>
  * </ul>
  * @exception SWTError <ul>
  *    <li>ERROR_NO_HANDLES if a handle could not be obtained for image creation</li>
@@ -619,6 +624,7 @@ public Image(Device device, InputStream stream) {
  * @exception SWTException <ul>
  *    <li>ERROR_INVALID_IMAGE - if the image file contains invalid data </li>
  *    <li>ERROR_IO - if an IO error occurs while reading data</li>
+ *    <li>ERROR_UNSUPPORTED_DEPTH - if the image file has an unsupported depth</li>
  * </ul>
  * @exception SWTError <ul>
  *    <li>ERROR_NO_HANDLES if a handle could not be obtained for image creation</li>
@@ -655,6 +661,7 @@ void createMask() {
 public void dispose () {
 	if (pixmap == 0) return;
 	if (device.isDisposed()) return;
+	if (memGC != null) memGC.dispose();
 	int xDisplay = device.xDisplay;
 	if (pixmap != 0) OS.XFreePixmap (xDisplay, pixmap);
 	if (mask != 0) OS.XFreePixmap (xDisplay, mask);
@@ -860,10 +867,13 @@ public ImageData getImageData() {
 		if (xMaskPtr == 0) SWT.error(SWT.ERROR_NO_HANDLES);
 		XImage xMask = new XImage();
 		OS.memmove(xMask, xMaskPtr, XImage.sizeof);
-		byte[] maskData = data.maskData = new byte[xMask.bytes_per_line * xMask.height];
-		data.maskPad = xMask.bitmap_pad / 8;
+		byte[] maskData = new byte[xMask.bytes_per_line * xMask.height];
 		OS.memmove(maskData, xMask.data, maskData.length);
 		OS.XDestroyImage(xMaskPtr);
+		int maskPad = xMask.bitmap_pad / 8;
+		/* Make mask scanline pad equals to 2 */
+		data.maskPad = 2;
+		maskData = ImageData.convertPad(maskData, width, height, 1, maskPad, data.maskPad);
 		/* Bit swap the mask data if necessary */
 		if (xMask.bitmap_bit_order == OS.LSBFirst) {
 			for (int i = 0; i < maskData.length; i++) {
@@ -873,6 +883,7 @@ public ImageData getImageData() {
 					((b & 0x20) >> 3) |	((b & 0x40) >> 5) | ((b & 0x80) >> 7));
 			}
 		}
+		data.maskData = maskData;
 	}
 	data.transparentPixel = transparentPixel;
 	data.alpha = alpha;
@@ -1057,8 +1068,7 @@ public int internal_new_GC (GCData data) {
 		data.device = device;
 		data.display = xDisplay;
 		data.drawable = pixmap;
-		data.fontList = device.systemFont.handle;
-		data.codePage = device.systemFont.codePage;
+		data.font = device.systemFont;
 		data.colormap = OS.XDefaultColormap (xDisplay, OS.XDefaultScreen (xDisplay));
 		data.image = this;
 	}
@@ -1074,14 +1084,14 @@ public int internal_new_GC (GCData data) {
  * application code.
  * </p>
  *
- * @param handle the platform specific GC handle
+ * @param hDC the platform specific GC handle
  * @param data the platform specific GC data 
  */
 public void internal_dispose_GC (int gc, GCData data) {
 	int xDisplay = 0;
 	if (data != null) xDisplay = data.display;
 	if (xDisplay == 0 && device != null) xDisplay = device.xDisplay;
-	if (xDisplay == 0) SWT.error (SWT.ERROR_NO_HANDLES);;
+	if (xDisplay == 0) SWT.error (SWT.ERROR_NO_HANDLES);
 	OS.XFreeGC(xDisplay, gc);
 }
 /**
@@ -1281,7 +1291,7 @@ static int putImage(ImageData image, int srcX, int srcY, int srcWidth, int srcHe
  * these cases. For example:
  * <pre>
  *    Button b = new Button();
- *    image.setBackground(b.getBackground());>
+ *    image.setBackground(b.getBackground());
  *    b.setImage(image);
  * </pre>
  * </p><p>

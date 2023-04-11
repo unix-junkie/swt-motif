@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -29,6 +29,7 @@ public class TableTreeItem extends Item {
 	Image[] images = TableTree.EMPTY_IMAGES;
 	Color background;
 	Color foreground;
+	Font font;
 	boolean expanded;
 	boolean checked;
 	boolean grayed;
@@ -59,7 +60,7 @@ public class TableTreeItem extends Item {
  * </ul>
  *
  * @see SWT
- * @see Widget#getStyle
+ * @see Widget#getStyle()
  */
 public TableTreeItem(TableTree parent, int style) {
 	this (parent, style, parent.getItemCount());
@@ -92,7 +93,7 @@ public TableTreeItem(TableTree parent, int style) {
  * </ul>
  *
  * @see SWT
- * @see Widget#getStyle
+ * @see Widget#getStyle()
  */
 public TableTreeItem(TableTree parent, int style, int index) {
 	this (parent, null, style, index);
@@ -113,7 +114,7 @@ public TableTreeItem(TableTree parent, int style, int index) {
  * Style bits are also inherited from superclasses.
  * </p>
  *
- * @param parentItem a composite control which will be the parent of the new instance (cannot be null)
+ * @param parent a composite control which will be the parent of the new instance (cannot be null)
  * @param style the style of control to construct
  *
  * @exception IllegalArgumentException <ul>
@@ -124,7 +125,7 @@ public TableTreeItem(TableTree parent, int style, int index) {
  * </ul>
  *
  * @see SWT
- * @see Widget#getStyle
+ * @see Widget#getStyle()
  */
 public TableTreeItem(TableTreeItem parent, int style) {
 	this (parent, style, parent.getItemCount());
@@ -145,7 +146,7 @@ public TableTreeItem(TableTreeItem parent, int style) {
  * Style bits are also inherited from superclasses.
  * </p>
  *
- * @param parentItem a composite control which will be the parent of the new instance (cannot be null)
+ * @param parent a composite control which will be the parent of the new instance (cannot be null)
  * @param style the style of control to construct
  * @param index the index to store the receiver in its parent
  *
@@ -157,7 +158,7 @@ public TableTreeItem(TableTreeItem parent, int style) {
  * </ul>
  *
  * @see SWT
- * @see Widget#getStyle
+ * @see Widget#getStyle()
  */
 public TableTreeItem(TableTreeItem parent, int style, int index) {
 	this (parent.getParent(), parent, style, index);
@@ -201,8 +202,8 @@ void addCheck() {
 	tableItem.setGrayed(grayed);
 }
 void addItem(TableTreeItem item, int index) {
-	if (item == null) throw new SWTError(SWT.ERROR_NULL_ARGUMENT);
-	if (index < 0 || index > items.length) throw new SWTError(SWT.ERROR_INVALID_ARGUMENT);
+	if (item == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
+	if (index < 0 || index > items.length) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 		
 	/* Now that item has a sub-node it must indicate that it can be expanded */
 	if (items.length == 0 && index == 0) {
@@ -296,12 +297,6 @@ public boolean getGrayed () {
 	return tableItem.getGrayed();
 }
 
-public Display getDisplay () {
-	TableTree parent = this.parent;
-	if (parent == null) throw new SWTError (SWT.ERROR_WIDGET_DISPOSED);
-	return parent.getDisplay ();
-}
-
 /**
  * Returns <code>true</code> if the receiver is expanded,
  * and false otherwise.
@@ -314,6 +309,22 @@ public boolean getExpanded () {
 	return expanded;
 }
 
+/**
+ * Returns the font that the receiver will use to paint textual information for this item.
+ *
+ * @return the receiver's font
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.0
+ */
+public Font getFont () {
+	checkWidget ();
+	return (font == null) ? parent.getFont() : font;
+}
 /**
  * Returns the foreground color that the receiver will use to draw.
  *
@@ -534,6 +545,7 @@ public void dispose () {
 	tableItem = null;
 	foreground = null;
 	background = null;
+	font = null;
 }
 
 void removeItem(TableTreeItem item) {
@@ -647,6 +659,33 @@ public void setExpanded (boolean expanded) {
 }
 
 /**
+ * Sets the font that the receiver will use to paint textual information
+ * for this item to the font specified by the argument, or to the default font
+ * for that kind of control if the argument is null.
+ *
+ * @param font the new font (or null)
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li> 
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.0
+ */
+public void setFont (Font font){
+	checkWidget ();
+	if (font != null && font.isDisposed ()) {
+		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
+	}
+	if (tableItem != null) {
+		tableItem.setFont(font);
+	}
+	this.font = font;
+}
+/**
  * Sets the receiver's foreground color to the color specified
  * by the argument, or to the default system color for the item
  * if the argument is null.
@@ -742,6 +781,7 @@ public void setImage (Image image) {
  */
 public void setText(int index, String text) {
 	checkWidget();
+	if (text == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
 	int columnCount = Math.max(parent.getTable().getColumnCount(), 1);
 	if (index < 0 || index >= columnCount) return;
 	if (texts.length < columnCount) {
@@ -772,6 +812,7 @@ void setVisible (boolean show) {
 		tableItem.setImageIndent(getIndent());
 		if (background != null) tableItem.setBackground(background);
 		if (foreground != null) tableItem.setForeground(foreground);
+		if (font != null) tableItem.setFont(font);
 		addCheck();
 
 		// restore fields to item

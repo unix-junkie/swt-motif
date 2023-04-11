@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -46,7 +46,7 @@ public final class Cursor {
 	public int handle;
 
 	/**
-	 * The device where this image was created.
+	 * The device where this cursor was created.
 	 */
 	Device device;
 	
@@ -103,9 +103,9 @@ public Cursor (Device device, int style) {
 		case SWT.CURSOR_WAIT: shape = OS.XC_watch; break;
 		case SWT.CURSOR_HAND: shape = OS.XC_hand2; break;
 		case SWT.CURSOR_CROSS: shape = OS.XC_cross; break;
-		case SWT.CURSOR_APPSTARTING: shape = OS.XC_watch; break;
+		case SWT.CURSOR_APPSTARTING: shape = OS.XC_left_ptr; break;
 		case SWT.CURSOR_HELP: shape = OS.XC_question_arrow; break;
-		case SWT.CURSOR_SIZEALL: shape = OS.XC_diamond_cross; break;
+		case SWT.CURSOR_SIZEALL: shape = OS.XC_fleur; break;
 		case SWT.CURSOR_SIZENESW: shape = OS.XC_sizing; break;
 		case SWT.CURSOR_SIZENS: shape = OS.XC_double_arrow; break;
 		case SWT.CURSOR_SIZENWSE: shape = OS.XC_sizing; break;
@@ -130,7 +130,7 @@ public Cursor (Device device, int style) {
 /**	 
  * Constructs a new cursor given a device, image and mask
  * data describing the desired cursor appearance, and the x
- * and y co-ordinates of the <em>hotspot</em> (that is, the point
+ * and y coordinates of the <em>hotspot</em> (that is, the point
  * within the area covered by the cursor which is considered
  * to be where the on-screen pointer is "pointing").
  * <p>
@@ -182,10 +182,9 @@ public Cursor (Device device, ImageData source, ImageData mask, int hotspotX, in
 		hotspotY >= source.height || hotspotY < 0) {
 		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
-	/* Swap the bits if necessary */
 	byte[] sourceData = new byte[source.data.length];
 	byte[] maskData = new byte[mask.data.length];
-	/* Swap the bits in each byte */
+	/* Swap the bits in each byte and convert to appropriate scanline pad */
 	byte[] data = source.data;
 	for (int i = 0; i < data.length; i++) {
 		byte s = data[i];
@@ -199,6 +198,7 @@ public Cursor (Device device, ImageData source, ImageData mask, int hotspotX, in
 			((s & 0x01) << 7));
 		sourceData[i] = (byte) ~sourceData[i];
 	}
+	sourceData = ImageData.convertPad(sourceData, source.width, source.height, source.depth, source.scanlinePad, 1);
 	data = mask.data;
 	for (int i = 0; i < data.length; i++) {
 		byte s = data[i];
@@ -212,6 +212,8 @@ public Cursor (Device device, ImageData source, ImageData mask, int hotspotX, in
 			((s & 0x01) << 7));
 		maskData[i] = (byte) ~maskData[i];
 	}
+	maskData = ImageData.convertPad(maskData, mask.width, mask.height, mask.depth, mask.scanlinePad, 1);
+	/* Create bitmaps */
 	int xDisplay = device.xDisplay;
 	int drawable = OS.XDefaultRootWindow(xDisplay);
 	int sourcePixmap = OS.XCreateBitmapFromData(xDisplay, drawable, sourceData, source.width, source.height);
@@ -226,6 +228,116 @@ public Cursor (Device device, ImageData source, ImageData mask, int hotspotX, in
 	background.red = background.green = background.blue = (short)0xFFFF;
 	/* Create the cursor */
 	handle = OS.XCreatePixmapCursor(xDisplay, maskPixmap, sourcePixmap, foreground, background, hotspotX, hotspotY);
+	/* Dispose the pixmaps */
+	OS.XFreePixmap(xDisplay, sourcePixmap);
+	OS.XFreePixmap(xDisplay, maskPixmap);
+	if (handle == 0) SWT.error(SWT.ERROR_NO_HANDLES);
+	if (device.tracking) device.new_Object(this);
+}
+/**	 
+ * Constructs a new cursor given a device, image data describing
+ * the desired cursor appearance, and the x and y coordinates of
+ * the <em>hotspot</em> (that is, the point within the area
+ * covered by the cursor which is considered to be where the
+ * on-screen pointer is "pointing").
+ * <p>
+ * You must dispose the cursor when it is no longer required. 
+ * </p>
+ *
+ * @param device the device on which to allocate the cursor
+ * @param source the image data for the cursor
+ * @param hotspotX the x coordinate of the cursor's hotspot
+ * @param hotspotY the y coordinate of the cursor's hotspot
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if device is null and there is no current device</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the image is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the hotspot is outside the bounds of the
+ * 		 image</li>
+ * </ul>
+ * @exception SWTError <ul>
+ *    <li>ERROR_NO_HANDLES - if a handle could not be obtained for cursor creation</li>
+ * </ul>
+ * 
+ * @since 3.0
+ */
+public Cursor(Device device, ImageData source, int hotspotX, int hotspotY) {
+	if (device == null) device = Device.getDevice();
+	if (device == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
+	this.device = device;
+	if (source == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
+	if (hotspotX >= source.width || hotspotX < 0 ||
+		hotspotY >= source.height || hotspotY < 0) {
+		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+	}
+	ImageData mask = source.getTransparencyMask();
+
+	/* Ensure depth is equal to 1 */
+	if (source.depth > 1) {
+		/* Create a destination image with no data */
+		ImageData newSource = new ImageData(
+			source.width, source.height, 1, ImageData.bwPalette(),
+			1, null, 0, null, null, -1, -1, source.type,
+			source.x, source.y, source.disposalMethod, source.delayTime);
+
+		/* Convert the source to a black and white image of depth 1 */
+		PaletteData palette = source.palette;
+		if (palette.isDirect) ImageData.blit(ImageData.BLIT_SRC,
+			source.data, source.depth, source.bytesPerLine, source.getByteOrder(), 0, 0, source.width, source.height, 0, 0, 0,
+			ImageData.ALPHA_OPAQUE, null, 0, 0, 0,
+			newSource.data, newSource.depth, newSource.bytesPerLine, newSource.getByteOrder(), 0, 0, newSource.width, newSource.height, 0, 0, 0,
+			false, false);
+		else ImageData.blit(ImageData.BLIT_SRC,
+			source.data, source.depth, source.bytesPerLine, source.getByteOrder(), 0, 0, source.width, source.height, null, null, null,
+			ImageData.ALPHA_OPAQUE, null, 0, 0, 0,
+			newSource.data, newSource.depth, newSource.bytesPerLine, newSource.getByteOrder(), 0, 0, newSource.width, newSource.height, null, null, null,
+			false, false);
+		source = newSource;
+	}
+
+	/* Swap the bits in each byte and convert to appropriate scanline pad */
+	byte[] sourceData = new byte[source.data.length];
+	byte[] maskData = new byte[mask.data.length];
+	byte[] data = source.data;
+	for (int i = 0; i < data.length; i++) {
+		byte s = data[i];
+		sourceData[i] = (byte)(((s & 0x80) >> 7) |
+			((s & 0x40) >> 5) |
+			((s & 0x20) >> 3) |
+			((s & 0x10) >> 1) |
+			((s & 0x08) << 1) |
+			((s & 0x04) << 3) |
+			((s & 0x02) << 5) |
+			((s & 0x01) << 7));
+	}
+	sourceData = ImageData.convertPad(sourceData, source.width, source.height, source.depth, source.scanlinePad, 1);
+	data = mask.data;
+	for (int i = 0; i < data.length; i++) {
+		byte s = data[i];
+		maskData[i] = (byte)(((s & 0x80) >> 7) |
+			((s & 0x40) >> 5) |
+			((s & 0x20) >> 3) |
+			((s & 0x10) >> 1) |
+			((s & 0x08) << 1) |
+			((s & 0x04) << 3) |
+			((s & 0x02) << 5) |
+			((s & 0x01) << 7));
+	}
+	maskData = ImageData.convertPad(maskData, mask.width, mask.height, mask.depth, mask.scanlinePad, 1);
+	/* Create bitmaps */
+	int xDisplay = device.xDisplay;
+	int drawable = OS.XDefaultRootWindow(xDisplay);
+	int sourcePixmap = OS.XCreateBitmapFromData(xDisplay, drawable, sourceData, source.width, source.height);
+	int maskPixmap = OS.XCreateBitmapFromData(xDisplay, drawable, maskData, source.width, source.height);
+	/* Get the colors */
+	int screenNum = OS.XDefaultScreen(xDisplay);
+	XColor foreground = new XColor();
+	foreground.pixel = OS.XWhitePixel(xDisplay, screenNum);
+	foreground.red = foreground.green = foreground.blue = (short)0xFFFF;
+	XColor background = new XColor();
+	background.pixel = OS.XBlackPixel(xDisplay, screenNum);
+	/* Create the cursor */
+	handle = OS.XCreatePixmapCursor(xDisplay, sourcePixmap, maskPixmap, foreground, background, hotspotX, hotspotY);
 	/* Dispose the pixmaps */
 	OS.XFreePixmap(xDisplay, sourcePixmap);
 	OS.XFreePixmap(xDisplay, maskPixmap);

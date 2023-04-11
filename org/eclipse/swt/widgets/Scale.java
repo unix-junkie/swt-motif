@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -11,6 +11,7 @@
 package org.eclipse.swt.widgets;
 
  
+import org.eclipse.swt.internal.*;
 import org.eclipse.swt.internal.motif.*;
 import org.eclipse.swt.*;
 import org.eclipse.swt.events.*;
@@ -35,6 +36,8 @@ import org.eclipse.swt.graphics.*;
  * </p>
  */
 public class Scale extends Control {
+	int scrollHandle;
+
 /**
  * Constructs a new instance of this class given its parent
  * and a style value describing its behavior and appearance.
@@ -101,7 +104,6 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 	checkWidget();
 	int border = getBorderWidth ();
 	int width = border * 2, height = border * 2;
-	Display display = getDisplay ();
 	int hScroll = display.scrolledMarginX;
 	int vScroll = display.scrolledMarginY;
 	if ((style & SWT.HORIZONTAL) != 0) {
@@ -127,6 +129,12 @@ void createHandle (int index) {
 	int parentHandle = parent.handle;
 	handle = OS.XmCreateScale (parentHandle, null, argList, argList.length / 2);
 	if (handle == 0) error (SWT.ERROR_NO_HANDLES);
+	byte[] scrollbar = Converter.wcsToMbcs (null, "Scrollbar\0");
+	scrollHandle = OS.XtNameToWidget (handle, scrollbar);
+}
+void deregister () {
+	super.deregister ();
+	if (scrollHandle != 0) display.removeWidget (scrollHandle);
 }
 /**
  * Returns the amount that the receiver's value will be
@@ -212,13 +220,21 @@ public int getSelection () {
 }
 void hookEvents () {
 	super.hookEvents ();
-	int windowProc = getDisplay ().windowProc;
+	int windowProc = display.windowProc;
 	OS.XtAddCallback (handle, OS.XmNvalueChangedCallback, windowProc, VALUE_CHANGED_CALLBACK);
 	OS.XtAddCallback (handle, OS.XmNdragCallback, windowProc, DRAG_CALLBACK);
+	if (scrollHandle != 0) {
+		OS.XtAddEventHandler (scrollHandle, OS.KeyPressMask, false, windowProc, KEY_PRESS);
+		OS.XtAddEventHandler (scrollHandle, OS.KeyReleaseMask, false, windowProc, KEY_RELEASE);
+		OS.XtInsertEventHandler (scrollHandle, OS.FocusChangeMask, false, windowProc, FOCUS_CHANGE, OS.XtListTail);
+	}
 }
 void overrideTranslations () {
-	Display display = getDisplay ();
 	OS.XtOverrideTranslations (handle, display.tabTranslations);
+}
+void register () {
+	super.register ();
+	if (scrollHandle != 0) display.addWidget (scrollHandle, this);
 }
 /**
  * Removes the listener from the collection of listeners who will
@@ -250,7 +266,7 @@ public void removeSelectionListener(SelectionListener listener) {
  * are pressed to the argument, which must be at least 
  * one.
  *
- * @param value the new increment (must be greater than zero)
+ * @param increment the new increment (must be greater than zero)
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -261,11 +277,12 @@ public void setIncrement (int increment) {
 	checkWidget();
 }
 /**
- * Sets the maximum value which the receiver will allow
- * to be the argument which must be greater than or
- * equal to zero.
+ * Sets the maximum value that the receiver will allow.  This new
+ * value will be ignored if it is not greater than the receiver's current
+ * minimum value.  If the new maximum is applied then the receiver's
+ * selection value will be adjusted if necessary to fall within its new range.
  *
- * @param value the new maximum (must be zero or greater)
+ * @param value the new maximum, which must be greater than the current minimum
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -276,18 +293,18 @@ public void setMaximum (int value) {
 	checkWidget();
 	if (value < 0) return;
 	int [] argList = {OS.XmNmaximum, value};
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XtSetValues (handle, argList, argList.length / 2);
 	display.setWarnings (warnings);
 }
 /**
- * Sets the minimum value which the receiver will allow
- * to be the argument which must be greater than or
- * equal to zero.
+ * Sets the minimum value that the receiver will allow.  This new
+ * value will be ignored if it is negative or is not less than the receiver's
+ * current maximum value.  If the new minimum is applied then the receiver's
+ * selection value will be adjusted if necessary to fall within its new range.
  *
- * @param value the new minimum (must be zero or greater)
+ * @param value the new minimum, which must be nonnegative and less than the current maximum
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -298,7 +315,6 @@ public void setMinimum (int value) {
 	checkWidget();
 	if (value < 0) return;
 	int [] argList = {OS.XmNminimum, value};
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XtSetValues (handle, argList, argList.length / 2);
@@ -310,7 +326,7 @@ public void setMinimum (int value) {
  * are selected to the argument, which must be at least
  * one.
  *
- * @return the page increment (must be greater than zero)
+ * @param pageIncrement the page increment (must be greater than zero)
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -321,7 +337,6 @@ public void setPageIncrement (int pageIncrement) {
 	checkWidget();
 	if (pageIncrement < 1) return;
 	int [] argList = {OS.XmNscaleMultiple, pageIncrement};
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XtSetValues (handle, argList, argList.length / 2);
@@ -342,7 +357,6 @@ public void setPageIncrement (int pageIncrement) {
 public void setSelection (int selection) {
 	checkWidget();
 	int [] argList = {OS.XmNvalue, selection};
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XtSetValues (handle, argList, argList.length / 2);

@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -31,7 +31,7 @@ import java.util.Vector;
  * </p><p>
  * <dl>
  * <dt><b>Styles:</b></dt>
- * <dd>SINGLE, MULTI, CHECK, FULL_SELECTION, HIDE_SELECTION</dd>
+ * <dd>SINGLE, MULTI, CHECK, FULL_SELECTION, HIDE_SELECTION, VIRTUAL</dd>
  * <dt><b>Events:</b></dt>
  * <dd>Selection, DefaultSelection</dd>
  * </dl>
@@ -61,8 +61,9 @@ public class Table extends SelectableItemWidget {
 														// by user defined columns
 	private TableColumn defaultColumn;					// Default column that is created as soon as the table is created.
 														// Fix for 1FUSJY5
-	private int dotsWidth;								// width of the static String dots (see above)
 	private int fontHeight;								// font height, avoid use GC.stringExtend for each pain
+	
+	private boolean ignoreRedraw;
 
 /**
  * Constructs a new instance of this class given its parent
@@ -117,8 +118,35 @@ void addColumn(TableColumn column) {
 	// is there more than one user created column?
 	// There always is the data and visual of the default column
 	// so we don't need to create those for the first user column
-	if (getColumnCount() > 1) {
+	int columnCount = getColumnCount();
+	if (columnCount > 1) {
 		insertColumnData(column);
+		Enumeration items = getItemVector ().elements ();
+		while (items.hasMoreElements()) {
+			TableItem item = (TableItem)items.nextElement();
+			Color [] cellBackground = item.cellBackground;
+			if (cellBackground != null) {
+				Color [] temp = new Color [columnCount];
+				System.arraycopy (cellBackground, 0, temp, 0, index);
+				System.arraycopy (cellBackground, index, temp, index+1, columnCount - index - 1);
+				item.cellBackground = temp;
+			}
+			Color [] cellForeground = item.cellForeground;
+			if (cellForeground != null) {
+				Color [] temp = new Color [columnCount];
+				System.arraycopy (cellForeground, 0, temp, 0, index);
+				System.arraycopy (cellForeground, index, temp, index+1, columnCount - index - 1);
+				item.cellForeground = temp;
+			}
+			Font [] cellFont = item.cellFont;
+			if (cellFont != null) {
+				Font [] temp = new Font [columnCount];
+				System.arraycopy (cellFont, 0, temp, 0, index);
+				System.arraycopy (cellFont, index, temp, index+1, columnCount - index - 1);
+				item.cellFont = temp;
+			}
+		}
+	
 	}
 	else {								// first user created column
 		setContentWidth(0);				// pretend it's ground zero for column resizings
@@ -194,6 +222,133 @@ protected void checkSubclass () {
 	if (!isValidSubclass ()) error (SWT.ERROR_INVALID_SUBCLASS);
 }
 /**
+ * Clears the item at the given zero-relative index in the receiver.
+ * The text, icon and other attribues of the item are set to the default
+ * value.  If the table was created with the SWT.VIRTUAL style, these
+ * attributes are requested again as needed.
+ *
+ * @param index the index of the item to clear
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_RANGE - if the index is not between 0 and the number of elements in the list minus 1 (inclusive)</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @see SWT#VIRTUAL
+ * @see SWT#SetData
+ * 
+ * @since 3.0
+ */
+public void clear (int index) {
+	checkWidget ();
+	if (!(0 <= index && index < getItemCount())) {
+		error(SWT.ERROR_INVALID_RANGE);
+	}
+	TableItem item = (TableItem) getVisibleItem(index);
+	item.clear();
+	int y = getRedrawY(item);
+	redraw(0, y, getClientArea().width, getItemHeight(), false);
+}
+/**
+ * Removes the items from the receiver which are between the given
+ * zero-relative start and end indices (inclusive).  The text, icon
+ * and other attribues of the items are set to their default values.
+ * If the table was created with the SWT.VIRTUAL style, these attributes
+ * are requested again as needed.
+ *
+ * @param start the start index of the item to clear
+ * @param end the end index of the item to clear
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_RANGE - if either the start or end are not between 0 and the number of elements in the list minus 1 (inclusive)</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @see SWT#VIRTUAL
+ * @see SWT.SetData
+ * 
+ * @since 3.0
+ */
+public void clear (int start, int end) {
+	checkWidget ();
+	if (start > end) return;
+	if (!(0 <= start && start <= end && end < getItemCount())) {
+		error(SWT.ERROR_INVALID_RANGE);
+	}
+	if (start == 0 && end == getItemCount() - 1) {
+		clearAll();
+	} else {
+		for (int i=start; i<=end; i++) {
+			clear(i);
+		}
+	}
+}
+/**
+ * Clears the items at the given zero-relative indices in the receiver.
+ * The text, icon and other attribues of the items are set to their default
+ * values.  If the table was created with the SWT.VIRTUAL style, these
+ * attributes are requested again as needed.
+ *
+ * @param indices the array of indices of the items
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_RANGE - if the index is not between 0 and the number of elements in the list minus 1 (inclusive)</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the indices array is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @see SWT#VIRTUAL
+ * @see SWT.SetData
+ * 
+ * @since 3.0
+ */
+public void clear (int [] indices) {
+	checkWidget ();
+	if (indices == null) error (SWT.ERROR_NULL_ARGUMENT);
+	if (indices.length == 0) return;
+	for (int i=0; i<indices.length; i++) {
+		if (!(0 <= indices [i] && indices [i] < getItemCount())) {
+			error(SWT.ERROR_INVALID_RANGE);
+		}
+	}
+	for (int i=0; i<indices.length; i++) {
+		clear(indices [i]);
+	}
+}
+/**
+ * Clears all the items in the receiver. The text, icon and other
+ * attribues of the items are set to their default values. If the
+ * table was created with the SWT.VIRTUAL style, these attributes
+ * are requested again as needed.
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @see SWT#VIRTUAL
+ * @see SWT.SetData
+ * 
+ * @since 3.0
+ */
+public void clearAll () {
+	checkWidget ();
+	for (int i=0; i<getItemCount(); i++) {
+		TableItem item = (TableItem) getVisibleItem(i);
+		item.clear();
+	}
+	redraw();
+}
+/**
  * The width of 'column' is about to change.
  * Adjust the position of all columns behind it.
  */
@@ -235,25 +390,22 @@ void columnChange(TableColumn column, Rectangle newBounds) {
  * @param event - the mouse event
  */
 void columnMouseDoubleClick(Event event) {
-	int itemHeight = getItemHeight();
-	int itemIndex;
-	TableItem hitItem;
-	TableColumn hitColumn = getColumnAtX (event.x);
-	Event columnDblClickEvent;
-	boolean isFullSelection = (getStyle () & SWT.FULL_SELECTION) != 0;
-
 	if (isFocusControl () == false) {
 		forceFocus ();
 	}
+	if (getIgnoreDoubleClick()) return;	
+	int itemHeight = getItemHeight();
+	TableColumn hitColumn = getColumnAtX (event.x);
+	boolean isFullSelection = (getStyle () & SWT.FULL_SELECTION) != 0;
 	if (hitColumn != null) {
-		itemIndex = (event.y - getHeaderHeight()) / itemHeight + getTopIndex();
-		hitItem = (TableItem) getVisibleItem(itemIndex);
+		int itemIndex = (event.y - getHeaderHeight()) / itemHeight + getTopIndex();
+		TableItem hitItem = (TableItem) getVisibleItem(itemIndex);
 		if (hitItem != null && 
 			(hitColumn.getIndex() == TableColumn.FIRST || isFullSelection)) {
 			if (hitItem.isSelectionHit(event.x) == true) {
-				columnDblClickEvent = new Event();
+				Event columnDblClickEvent = new Event();
 				columnDblClickEvent.item = hitItem;
-				notifyListeners(SWT.DefaultSelection, columnDblClickEvent);
+				postEvent(SWT.DefaultSelection, columnDblClickEvent);
 			}
 		}
 	}
@@ -313,7 +465,7 @@ public Point computeSize(int wHint, int hHint, boolean changed) {
 	int width;
 	int newItemWidth = 0;
 		
-	if (getHeaderVisible() == true) {
+	if (getHeaderVisible() == true && hHint == SWT.DEFAULT) {
 		headerSize = getHeader().computeSize(SWT.DEFAULT, SWT.DEFAULT, false);
 		size.y += headerSize.y;		
 	}
@@ -331,6 +483,7 @@ public Point computeSize(int wHint, int hHint, boolean changed) {
 				width += itemImage.getBounds().width;
 			}
 			if (itemText != null) {
+				gc.setFont(item.getFont());
 				width += gc.stringExtent(itemText).x;
 			}
 			newItemWidth = Math.max(newItemWidth, width);
@@ -352,7 +505,7 @@ public Point computeSize(int wHint, int hHint, boolean changed) {
  * @param indices the array of indices for the items to deselect
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the set of indices is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -494,7 +647,7 @@ void drawGridLines(Event event, Enumeration drawColumns) {
 	int lineYPosition = headerHeight + ((event.y-headerHeight) / itemHeight) * itemHeight;
 	int lineYStopPosition = event.y + event.height;
 
-	gc.setForeground(getDisplay().getSystemColor(SWT.COLOR_WIDGET_LIGHT_SHADOW));
+	gc.setForeground(display.getSystemColor(SWT.COLOR_WIDGET_LIGHT_SHADOW));
 	// Draw the horizontal lines	
 	if (itemHeight > 0) {
 		while (lineYPosition < lineYStopPosition) {
@@ -533,6 +686,36 @@ void drawSelectionFocus(TableItem item, GC gc) {
 		getRedrawY(item));
 
 	gc.drawFocus(position.x, position.y, extent.x, extent.y);
+}
+
+/**
+ * Returns an array containing the receiver's children.
+ * <p>
+ * Note: This is not the actual structure used by the receiver
+ * to maintain its list of children, so modifying the array will
+ * not affect the receiver. 
+ * </p>
+ *
+ * @return an array of children
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
+public Control [] getChildren() {
+	checkWidget();
+	Control[] controls = _getChildren();
+	if (tableHeader == null) return controls;
+	Control[] result = new Control[controls.length - 1];
+	// remove the Header from the returned set of children
+	int index = 0;
+	for (int i = 0; i < controls.length; i++) {
+		 if (controls[i] != tableHeader) {
+		 	result[index++] = controls[i];
+		 }
+	}
+	return result;
 }
 
 /**
@@ -630,7 +813,7 @@ public int getColumnCount() {
  */
 Cursor getColumnResizeCursor() {
 	if (columnResizeCursor == null) {
-		columnResizeCursor = new Cursor(getDisplay(), SWT.CURSOR_SIZEWE);
+		columnResizeCursor = new Cursor(display, SWT.CURSOR_SIZEWE);
 	}
 	return columnResizeCursor;
 }
@@ -685,16 +868,6 @@ TableColumn getDefaultColumn() {
 	return defaultColumn;
 }
 /**
- * Answer the width of the replacement String used to indicate 
- * truncated items.
- * Cached to speed up calculation of truncated items.
- * @param gc - GC used to measure the width of the replacement 
- *	String
- */
-int getDotsWidth(GC gc) {
-	return dotsWidth;
-}
-/**
  * Answer the column used to occupy any space left to the 
  * right of all the user created columns.
  */
@@ -704,6 +877,8 @@ TableColumn getFillColumn() {
 /**
  * Returns the width in pixels of a grid line.
  *
+ * @return the width of a grid line in pixels
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -836,17 +1011,23 @@ public TableItem getItem(int index) {
 public TableItem getItem(Point point) {
 	checkWidget();
 	if (point == null) error(SWT.ERROR_NULL_ARGUMENT);
-	int headerHeight = getHeaderHeight();
-	TableColumn column = getColumnAtX(point.x);
+	TableColumn column = getColumnAtX(point.x);	
+	if ((style & SWT.FULL_SELECTION) == 0) {
+		if (column != null && column.getIndex() != 0) {
+			return null;
+		}
+	}
 	TableItem item = null;
-
+	int headerHeight = getHeaderHeight();
 	if (column != null && column.getIndex() != TableColumn.FILL && point.y - headerHeight > 0) {
 		int itemIndex = (point.y - headerHeight) / getItemHeight() + getTopIndex();
 		item = (TableItem) getVisibleItem(itemIndex);
-		if (item != null) {
-			Point itemSize = item.getItemExtent(column);
-			if (point.x - column.getBounds().x > itemSize.x) {
-				item = null;
+		if ((style & SWT.FULL_SELECTION) == 0) {
+			if (item != null) {
+				Point itemSize = item.getItemExtent(column);
+				if (point.x - column.getBounds().x > itemSize.x) {
+					item = null;
+				}
 			}
 		}
 	}
@@ -896,7 +1077,7 @@ public int getItemHeight() {
  * Answer the number of pixels that should be added to the item height.
  */
 int getItemPadding() {
-	return getGridLineWidth() + getDisplay().textHighlightThickness + 1;
+	return getGridLineWidth() + display.textHighlightThickness + 1;
 }
 /**
  * Returns an array of <code>TableItem</code>s which are the items
@@ -984,9 +1165,11 @@ int getPreferredColumnWidth(int columnIndex) {
 	int headerWidth;
 	
 	if (columnIndex != TableColumn.FILL) {
-		while (tableItems.hasMoreElements() == true) {
-			tableItem = (TableItem) tableItems.nextElement();
-			width = Math.max(width, tableItem.getPreferredWidth(columnIndex));
+		if ((parent.getStyle() & SWT.VIRTUAL) == 0) {
+			while (tableItems.hasMoreElements() == true) {
+				tableItem = (TableItem) tableItems.nextElement();
+				width = Math.max(width, tableItem.getPreferredWidth(columnIndex));
+			}
 		}
 		headerWidth = getHeader().getPreferredWidth(columnIndex);
 		if (width < headerWidth) {
@@ -1366,8 +1549,7 @@ void initialize() {
 	columns = new Vector();
 	setItemVector(new Vector());
 	GC gc = new GC(this);
-	Point extent = gc.stringExtent(DOT_STRING);
-	dotsWidth = extent.x;
+	Point extent = gc.stringExtent("String");
 	fontHeight = extent.y;
 	gc.dispose();
 	tableHeader = new Header(this);
@@ -1679,25 +1861,41 @@ TableItem paintItems(Event event, int topPaintIndex, int bottomPaintIndex, Vecto
 	TableItem focusItem = null;
 	Point selectionExtent;
 	GC gc = event.gc;
-	Color selectionColor = getDisplay().getSystemColor(SWT.COLOR_LIST_SELECTION);
-	Point fullSelectionExtent;	
+	Color selectionColor = display.getSystemColor(SWT.COLOR_LIST_SELECTION);
 	int paintXPosition;
 	int paintYPosition;
 		
 	topPaintIndex += getTopIndex();
 	bottomPaintIndex += getTopIndex();
+
+	if ((getStyle () & SWT.VIRTUAL) != 0) {
+		for (int i = topPaintIndex; i <= bottomPaintIndex; i++) {
+			paintItem = (TableItem) getVisibleItem(i);
+			if (!paintItem.cached) {
+				Event dataEvent = new Event();
+				dataEvent.item = paintItem;
+				ignoreRedraw = true;
+				sendEvent(SWT.SetData, dataEvent);
+				if (isDisposed()) return null;
+				//widget could be disposed at this point
+				ignoreRedraw = false;
+				calculateItemHeight(paintItem);
+				paintItem.cached = true;
+			}
+		}
+	}
+	
 	for (int i = topPaintIndex; i <= bottomPaintIndex; i++) {
 		paintItem = (TableItem) getVisibleItem(i);
 		paintXPosition = paintItem.getSelectionX();
 		paintYPosition = getRedrawY(paintItem);
-		fullSelectionExtent = getFullSelectionExtent(paintItem);
-		gc.setBackground(paintItem.getBackground());
-		gc.fillRectangle(paintXPosition, paintYPosition, fullSelectionExtent.x, fullSelectionExtent.y);
-		
+				
 		if (paintItem.isSelected() == true) {
-			selectionExtent = paintItem.getSelectionExtent();
-			gc.setBackground(selectionColor);
-			gc.fillRectangle(paintXPosition, paintYPosition, selectionExtent.x, selectionExtent.y);
+			if ((style & SWT.HIDE_SELECTION) == 0 || isFocusControl()) {
+				selectionExtent = paintItem.getSelectionExtent();
+				gc.setBackground(selectionColor);
+				gc.fillRectangle(paintXPosition, paintYPosition, selectionExtent.x, selectionExtent.y);
+			}
 		} 
 		columns = paintColumns.elements(); 
 		while (columns.hasMoreElements() == true) {
@@ -1773,35 +1971,39 @@ void reindexColumns(int startIndex) {
  */
 public void remove(int indices[]) {
 	checkWidget();
-	SelectableItem item;
-	int [] sortedIndices;
-	int last = -1;
-	int sortedIndex;
-	
-	if (indices == null) {
-		error(SWT.ERROR_NULL_ARGUMENT);
+	if (indices == null) error (SWT.ERROR_NULL_ARGUMENT);
+	if (indices.length == 0) return;
+	int [] newIndices = new int [indices.length];
+	System.arraycopy (indices, 0, newIndices, 0, indices.length);
+	sort (newIndices);
+	int start = newIndices [newIndices.length - 1], end = newIndices [0];
+	int count = getItemCount();
+	if (!(0 <= start && start <= end && end < count)) {
+		error (SWT.ERROR_INVALID_RANGE);
 	}
-	sortedIndices = new int[indices.length];	
-	System.arraycopy (indices, 0, sortedIndices, 0, indices.length);
-	sort(sortedIndices);								// sort indices in descending order
-	for (int i = 0; i < sortedIndices.length; i++) {
-		sortedIndex = sortedIndices[i];
-		if (sortedIndex != last) {
-			item = getVisibleItem(sortedIndex);
+	int last = -1;
+	for (int i = 0; i < newIndices.length; i++) {
+		int index = newIndices[i];
+		if (index != last) {
+			SelectableItem item = getVisibleItem(index);
 			if (item != null) {
 				item.dispose();
+			} else {
+				error(SWT.ERROR_ITEM_NOT_REMOVED);				          
 			}
-			else {
-				if (0 <= sortedIndex && sortedIndex < getItemVector().size()) {
-					error(SWT.ERROR_ITEM_NOT_REMOVED);
-				} 
-				else {
-					error(SWT.ERROR_INVALID_RANGE);
-				}          
-			}
-			last = sortedIndex;
+			last = index;
 		}
 	}
+}
+public void redraw () {
+	checkWidget();
+	if (ignoreRedraw) return;
+	super.redraw();
+}
+public void redraw (int x, int y, int width, int height, boolean all) {
+	checkWidget();
+	if (ignoreRedraw) return;
+	super.redraw(x, y, width, height, all);
 }
 /**
  * Removes the item from the receiver at the given
@@ -1857,14 +2059,15 @@ public void remove(int index) {
  */
 public void remove(int start, int end) {
 	checkWidget();
-	SelectableItem item;
-	
+	if (start > end) return;
+	if (!(0 <= start && start <= end && end < getItemCount())) {
+		error (SWT.ERROR_INVALID_RANGE);
+	}
 	for (int i = end; i >= start; i--) {
-		item = getVisibleItem(i);
+		SelectableItem item = getVisibleItem(i);
 		if (item != null) {
 			item.dispose();
-		}
-		else {
+		} else {
 			error(SWT.ERROR_ITEM_NOT_REMOVED);
 		}
 	}
@@ -1911,6 +2114,31 @@ void removeColumn(TableColumn column) {
 		if (columnCount > 0) {
 			removeColumnData(column);
 			removeColumnVisual(column);		
+			Enumeration items = getItemVector ().elements ();
+			while (items.hasMoreElements()) {
+				TableItem item = (TableItem)items.nextElement();
+				Color [] cellBackground = item.cellBackground;
+				if (cellBackground != null) {
+					Color [] temp = new Color [columnCount];
+					System.arraycopy (cellBackground, 0, temp, 0, index);
+					System.arraycopy (cellBackground, index + 1, temp, index, columnCount - index);
+					item.cellBackground = temp;
+				}
+				Color [] cellForeground = item.cellForeground;
+				if (cellForeground != null) {
+					Color [] temp = new Color [columnCount];
+					System.arraycopy (cellForeground, 0, temp, 0, index);
+					System.arraycopy (cellForeground, index + 1, temp, index, columnCount - index);
+					item.cellForeground = temp;
+				}
+				Font [] cellFont = item.cellFont;
+				if (cellFont != null) {
+					Font [] temp = new Font [columnCount];
+					System.arraycopy (cellFont, 0, temp, 0, index);
+					System.arraycopy (cellFont, index + 1, temp, index, columnCount - index);
+					item.cellFont = temp;
+				}
+			}		
 		}
 		else {
 			redraw();
@@ -2002,7 +2230,7 @@ void removeItem(TableItem item) {
  * </ul>
  *
  * @see SelectionListener
- * @see #addSelectionListener
+ * @see #addSelectionListener(SelectionListener)
  */
 public void removeSelectionListener(SelectionListener listener) {
 	checkWidget();
@@ -2166,10 +2394,13 @@ void scrollVerticalRemovedItem(int index) {
 }
 /**
  * Selects the items at the given zero-relative indices in the receiver.
- * If the item at the given zero-relative index in the receiver 
- * is not selected, it is selected.  If the item at the index
- * was selected, it remains selected. Indices that are out
- * of range and duplicate indices are ignored.
+ * The current selection is not cleared before the new items are selected.
+ * <p>
+ * If the item at a given index is not selected, it is selected.
+ * If the item at a given index was already selected, it remains selected.
+ * Indices that are out of range and duplicate indices are ignored.
+ * If the receiver is single-select and multiple indices are specified,
+ * then all indices are ignored.
  *
  * @param indices the array of indices for the items to select
  *
@@ -2180,21 +2411,19 @@ void scrollVerticalRemovedItem(int index) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @see Table#setSelection(int[])
  */
 public void select(int indices[]) {
-	checkWidget();
-	SelectableItem item = null;
-	int selectionCount;
-
-	if (indices == null) {
-		error(SWT.ERROR_NULL_ARGUMENT);
-	}
-	selectionCount = indices.length;
-	if (isMultiSelect() == false && selectionCount > 1) {
-		selectionCount = 1;
+	checkWidget ();
+	if (indices == null) error (SWT.ERROR_NULL_ARGUMENT);
+	int length = indices.length;
+	if (length == 0 || ((style & SWT.SINGLE) != 0 && length > 1)) return;
+	if ((style & SWT.SINGLE) != 0) {
 		deselectAllExcept(getVisibleItem(indices[0]));
 	}
-	for (int i = selectionCount - 1; i >= 0; --i) {
+	SelectableItem item = null;
+	for (int i = length - 1; i >= 0; --i) {
 		item = getVisibleItem(indices[i]);
 		if (item != null) {
 			select(item);
@@ -2229,11 +2458,16 @@ public void select(int index) {
 	}
 }
 /**
- * Selects the items at the given zero-relative indices in the receiver.
- * If the item at the index was already selected, it remains
- * selected. The range of the indices is inclusive. Indices that are
- * out of range are ignored and no items will be selected if start is
- * greater than end.
+ * Selects the items in the range specified by the given zero-relative
+ * indices in the receiver. The range of indices is inclusive.
+ * The current selection is not cleared before the new items are selected.
+ * <p>
+ * If an item in the given range is not selected, it is selected.
+ * If an item in the given range was already selected, it remains selected.
+ * Indices that are out of range are ignored and no items will be selected
+ * if start is greater than end.
+ * If the receiver is single-select and there is more than one item in the
+ * given range, then all indices are ignored.
  *
  * @param start the start of the range
  * @param end the end of the range
@@ -2242,21 +2476,23 @@ public void select(int index) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @see Table#setSelection(int,int)
  */
 public void select(int start, int end) {
-	checkWidget();
-	SelectableItem item = null;
-	
-	if (isMultiSelect() == false) {
-		if (start < 0 && end >= 0) {
-			start = 0;
-		}
-		end = start;
-		deselectAllExcept(getVisibleItem(end));
+	checkWidget ();
+	if (end < 0 || start > end || ((style & SWT.SINGLE) != 0 && start != end)) return;
+	int count = getItemVector().size();
+	if (count == 0 || start >= count) return;
+	start = Math.max (0, start);
+	end = Math.min (end, count - 1);
+	if ((style & SWT.SINGLE) != 0) {
+		deselectAllExcept(getVisibleItem(start));
 	}
 	// select in the same order as all the other selection and deslection methods.
 	// Otherwise setLastSelection repeatedly changes the lastSelectedItem for repeated 
 	// selections of the items, causing flash.
+	SelectableItem item = null;
 	for (int i = end; i >= start; i--) {
 		item = getVisibleItem(i);
 		if (item != null) {
@@ -2268,7 +2504,9 @@ public void select(int start, int end) {
 	}
 }
 /**
- * Selects all the items in the receiver.
+ * Selects all of the items in the receiver.
+ * <p>
+ * If the receiver is single-select, do nothing.
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -2365,7 +2603,7 @@ public void setFont(Font font) {
 	checkWidget();
 	int itemCount = getItemCount();
 
-	if (font == null || font.equals(getFont()) == true) {
+	if (font != null && font.equals(getFont()) == true) {
 		return;
 	}
 	setRedraw(false);						// disable redraw because itemChanged() triggers undesired redraw	
@@ -2373,8 +2611,7 @@ public void setFont(Font font) {
 	super.setFont(font);
 	
 	GC gc = new GC(this);
-	Point extent = gc.stringExtent(DOT_STRING);
-	dotsWidth = extent.x;
+	Point extent = gc.stringExtent("String");
 	fontHeight = extent.y;
 	gc.dispose();
 	
@@ -2393,7 +2630,7 @@ public void setFont(Font font) {
  * it visible may not actually cause it to be displayed.
  * </p>
  *
- * @param visible the new visibility state
+ * @param show the new visibility state
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -2413,6 +2650,30 @@ public void setHeaderVisible(boolean headerVisible) {
 	}
 }
 /**
+ * Sets the number of items contained in the receiver.
+ *
+ * @param count the number of items
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.0
+ */
+public void setItemCount (int count) {
+	checkWidget ();
+	count = Math.max (0, count);
+	int itemCount = getItemCount ();
+	if (count == itemCount) return;
+	setRedraw (false);
+	remove (count, itemCount - 1);
+	for (int i = itemCount; i<count; i++) {
+		new TableItem (this, SWT.NONE);
+	}
+	setRedraw (true);
+}
+/**
  * Set the vector that stores the items of the receiver 
  * to 'newVector'.
  * @param newVector - Vector to use for storing the items of 
@@ -2430,7 +2691,7 @@ void setItemVector(Vector newVector) {
  * it visible may not actually cause it to be displayed.
  * </p>
  *
- * @param visible the new visibility state
+ * @param show the new visibility state
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -2459,8 +2720,12 @@ void setResizeColumn(TableColumn column) {
 	resizeColumn = column;
 }
 /**
- * Selects the items at the given zero-relative indices in the receiver. 
- * The current selected is first cleared, then the new items are selected.
+ * Selects the items at the given zero-relative indices in the receiver.
+ * The current selection is cleared before the new items are selected.
+ * <p>
+ * Indices that are out of range and duplicate indices are ignored.
+ * If the receiver is single-select and multiple indices are specified,
+ * then all indices are ignored.
  *
  * @param indices the indices of the items to select
  *
@@ -2476,33 +2741,39 @@ void setResizeColumn(TableColumn column) {
  * @see Table#select(int[])
  */
 public void setSelection(int [] indices) {
-	checkWidget();
-	Vector keepSelected;
-	
-	if (indices == null)  {
-		error(SWT.ERROR_NULL_ARGUMENT);
-	}	
-	keepSelected = new Vector(indices.length);
-	for (int i = 0; i < indices.length; i++) {
-		SelectableItem item = getVisibleItem(indices[i]);
-		if (item != null) {
-			keepSelected.addElement(item);
-		}
+	checkWidget ();
+	if (indices == null) error (SWT.ERROR_NULL_ARGUMENT);
+	int length = indices.length;
+	if (length == 0 || ((style & SWT.SINGLE) != 0 && length > 1)) {
+		deselectAll ();
+		return;
 	}
-	deselectAllExcept(keepSelected);
+	if ((style & SWT.MULTI) != 0) {
+		Vector keepSelected = new Vector(length);
+		for (int i = 0; i < length; i++) {
+			SelectableItem item = getVisibleItem(indices[i]);
+			if (item != null) {
+				keepSelected.addElement(item);
+			}
+		}
+		deselectAllExcept(keepSelected);
+	}
 	select(indices);
 	showSelection ();
 }
 /**
  * Sets the receiver's selection to be the given array of items.
- * The current selected is first cleared, then the new items are
- * selected.
+ * The current selection is cleared before the new items are selected.
+ * <p>
+ * Items that are not in the receiver are ignored.
+ * If the receiver is single-select and multiple items are specified,
+ * then all items are ignored.
  *
  * @param items the array of items
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the array of items is null</li>
- *    <li>ERROR_INVALID_ARGUMENT - if one of the item has been disposed</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if one of the items has been disposed</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -2510,14 +2781,18 @@ public void setSelection(int [] indices) {
  * </ul>
  *
  * @see Table#deselectAll()
- * @see Table#select(int)
+ * @see Table#select(int[])
+ * @see Table#setSelection(int[])
  */
-public void setSelection(TableItem selectionItems[]) {
-	checkWidget();
-	if (selectionItems == null)  {
-		error(SWT.ERROR_NULL_ARGUMENT);
-	}	
-	setSelectableSelection(selectionItems);
+public void setSelection(TableItem items[]) {
+	checkWidget ();
+	if (items == null) error (SWT.ERROR_NULL_ARGUMENT);
+	int length = items.length;
+	if (length == 0 || ((style & SWT.SINGLE) != 0 && length > 1)) {
+		deselectAll ();
+		return;
+	}
+	setSelectableSelection(items);
 }
 /**
  * Selects the item at the given zero-relative index in the receiver. 
@@ -2540,10 +2815,14 @@ public void setSelection(int index) {
 	showSelection ();
 }
 /**
- * Selects the items at the given zero-relative indices in the receiver. 
- * The current selection is first cleared, then the new items are selected.
+ * Selects the items in the range specified by the given zero-relative
+ * indices in the receiver. The range of indices is inclusive.
+ * The current selection is cleared before the new items are selected.
+ * <p>
  * Indices that are out of range are ignored and no items will be selected
  * if start is greater than end.
+ * If the receiver is single-select and there is more than one item in the
+ * given range, then all indices are ignored.
  * 
  * @param start the start index of the items to select
  * @param end the end index of the items to select
@@ -2557,16 +2836,28 @@ public void setSelection(int index) {
  * @see Table#select(int,int)
  */
 public void setSelection(int start, int end) {
-	checkWidget();
-	Vector keepSelected = new Vector();
-	
-	for (int i = start; i <= end; i++) {
-		SelectableItem item = getVisibleItem(i);
-		if (item != null) {
-			keepSelected.addElement(item);
+	checkWidget ();
+	if (end < 0 || start > end || ((style & SWT.SINGLE) != 0 && start != end)) {
+		deselectAll ();
+		return;
+	}
+	int count = getItemVector().size();
+	if (count == 0 || start >= count) {
+		deselectAll ();
+		return;
+	}
+	start = Math.max (0, start);
+	end = Math.min (end, count - 1);
+	if ((style & SWT.MULTI) != 0) {
+		Vector keepSelected = new Vector();
+		for (int i = start; i <= end; i++) {
+			SelectableItem item = getVisibleItem(i);
+			if (item != null) {
+				keepSelected.addElement(item);
+			}
 		}
-	}	
-	deselectAllExcept(keepSelected);
+		deselectAllExcept(keepSelected);
+	}
 	select(start, end);
 	showSelection ();
 }
@@ -2611,6 +2902,33 @@ void setTopIndexNoScroll(int index, boolean adjustScrollbar) {
 	super.setTopIndexNoScroll(index, adjustScrollbar);
 	moveColumnsVertical();
 }
+
+/**
+ * Shows the column.  If the column is already showing in the receiver,
+ * this method simply returns.  Otherwise, the columns are scrolled until
+ * the column is visible.
+ *
+ * @param column the column to be shown
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the item is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the item has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.0
+ */
+public void showColumn (TableColumn column) {
+	checkWidget ();
+	if (column == null) error (SWT.ERROR_NULL_ARGUMENT);
+	if (column.isDisposed()) error(SWT.ERROR_INVALID_ARGUMENT);
+	if (column.getParent() != this) return;
+	if (columns == null || columns.size() <= 1) return;
+}
+
 /**
  * Shows the item.  If the item is already showing in the receiver,
  * this method simply returns.  Otherwise, the items are scrolled until
@@ -2704,7 +3022,7 @@ String trimItemText(String text, int maxWidth, GC gc) {
 	if (text != null && text.length() > 1) {
 		textWidth = gc.stringExtent(text).x;
 		if (textWidth > maxWidth) {
-			dotsWidth = getDotsWidth(gc);
+			dotsWidth = gc.stringExtent(Table.DOT_STRING).x;
 			while (textWidth + dotsWidth > maxWidth && text.length() > 1) {
 				text = text.substring(0, text.length() - 1);		// chop off one character at the end
 				textWidth = gc.stringExtent(text).x;

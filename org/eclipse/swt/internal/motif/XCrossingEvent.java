@@ -11,15 +11,18 @@
 package org.eclipse.swt.internal.motif;
 
  
-public class XCrossingEvent extends XWindowEvent {
-	public int mode;		/* NotifyNormal, NotifyGrab, NotifyUngrab */
+public class XCrossingEvent extends XAnyEvent {
+	public int root;
+	public int subwindow;
+	public int time;
+	public int x;
+	public int y;
+	public int x_root;
+	public int y_root;
+	public int mode;
 	public int detail;
-	/*
-	 * NotifyAncestor, NotifyVirtual, NotifyInferior, 
-	 * NotifyNonlinear, NotifyNonlinearVirtual
-	 */
-	public int same_screen;	/* same screen flag */
-	public int focus;		/* boolean focus */
-	public int state;	/* key or button mask */
-	public int pad0, pad1, pad2, pad3, pad4, pad5, pad6, pad7;
+	public int same_screen;
+	public int focus;
+	public int state;
+	public static final int sizeof = 68;
 }

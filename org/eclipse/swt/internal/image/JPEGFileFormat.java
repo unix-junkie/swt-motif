@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -1335,7 +1335,7 @@ void inverseDCT(int[] dataUnit) {
 			 * Odd part per figure 8; the matrix is unitary and hence its
 			 * transpose is its inverse. i0..i3 are y7,y5,y3,y1 respectively.
 			 */
-			tmp0 = dataUnit[c7];;
+			tmp0 = dataUnit[c7];
 			tmp1 = dataUnit[c5];
 			tmp2 = dataUnit[c3];
 			tmp3 = dataUnit[c1];
@@ -1741,10 +1741,10 @@ static void skipSegmentFrom(LEDataInputStream byteStream) {
 		JPEGSegment jpegSegment = new JPEGSegment(byteArray);
 	
 		if (byteStream.read(byteArray) != byteArray.length) {
-			throw new SWTError(SWT.ERROR_INVALID_IMAGE);
+			SWT.error(SWT.ERROR_INVALID_IMAGE);
 		}
 		if (!(byteArray[0] == -1 && byteArray[1] != 0 && byteArray[1] != -1)) {
-			throw new SWTError(SWT.ERROR_INVALID_IMAGE);
+			SWT.error(SWT.ERROR_INVALID_IMAGE);
 		}
 		int delta = jpegSegment.getSegmentLength() - 2;
 		byteStream.skip(delta);

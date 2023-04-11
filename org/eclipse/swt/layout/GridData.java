@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -121,10 +121,10 @@ public final class GridData {
 	public boolean grabExcessVerticalSpace = false;
 
 	// Alignment constants.
-	public static final int BEGINNING = 1;
+	public static final int BEGINNING = SWT.BEGINNING;
 	public static final int CENTER = 2;
 	public static final int END = 3;
-	public static final int FILL = 4;
+	public static final int FILL = SWT.FILL;
 
 	// Style constants
 	public static final int VERTICAL_ALIGN_BEGINNING =  1 << 1;
@@ -189,6 +189,35 @@ public GridData(int style) {
 	else
 		grabExcessVerticalSpace = false;
 		
+}
+
+/*
+* @since 3.0
+*/
+public GridData(int horizontalAlignment, int verticalAlignment, boolean grabExcessHorizontalSpace, boolean grabExcessVerticalSpace) {
+	this(horizontalAlignment, verticalAlignment, grabExcessHorizontalSpace, grabExcessVerticalSpace, 1, 1);
+}
+
+/*
+* @since 3.0
+*/
+public GridData(int horizontalAlignment, int verticalAlignment, boolean grabExcessHorizontalSpace, boolean grabExcessVerticalSpace, int horizontalSpan, int verticalSpan) {
+	super();
+	this.horizontalAlignment = horizontalAlignment;
+	this.verticalAlignment = verticalAlignment;
+	this.grabExcessHorizontalSpace = grabExcessHorizontalSpace;
+	this.grabExcessVerticalSpace = grabExcessVerticalSpace;
+	this.horizontalSpan = horizontalSpan;
+	this.verticalSpan = verticalSpan;
+}
+
+/*
+* @since 3.0
+*/
+public GridData (int width, int height) {
+	super();
+	this.widthHint = width;
+	this.heightHint = height;
 }
 boolean isItemData() {
 	return isItemData;

@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -53,6 +53,7 @@ import org.eclipse.swt.widgets.*;
  * @see RowData
  */
 public final class RowLayout extends Layout {
+	
 	/**
 	 * type specifies whether the layout places controls in rows or 
 	 * columns.
@@ -66,7 +67,36 @@ public final class RowLayout extends Layout {
 	 * 
 	 * @since 2.0
 	 */
-	public int type = SWT.HORIZONTAL;	
+	public int type = SWT.HORIZONTAL;
+	
+	/**
+	 * marginWidth specifies the number of pixels of horizontal margin
+	 * that will be placed along the left and right edges of the layout.
+	 *
+	 * The default value is 0.
+	 * 
+	 * @since 3.0
+	 */
+ 	public int marginWidth = 0;
+ 	
+	/**
+	 * marginHeight specifies the number of pixels of vertical margin
+	 * that will be placed along the top and bottom edges of the layout.
+	 *
+	 * The default value is 0.
+	 * 
+	 * @since 3.0
+	 */
+ 	public int marginHeight = 0;
+
+	/**
+	 * spacing specifies the number of pixels between the edge of one cell
+	 * and the edge of its neighbouring cell.
+	 *
+	 * The default value is 3.
+	 */
+	public int spacing = 3;
+	 		
 	/**
 	 * wrap specifies whether a control will be wrapped to the next
 	 * row if there is insufficient space on the current row.
@@ -74,6 +104,7 @@ public final class RowLayout extends Layout {
 	 * The default value is true.
 	 */
 	public boolean wrap = true;
+
 	/**
 	 * pack specifies whether all controls in the layout take
 	 * their preferred size.  If pack is false, all controls will 
@@ -84,6 +115,18 @@ public final class RowLayout extends Layout {
 	 * The default value is true.
 	 */
 	public boolean pack = true;
+	
+	/**
+	 * fill specifies whether the controls in a row should be
+	 * all the same height for horizontal layouts, or the same
+	 * width for vertical layouts.
+	 *
+	 * The default value is false.
+	 * 
+	 * @since 3.0
+	 */
+	public boolean fill = false;
+
 	/**
 	 * justify specifies whether the controls in a row should be
 	 * fully justified, with any extra space placed between the controls.
@@ -91,13 +134,7 @@ public final class RowLayout extends Layout {
 	 * The default value is false.
 	 */
 	public boolean justify = false;
-	/**
-	 * spacing specifies the number of pixels between the edge of one cell
-	 * and the edge of its neighbouring cell.
-	 *
-	 * The default value is 3.
-	 */
-	public int spacing = 3;
+
 	/**
 	 * marginLeft specifies the number of pixels of horizontal margin
 	 * that will be placed along the left edge of the layout.
@@ -105,6 +142,7 @@ public final class RowLayout extends Layout {
 	 * The default value is 3.
 	 */
 	public int marginLeft = 3;
+
 	/**
 	 * marginTop specifies the number of pixels of vertical margin
 	 * that will be placed along the top edge of the layout.
@@ -112,6 +150,7 @@ public final class RowLayout extends Layout {
 	 * The default value is 3.
 	 */
 	public int marginTop = 3;
+
 	/**
 	 * marginRight specifies the number of pixels of horizontal margin
 	 * that will be placed along the right edge of the layout.
@@ -119,6 +158,7 @@ public final class RowLayout extends Layout {
 	 * The default value is 3.
 	 */
 	public int marginRight = 3;
+
 	/**
 	 * marginBottom specifies the number of pixels of vertical margin
 	 * that will be placed along the bottom edge of the layout.
@@ -156,7 +196,7 @@ protected Point computeSize (Composite composite, int wHint, int hHint, boolean 
 	return extent;
 }
 
-Point getSize (Control control, boolean flushCache) {
+Point computeSize (Control control, boolean flushCache) {
 	int wHint = SWT.DEFAULT, hHint = SWT.DEFAULT;
 	RowData data = (RowData) control.getLayoutData ();
 	if (data != null) {
@@ -182,37 +222,46 @@ Point layoutHorizontal (Composite composite, boolean move, boolean wrap, int wid
 	if (!pack) {
 		for (int i=0; i<count; i++) {
 			Control child = children [i];
-			Point pt = getSize (child, flushCache);
-			childWidth = Math.max (childWidth, pt.x);
-			childHeight = Math.max (childHeight, pt.y);
+			Point size = computeSize (child, flushCache);
+			childWidth = Math.max (childWidth, size.x);
+			childHeight = Math.max (childHeight, size.y);
 		}
 		maxHeight = childHeight;
 	}
 	int clientX = 0, clientY = 0;
 	if (move) {
 		Rectangle rect = composite.getClientArea ();
-		clientX = rect.x;  clientY = rect.y;
+		clientX = rect.x;
+		clientY = rect.y;
 	}
+	int [] wraps = null;
 	boolean wrapped = false;
 	Rectangle [] bounds = null;
-	if (move && justify) bounds = new Rectangle [count];
-	int maxX = 0, x = marginLeft, y = marginTop;
+	if (move && (justify || fill)) {
+		bounds = new Rectangle [count];
+		wraps = new int [count];
+	}
+	int maxX = 0, x = marginLeft + marginWidth, y = marginTop + marginHeight;
 	for (int i=0; i<count; i++) {
 		Control child = children [i];
 		if (pack) {
-			Point pt = getSize (child, flushCache);
-			childWidth = pt.x;  childHeight = pt.y;
+			Point size = computeSize (child, flushCache);
+			childWidth = size.x;
+			childHeight = size.y;
 		}
 		if (wrap && (i != 0) && (x + childWidth > width)) {
 			wrapped = true;
-			x = marginLeft;  y += spacing + maxHeight;
+			if (move && (justify || fill)) wraps [i - 1] = maxHeight;
+			x = marginLeft + marginWidth;
+			y += spacing + maxHeight;
+			if (pack) maxHeight = 0;
 		}
-		if (pack) {
+		if (pack || fill) {
 			maxHeight = Math.max (maxHeight, childHeight);
 		}
 		if (move) {
 			int childX = x + clientX, childY = y + clientY;
-			if (justify) {
+			if (justify || fill) {
 				bounds [i] = new Rectangle (childX, childY, childWidth, childHeight);
 			} else {
 				child.setBounds (childX, childY, childWidth, childHeight);
@@ -221,20 +270,46 @@ Point layoutHorizontal (Composite composite, boolean move, boolean wrap, int wid
 		x += spacing + childWidth;
 		maxX = Math.max (maxX, x);
 	}
-	if (!wrap) maxX = x + marginRight;
-	if (move && justify) {
+	maxX = Math.max (clientX + marginLeft + marginWidth, maxX - spacing);
+	if (!wrapped) maxX += marginRight + marginWidth;
+	if (move && (justify || fill)) {
 		int space = 0, margin = 0;
 		if (!wrapped) {
 			space = Math.max (0, (width - maxX) / (count + 1));
 			margin = Math.max (0, ((width - maxX) % (count + 1)) / 2);
+		} else {
+			if (fill || justify) {
+				int last = 0;
+				if (count > 0) wraps [count - 1] = maxHeight;
+				for (int i=0; i<count; i++) {
+					if (wraps [i] != 0) {
+						int wrapCount = i - last + 1;
+						if (justify) {
+							int wrapX = 0;
+							for (int j=last; j<=i; j++) {
+								wrapX += bounds [j].width + spacing;
+							}
+							space = Math.max (0, (width - wrapX) / (wrapCount + 1));
+							margin = Math.max (0, ((width - wrapX) % (wrapCount + 1)) / 2);
+						}
+						for (int j=last; j<=i; j++) {
+							if (justify) bounds [j].x += (space * (j - last + 1)) + margin;
+							if (fill) bounds [j].height = wraps [i];
+						}
+						last = i + 1;
+					}
+				}
+			}
 		}
 		for (int i=0; i<count; i++) {
-			Control child = children [i];
-			bounds [i].x += (space * (i + 1)) + margin;
-			child.setBounds (bounds [i]);
+			if (!wrapped) {
+				if (justify) bounds [i].x += (space * (i + 1)) + margin;
+				if (fill) bounds [i].height = maxHeight;
+			}
+			children [i].setBounds (bounds [i]);
 		}
 	}
-	return new Point (maxX, y + maxHeight + marginBottom);
+	return new Point (maxX, y + maxHeight + marginBottom + marginHeight);
 }
 
 Point layoutVertical (Composite composite, boolean move, boolean wrap, int height, boolean flushCache) {
@@ -244,37 +319,46 @@ Point layoutVertical (Composite composite, boolean move, boolean wrap, int heigh
 	if (!pack) {
 		for (int i=0; i<count; i++) {
 			Control child = children [i];
-			Point pt = getSize (child, flushCache);
-			childWidth = Math.max (childWidth, pt.x);
-			childHeight = Math.max (childHeight, pt.y);
+			Point size = computeSize (child, flushCache);
+			childWidth = Math.max (childWidth, size.x);
+			childHeight = Math.max (childHeight, size.y);
 		}
 		maxWidth = childWidth;
 	}
 	int clientX = 0, clientY = 0;
 	if (move) {
 		Rectangle rect = composite.getClientArea ();
-		clientX = rect.x;  clientY = rect.y;
+		clientX = rect.x;
+		clientY = rect.y;
 	}
+	int [] wraps = null;
 	boolean wrapped = false;
 	Rectangle [] bounds = null;
-	if (move && justify) bounds = new Rectangle [count];
-	int maxY = 0, x = marginLeft, y = marginTop;
+	if (move && (justify || fill)) {
+		bounds = new Rectangle [count];
+		wraps = new int [count];
+	}
+	int maxY = 0, x = marginLeft + marginWidth, y = marginTop + marginHeight;
 	for (int i=0; i<count; i++) {
 		Control child = children [i];
 		if (pack) {
-			Point pt = getSize (child, flushCache);
-			childWidth = pt.x;  childHeight = pt.y;
+			Point size = computeSize (child, flushCache);
+			childWidth = size.x;
+			childHeight = size.y;
 		}
 		if (wrap && (i != 0) && (y + childHeight > height)) {
 			wrapped = true;
-			x += spacing + maxWidth;  y = marginTop;
+			if (move && (justify || fill)) wraps [i - 1] = maxWidth;
+			x += spacing + maxWidth;
+			y = marginTop + marginHeight;
+			if (pack) maxWidth = 0;
 		}
-		if (pack) {
+		if (pack || fill) {
 			maxWidth = Math.max (maxWidth, childWidth);
 		}
 		if (move) {
 			int childX = x + clientX, childY = y + clientY;
-			if (justify) {
+			if (justify || fill) {
 				bounds [i] = new Rectangle (childX, childY, childWidth, childHeight);
 			} else {
 				child.setBounds (childX, childY, childWidth, childHeight);
@@ -283,19 +367,45 @@ Point layoutVertical (Composite composite, boolean move, boolean wrap, int heigh
 		y += spacing + childHeight;
 		maxY = Math.max (maxY, y);
 	}
-	if (!wrap) maxY = y + marginBottom;
-	if (move && justify) {
+	maxY = Math.max (clientY + marginTop + marginHeight, maxY - spacing);
+	if (!wrapped) maxY += marginBottom + marginHeight;
+	if (move && (justify || fill)) {
 		int space = 0, margin = 0;
 		if (!wrapped) {
 			space = Math.max (0, (height - maxY) / (count + 1));
 			margin = Math.max (0, ((height - maxY) % (count + 1)) / 2);
+		} else {
+			if (fill || justify) {
+				int last = 0;
+				if (count > 0) wraps [count - 1] = maxWidth;
+				for (int i=0; i<count; i++) {
+					if (wraps [i] != 0) {
+						int wrapCount = i - last + 1;
+						if (justify) {
+							int wrapY = 0;
+							for (int j=last; j<=i; j++) {
+								wrapY += bounds [j].height + spacing;
+							}
+							space = Math.max (0, (height - wrapY) / (wrapCount + 1));
+							margin = Math.max (0, ((height - wrapY) % (wrapCount + 1)) / 2);
+						}
+						for (int j=last; j<=i; j++) {
+							if (justify) bounds [j].y += (space * (j - last + 1)) + margin;
+							if (fill) bounds [j].width = wraps [i];
+						}
+						last = i + 1;
+					}
+				}
+			}
 		}
 		for (int i=0; i<count; i++) {
-			Control child = children [i];
-			bounds [i].y += (space * (i + 1)) + margin;
-			child.setBounds (bounds [i]);
+			if (!wrapped) {
+				if (justify) bounds [i].y += (space * (i + 1)) + margin;
+				if (fill) bounds [i].width = maxWidth;
+			}
+			children [i].setBounds (bounds [i]);
 		}
 	}
-	return new Point (x + maxWidth + marginRight, maxY);
+	return new Point (x + maxWidth + marginRight + marginWidth, maxY);
 }
 }

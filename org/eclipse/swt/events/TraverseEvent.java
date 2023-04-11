@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -77,7 +77,7 @@ import org.eclipse.swt.widgets.*;
  * @see TraverseListener
  */
 
-public class TraverseEvent extends KeyEvent {
+public final class TraverseEvent extends KeyEvent {
 	
 	/**
 	 * The traversal type.
@@ -96,23 +96,18 @@ public class TraverseEvent extends KeyEvent {
 	 * 
 	 * Setting this field will change the type of traversal.
 	 * For example, setting the detail to <code>TRAVERSE_NONE</code>
-	 * causes no traversal action to be taked.  The traversal detail,
-	 * in conjuction with the <code>doit</code> field can be useful
-     * when overriding the default traversal mechanism for a control.
+	 * causes no traversal action to be taken.
 	 * 
+	 * When used in conjuction with the <code>doit</code> field, the
+	 * traversal detail field can be useful when overriding the default
+	 * traversal mechanism for a control. For example, setting the doit
+	 * field to <code>false</code> will cancel the operation and allow
+	 * the traversal key stroke to be delivered to the control. Setting
+	 * the doit field to <code>true</code> indicates that the traversal
+	 * described by the detail field is to be performed.
 	 */
 	public int detail;
 	
-	/**
-	 * A flag indicating whether the operation should be allowed.
-	 * 
-	 * Setting this field to <code>false</code> will cancel the operation
-	 * and allow the traversal key stroke to be delivered to the control.
-	 * A value of true indicates that the traversal, described by the
-	 * traversal <code>detail</code> is to be performed.
-	 */
-	public boolean doit;
-
 /**
  * Constructs a new instance of this class based on the
  * information in the given untyped event.
@@ -121,8 +116,19 @@ public class TraverseEvent extends KeyEvent {
  */
 public TraverseEvent(Event e) {
 	super(e);
-	this.doit = e.doit;
 	this.detail = e.detail;
 }
 
+/**
+ * Returns a string containing a concise, human-readable
+ * description of the receiver.
+ *
+ * @return a string representation of the event
+ */
+public String toString() {
+	String string = super.toString ();
+	return string.substring (0, string.length() - 1) // remove trailing '}'
+		+ " detail=" + detail
+		+ "}";
+}
 }

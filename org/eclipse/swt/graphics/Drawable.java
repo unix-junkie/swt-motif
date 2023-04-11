@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -11,6 +11,22 @@
 package org.eclipse.swt.graphics;
 
 
+/**
+ * Implementers of <code>Drawable</code> can have a graphics context (GC)
+ * created for them, and then they can be drawn on by sending messages to
+ * their associated GC. SWT images, and device objects such as the Display
+ * device and the Printer device, are drawables.
+ * <p>
+ * <b>IMPORTANT:</b> This class is <em>not</em> part of the SWT
+ * public API. It is marked public only so that it can be shared
+ * within the packages provided by SWT. It should never be
+ * referenced from application code.
+ * </p>
+ * 
+ * @see Device
+ * @see Image
+ * @see GC
+ */
 public interface Drawable {
 
 /**	 
@@ -27,7 +43,7 @@ public interface Drawable {
  * @return the platform specific GC handle
  */
  
-public int internal_new_GC (GCData data);
+public int /*long*/ internal_new_GC (GCData data);
 
 /**	 
  * Invokes platform specific functionality to dispose a GC handle.
@@ -42,6 +58,6 @@ public int internal_new_GC (GCData data);
  * @param handle the platform specific GC handle
  * @param data the platform specific GC data 
  */
-public void internal_dispose_GC (int handle, GCData data);
+public void internal_dispose_GC (int /*long*/ handle, GCData data);
 
 }

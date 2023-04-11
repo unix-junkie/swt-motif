@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -21,6 +21,12 @@ import org.eclipse.swt.internal.SerializableCompatibility;
  * to have increasing values downward and to the right from its
  * origin making this the normal, computer graphics oriented notion
  * of (x, y) coordinates rather than the strict mathematical one.
+ * </p>
+ * <p>
+ * The hashCode() method in this class uses the values of the public
+ * fields to compute the hash value. When storing instances of the
+ * class in hashed collections, do not modify these fields after the
+ * object has been inserted.  
  * </p>
  * <p>
  * Application code does <em>not</em> need to explicitly release the
@@ -62,7 +68,7 @@ public Point (int x, int y) {
  * @param object the object to compare with this object
  * @return <code>true</code> if the object is the same as this object and <code>false</code> otherwise
  *
- * @see #hashCode
+ * @see #hashCode()
  */
 public boolean equals (Object object) {
 	if (object == this) return true;
@@ -79,7 +85,7 @@ public boolean equals (Object object) {
  *
  * @return the receiver's hash
  *
- * @see #equals
+ * @see #equals(Object)
  */
 public int hashCode () {
 	return x ^ y;

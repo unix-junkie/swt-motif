@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -9,7 +9,6 @@
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 package org.eclipse.swt.widgets;
-
 
 import org.eclipse.swt.internal.motif.*;
 import org.eclipse.swt.*;
@@ -21,6 +20,11 @@ import org.eclipse.swt.graphics.*;
  * level shells or dialogs. Class <code>Shell</code>
  * shares a significant amount of code with this class,
  * and is a subclass.
+ * <p>
+ * IMPORTANT: This class was intended to be abstract and
+ * should <em>never</em> be referenced or instantiated.
+ * Instead, the class <code>Shell</code> should be used.
+ * </p>
  * <p>
  * Instances are always displayed in one of the maximized, 
  * minimized or normal states:
@@ -90,6 +94,7 @@ import org.eclipse.swt.graphics.*;
 public class Decorations extends Canvas {
 	String label;
 	Image image;
+	Image [] images = new Image [0];
 	int dialogHandle;
 	boolean minimized, maximized;
 	Menu menuBar;
@@ -140,6 +145,31 @@ Decorations () {
 public Decorations (Composite parent, int style) {
 	super (parent, checkStyle (style));
 }
+
+void _setImages (Image [] images) {
+	Image icon = images != null && images.length > 0 ? icon = images [0] : null;
+	int pixmap = 0, mask = 0;
+	if (icon != null) {
+		switch (icon.type) {
+			case SWT.BITMAP:
+				pixmap = icon.pixmap;
+				break;
+			case SWT.ICON:
+				pixmap = icon.pixmap;
+				mask = icon.mask;
+				break;
+			default:
+				error (SWT.ERROR_INVALID_IMAGE);
+		}
+	}
+	int [] argList = {
+		OS.XmNiconPixmap, pixmap,
+		OS.XmNiconMask, mask,
+	};
+	int topHandle = topHandle ();
+	OS.XtSetValues (topHandle, argList, argList.length / 2);
+}
+
 void add (Menu menu) {
 	if (menus == null) menus = new Menu [4];
 	for (int i=0; i<menus.length; i++) {
@@ -189,7 +219,7 @@ public Rectangle computeTrim (int x, int y, int width, int height) {
 }
 void createHandle (int index) {
 	state |= HANDLE | CANVAS;
-	createScrolledHandle (parent.handle);
+	createHandle (index, parent.handle, true);
 }
 void createWidget (int index) {
 	super.createWidget (index);
@@ -325,7 +355,7 @@ void propagateWidget (boolean enabled) {
 	super.propagateWidget (enabled);
 	int [] argList = {OS.XmNmenuBar, 0};
 	OS.XtGetValues (scrolledHandle, argList, argList.length / 2);
-	if (argList [1] != 0) propagateHandle (enabled, argList [1]);
+	if (argList [1] != 0) propagateHandle (enabled, argList [1], OS.None);
 }
 void releaseHandle () {
 	super.releaseHandle ();
@@ -341,6 +371,9 @@ void releaseWidget () {
 	menuBar = null;
 	menus = null;
 	super.releaseWidget ();
+	image = null;
+	images = null;
+	savedFocus = null;
 	defaultButton = saveDefault = null;
 	label = null;
 }
@@ -379,7 +412,7 @@ void remove (Menu menu) {
  * disposed, the receiver's default button will be set to
  * null. 
  *
- * @param the new default button
+ * @param button the new default button
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_INVALID_ARGUMENT - if the button has been disposed</li> 
@@ -433,29 +466,44 @@ void setDefaultButton (Button button, boolean save) {
  */
 public void setImage (Image image) {
 	checkWidget();
-	int pixmap = 0, mask = 0;
-	if (image != null) {
-		if (image.isDisposed()) error(SWT.ERROR_INVALID_ARGUMENT);
-		switch (image.type) {
-			case SWT.BITMAP:
-				pixmap = image.pixmap;
-				break;
-			case SWT.ICON:
-				pixmap = image.pixmap;
-				mask = image.mask;
-				break;
-			default:
-				error (SWT.ERROR_INVALID_IMAGE);
-		}
-	}
+	if (image != null && image.isDisposed()) error(SWT.ERROR_INVALID_ARGUMENT);
 	this.image = image;
-	int [] argList = {
-		OS.XmNiconPixmap, pixmap,
-		OS.XmNiconMask, mask,
-	};
-	int topHandle = topHandle ();
-	OS.XtSetValues (topHandle, argList, argList.length / 2);
+	_setImages (image != null ? new Image [] {image} : null);
 }
+
+/**
+ * Sets the receiver's images to the argument, which may
+ * be an empty array. Images are typically displayed by the
+ * window manager when the instance is marked as iconified,
+ * and may also be displayed somewhere in the trim when the
+ * instance is in normal or maximized states. Depending where
+ * the icon is displayed, the platform chooses the icon with
+ * the "best" size. It is expected that the array will contain
+ * the same icon rendered at different resolutions.
+ * 
+ * @param images the new image array
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the array of images is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if one of the images has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.0
+ */
+public void setImages (Image [] images) {
+	checkWidget ();
+	if (images == null) error (SWT.ERROR_INVALID_ARGUMENT);
+	for (int i = 0; i < images.length; i++) {
+		if (images [i] == null || images [i].isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
+	}
+	this.images = images;
+	_setImages (images);
+}
+
 /**
  * Sets the maximized state of the receiver.
  * If the argument is <code>true</code> causes the receiver
@@ -470,7 +518,7 @@ public void setImage (Image image) {
  * always. This should be avoided if possible.
  * </p>
  *
- * @param the new maximized state
+ * @param maximized the new maximized state
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -510,13 +558,13 @@ public void setMenuBar (Menu menu) {
 	/* Ensure the new menu bar is correctly enabled */
 	if (menuBar != null) {
 		if (!isEnabled () && menuBar.getEnabled ()) {
-			propagateHandle (true, menuBar.handle); 
+			propagateHandle (true, menuBar.handle, OS.None); 
 		}
 		menuBar.removeAccelerators ();
 	}
 	if (menu != null) {
 		if (!isEnabled ()) {
-			propagateHandle (false, menu.handle); 
+			propagateHandle (false, menu.handle, OS.None); 
 		}
 		menu.addAccelerators ();
 	}
@@ -587,7 +635,7 @@ public void setMenuBar (Menu menu) {
  * always. This should be avoided if possible.
  * </p>
  *
- * @param the new maximized state
+ * @param minimized the new maximized state
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -609,10 +657,10 @@ void setSavedFocus (Control control) {
  * window manager will typically display as the receiver's
  * <em>title</em>, to the argument, which may not be null. 
  *
- * @param text the new text
+ * @param string the new text
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the text is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -624,73 +672,15 @@ public void setText (String string) {
 	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
 	label = string;
 }
-boolean translateAccelerator (int key, int keysym, XKeyEvent xEvent) {
-	/*
-	* Bug in Solaris.  When accelerators are set more
-	* than once in the same menu bar, the time it takes
-	* to set the accelerator increases exponentially.
-	* The fix is to implement our own accelerator table
-	* on Solaris.
-	*/
-	if (OS.IsSunOS) {
-		if (menuBar != null && menuBar.getEnabled ()) {
-			/* Ignore modifiers. */
-			switch (keysym) {
-				case OS.XK_Control_L:
-				case OS.XK_Control_R:
-				case OS.XK_Alt_L:
-				case OS.XK_Alt_R:
-				case OS.XK_Shift_L:
-				case OS.XK_Shift_R:
-					return false;					
-			}
-			
-			/*
-			* Bug in MOTIF.  On Solaris only, XK_F11 and XK_F12 are not
-			* translated correctly by XLookupString().  They are mapped
-			* to 0x1005FF10 and 0x1005FF11 respectively.  The fix is to
-			* look for these values explicitly and correct them.
-			*/
-			if (keysym != 0) {
-				switch (keysym) {
-					case 0x1005FF10: 
-						keysym = OS.XK_F11;
-						key = 0;
-						break;
-					case 0x1005FF11:
-						keysym = OS.XK_F12;
-						key = 0;
-						break;
-				}
-				/*
-				* Bug in MOTIF.  On Solaris only, there is garbage in the
-				* high 16-bits for Keysyms such as XK_Down.  Since Keysyms
-				* must be 16-bits to fit into a Character, mask away the
-				* high 16-bits on all platforms.
-				*/
-				keysym &= 0xFFFF;
-			}
-			
-			/*
-			* Bug in Motif.  There are some keycodes for which 
-			* XLookupString() does not translate the character.
-			* Some of examples are Shift+Tab and Ctrl+Space.
-			*/
-			switch (keysym) {
-				case OS.XK_ISO_Left_Tab: key = '\t'; break;
-				case OS.XK_space: key = ' '; break;
-			}
-				
-			int accelerator = Display.translateKey (keysym);
-			if (accelerator == 0) accelerator = key;
-			if (accelerator == 0) return false;
-			if ((xEvent.state & OS.Mod1Mask) != 0) accelerator |= SWT.ALT;
-			if ((xEvent.state & OS.ShiftMask) != 0) accelerator |= SWT.SHIFT;
-			if ((xEvent.state & OS.ControlMask) != 0) accelerator |= SWT.CONTROL;
-			return menuBar.translateAccelerator (accelerator);
-		}
-	}
-	return false;
+boolean translateAccelerator (char key, int keysym, XKeyEvent xEvent, boolean doit) {
+	if (menuBar == null || !menuBar.getEnabled ()) return false;
+	int accelerator = Display.translateKey (keysym);
+	if (accelerator == 0) accelerator = key;
+	if (accelerator == 0) return false;
+	if ((xEvent.state & OS.Mod1Mask) != 0) accelerator |= SWT.ALT;
+	if ((xEvent.state & OS.ShiftMask) != 0) accelerator |= SWT.SHIFT;
+	if ((xEvent.state & OS.ControlMask) != 0) accelerator |= SWT.CONTROL;
+	return menuBar.translateAccelerator (accelerator, doit);
 }
 boolean traverseItem (boolean next) {
 	return false;

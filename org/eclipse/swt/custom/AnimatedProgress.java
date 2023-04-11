@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -26,14 +26,14 @@ import org.eclipse.swt.events.*;
  */
 public class AnimatedProgress extends Canvas {
 
-	private static final int SLEEP = 70;
-	private static final int DEFAULT_WIDTH = 160;
-	private static final int DEFAULT_HEIGHT = 18;
-	private boolean active = false;
-	private boolean showStripes = false;
-	private int value;
-	private int orientation = SWT.HORIZONTAL;
-	private boolean showBorder = false;
+	static final int SLEEP = 70;
+	static final int DEFAULT_WIDTH = 160;
+	static final int DEFAULT_HEIGHT = 18;
+	boolean active = false;
+	boolean showStripes = false;
+	int value;
+	int orientation = SWT.HORIZONTAL;
+	boolean showBorder = false;
 
 /**
  * Constructs a new instance of this class given its parent
@@ -61,7 +61,7 @@ public class AnimatedProgress extends Canvas {
  * @see SWT#VERTICAL
  * @see SWT#HORIZONTAL
  * @see SWT#BORDER
- * @see #getStyle
+ * @see #getStyle()
  */
 public AnimatedProgress(Composite parent, int style) {
 	super(parent, checkStyle(style));
@@ -128,7 +128,7 @@ private void drawBevelRect(GC gc, int x, int y, int w, int h, Color topleft, Col
 	gc.drawLine(x+w, y, x+w, y+h);
 	gc.drawLine(x, y+h, x+w, y+h);
 }
-private void paint(PaintEvent event) {
+void paint(PaintEvent event) {
 	GC gc = event.gc;
 	Display disp= getDisplay();
 			
@@ -142,7 +142,7 @@ private void paint(PaintEvent event) {
 	
 	paintStripes(gc);
 }	
-private void paintStripes(GC gc) {
+void paintStripes(GC gc) {
 	
 	if (!showStripes) return;
 	

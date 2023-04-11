@@ -320,11 +320,13 @@ private void drag() {
 
 	// Current event must be a Button Press event
 	Display display = control.getDisplay ();
-	if (display.xEvent.type != OS.ButtonPress) return;
+	XButtonEvent xEvent = new XButtonEvent();
+	OS.memmove(xEvent, display.xEvent, XButtonEvent.sizeof);
+	if (xEvent.type != OS.ButtonPress) return;
 
 	DNDEvent event = new DNDEvent();
 	event.widget = this;	
-	event.time = display.xEvent.pad2;
+	event.time = xEvent.time;
 	event.doit = true;
 	
 	try {
@@ -334,7 +336,7 @@ private void drag() {
 	}
 
 	if (!event.doit || transferAgents == null || transferAgents.length == 0) { 
-		int time = display.xEvent.pad2; // corresponds to time field in XButtonEvent	
+		int time = xEvent.time;
 		int dc = OS.XmGetDragContext(control.handle, time);
 		if (dc != 0){
 			OS.XmDragCancel(dc);
@@ -377,7 +379,7 @@ private void drag() {
 	};	
 
 	// look for existing drag contexts
-	int time = display.xEvent.pad2; // corresponds to time field in XButtonEvent
+	int time = xEvent.time;
 	dragContext = OS.XmGetDragContext(control.handle, time);
 	if (dragContext != 0){
 		OS.XtSetValues(dragContext, args, args.length /2);
@@ -415,8 +417,8 @@ private int dragDropFinishCallback(int widget, int client_data, int call_data) {
 	return 0;
 }
 private int dropFinishCallback(int widget, int client_data, int call_data) {
-	XmDropFinishCallback data = new XmDropFinishCallback();
-	OS.memmove(data, call_data, XmDropFinishCallback.sizeof);
+	XmDropFinishCallbackStruct data = new XmDropFinishCallbackStruct();
+	OS.memmove(data, call_data, XmDropFinishCallbackStruct.sizeof);
 	if (data.dropAction != OS.XmDROP || data.dropSiteStatus != OS.XmDROP_SITE_VALID) {
 		DNDEvent event = new DNDEvent();
 		event.widget = this.control;
@@ -462,10 +464,6 @@ private int dropFinishCallback(int widget, int client_data, int call_data) {
  */
 public Control getControl () {
 	return control;
-}
-public Display getDisplay () {
-	if (control == null) DND.error(SWT.ERROR_WIDGET_DISPOSED);
-	return control.getDisplay ();
 }
 /**
  * Returns the list of data types that can be transferred by this DragSource.

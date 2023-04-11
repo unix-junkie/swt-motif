@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -23,7 +23,7 @@ import org.eclipse.swt.events.*;
  * <p>
  * <dl>
  * <dt><b>Styles:</b></dt>
- * <dd>CENTER, LEFT, MULTI, SINGLE, RIGHT, READ_ONLY, WRAP</dd>
+ * <dd>CENTER, LEFT, MULTI, PASSWORD, SINGLE, RIGHT, READ_ONLY, WRAP</dd>
  * <dt><b>Events:</b></dt>
  * <dd>DefaultSelection, Modify, Verify</dd>
  * </dl>
@@ -41,7 +41,16 @@ public class Text extends Scrollable {
 	int drawCount;
 	
 	static final boolean IsGB18030;
+	/**
+	* The maximum number of characters that can be entered
+	* into a text widget.
+	*/
 	public static final int LIMIT;
+	/**
+	* The delimiter used by multi-line text widgets.  When text
+	* is queried and from the widget, it will be delimited using
+	* this delimiter.
+	*/
 	public static final String DELIMITER;
 	
 	/*
@@ -181,7 +190,7 @@ public void addVerifyListener (VerifyListener listener) {
  * @param string the string to be appended
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the string is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -193,7 +202,6 @@ public void append (String string) {
 	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
 	int position = OS.XmTextGetLastPosition (handle);
 	byte [] buffer = Converter.wcsToMbcs (getCodePage (), string, true);
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XmTextSetInsertionPosition (handle, position);
@@ -206,6 +214,7 @@ static int checkStyle (int style) {
 	style = checkBits (style, SWT.LEFT, SWT.CENTER, SWT.RIGHT, 0, 0, 0);
 	if ((style & SWT.SINGLE) != 0) style &= ~(SWT.H_SCROLL | SWT.V_SCROLL | SWT.WRAP);
 	if ((style & SWT.WRAP) != 0) style |= SWT.MULTI;
+	if ((style & SWT.MULTI) != 0) style &= ~SWT.PASSWORD;
 	if ((style & (SWT.SINGLE | SWT.MULTI)) != 0) return style;
 	if ((style & (SWT.H_SCROLL | SWT.V_SCROLL)) != 0) {
 		return style | SWT.MULTI;
@@ -343,28 +352,33 @@ void createHandle (int index) {
 		if (handle == 0) error (SWT.ERROR_NO_HANDLES);
 		int [] argList2 = new int [] {OS.XmNcursorPositionVisible, 0};
 		OS.XtSetValues (handle, argList2, argList2.length / 2);
-		if ((style & SWT.BORDER) == 0) {
-			int [] argList3 = new int [] {
-				/*
-				* Bug in Motif.  Setting the margin width to zero for
-				* a single line text field causes the field to draw
-				* garbage when the caret is placed at the start of
-				* the widget.  The fix is to not set the margin width.
-				*/
-//				OS.XmNmarginWidth, 0,
-				OS.XmNmarginHeight, 0,
-				OS.XmNshadowThickness, 0,
-			};
-			OS.XtSetValues (handle, argList3, argList3.length / 2);
-		}
 	} else {
 		handle = OS.XmCreateScrolledText (parentHandle, new byte [1], argList1, argList1.length / 2);
 		if (handle == 0) error (SWT.ERROR_NO_HANDLES);
 		scrolledHandle = OS.XtParent (handle);
-	}	
+	}
+	if ((style & SWT.BORDER) == 0) {
+		int [] argList3 = new int [] {
+			/*
+			* Bug in Motif.  Setting the margin width to zero for
+			* a single line text field causes the field to draw
+			* garbage when the caret is placed at the start of
+			* the widget.  The fix is to not set the margin width.
+			*/
+//			OS.XmNmarginWidth, 0,
+			OS.XmNmarginHeight, 0,
+			OS.XmNshadowThickness, 0,
+		};
+		OS.XtSetValues (handle, argList3, argList3.length / 2);
+	}
 }
 ScrollBar createScrollBar (int type) {
 	return createStandardBar (type);
+}
+void createWidget (int index) {
+	super.createWidget (index);
+	hiddenText = "";
+	if ((style & SWT.PASSWORD) != 0) setEchoChar ('*');
 }
 /**
  * Cuts the selected text.
@@ -373,9 +387,6 @@ ScrollBar createScrollBar (int type) {
  * clipboard and then deleted from the widget.
  * </p>
  *
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
- * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -388,13 +399,13 @@ public void cut () {
 	OS.XmTextCut (handle, OS.XtLastTimestampProcessed (xDisplay));
 }
 int defaultBackground () {
-	return getDisplay ().textBackground;
+	return display.textBackground;
 }
 Font defaultFont () {
-	return getDisplay ().textFont;
+	return display.textFont;
 }
 int defaultForeground () {
-	return getDisplay ().textForeground;
+	return display.textForeground;
 }
 /**
  * Gets the line number of the caret.
@@ -404,9 +415,6 @@ int defaultForeground () {
  *
  * @return the line number
  *
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
- * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -479,6 +487,8 @@ public int getCharCount () {
  * default action of the text widget when the user
  * double clicks.
  * </p>
+ * 
+ * @return whether or not double click is enabled
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -498,6 +508,8 @@ public boolean getDoubleClickEnabled () {
  * displayed when the user enters text or the
  * text is changed by the programmer.
  * </p>
+ * 
+ * @return the echo character
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -511,6 +523,8 @@ public char getEchoChar () {
 /**
  * Gets the editable state.
  *
+ * @return whether or not the reciever is editable
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -571,7 +585,7 @@ public String getLineDelimiter () {
  */
 public int getLineHeight () {
 	checkWidget();
-	return getFontHeight ();
+	return getFontHeight (font.handle);
 }
 int getLineNumber (int position) {
 	if (position == 0) return 0;
@@ -630,7 +644,7 @@ int getNavigationType () {
 /**
  * Returns the orientation of the receiver.
  *
- * @return the orientation bit.
+ * @return the orientation style
  * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -758,7 +772,8 @@ public String getText () {
 	return new String (Converter.mbcsToWcs (getCodePage (), buffer));
 }
 /**
- * Gets a range of text.
+ * Gets a range of text.  Returns an empty string if the
+ * start of the range is greater than the end.
  * <p>
  * Indexing is zero based.  The range of
  * a selection is from 0..N-1 where N is
@@ -776,19 +791,23 @@ public String getText () {
  */
 public String getText (int start, int end) {
 	checkWidget();
+	if (!(start <= end && 0 <= end)) return "";
+	boolean hasEcho = echoCharacter != '\0';
+	int length = hasEcho ? hiddenText.length () : OS.XmTextGetLastPosition (handle);
+	if (length == 0) return "";
+	start = Math.max (0, start);
+	end = Math.min (end, length - 1);
+	if (hasEcho) return hiddenText.substring (start, end + 1);
 	int numChars = end - start + 1;
-	if (numChars < 0 || start < 0) return "";
-	if (echoCharacter != '\0') {
-		return hiddenText.substring (start, Math.min (hiddenText.length (), end));
+	int bufLength = numChars * OS.MB_CUR_MAX () + 1;
+	byte [] buffer = new byte [bufLength];
+	int code = OS.XmTextGetSubstring (handle, start, numChars, bufLength, buffer);
+	switch (code) {
+		case OS.XmCOPY_FAILED:
+		case OS.XmCOPY_TRUNCATED:
+			error (SWT.ERROR_CANNOT_GET_TEXT);
 	}
-	int length = (numChars * 4 /* MB_CUR_MAX */) + 1;
-	byte [] buffer = new byte [length];
-	int code = OS.XmTextGetSubstring (handle, start, numChars, length, buffer);
-	if (code == OS.XmCOPY_FAILED) return "";
 	char [] unicode = Converter.mbcsToWcs (getCodePage (), buffer);
-	if (code == OS.XmCOPY_TRUNCATED) {
-		numChars = OS.XmTextGetLastPosition (handle) - start;
-	}
 	return new String (unicode, 0, numChars);
 }
 /**
@@ -863,7 +882,7 @@ boolean hasIMSupport() {
 }
 void hookEvents () {
 	super.hookEvents ();
-	int windowProc = getDisplay ().windowProc;
+	int windowProc = display.windowProc;
 	OS.XtAddCallback (handle, OS.XmNactivateCallback, windowProc, ACTIVATE_CALLBACK);
 	OS.XtAddCallback (handle, OS.XmNvalueChangedCallback, windowProc, VALUE_CHANGED_CALLBACK);
 	OS.XtAddCallback (handle, OS.XmNmodifyVerifyCallback, windowProc, MODIFY_VERIFY_CALLBACK);
@@ -894,7 +913,6 @@ public void insert (String string) {
 		start [0] = end [0] = OS.XmTextGetInsertionPosition (handle);
 	}
 	byte [] buffer = Converter.wcsToMbcs (getCodePage (), string, true);
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XmTextReplace (handle, start [0], end [0], buffer);
@@ -904,7 +922,6 @@ public void insert (String string) {
 }
 void overrideTranslations () {
 	if ((style & SWT.SINGLE) != 0) {
-		Display display = getDisplay ();
 		OS.XtOverrideTranslations (handle, display.tabTranslations);
 	}
 }
@@ -922,7 +939,6 @@ void overrideTranslations () {
  */
 public void paste () {
 	checkWidget();
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	/*
@@ -1013,37 +1029,8 @@ public void removeVerifyListener (VerifyListener listener) {
 	if (eventTable == null) return;
 	eventTable.unhook (SWT.Verify, listener);	
 }
-void sendIMKeyEvent (int type, XKeyEvent xEvent, byte [] mbcs, char [] chars) {
-	/*
-	* Bug in Motif. On Solaris and Linux, XmImMbLookupString() clears
-	* the characters from the IME. This causes the characters to be
-	* stolen from the text widget. The fix is to detect that the IME
-	* has been cleared and use XmTextInsert() to insert the stolen
-	* characters. This problem does not happen on AIX.
-	*/
-	super.sendIMKeyEvent (type, xEvent, mbcs, chars);
-	if (mbcs == null || xEvent.keycode != 0) return;
-	int [] unused = new int [1];
-	byte [] buffer = new byte [2];
-	int length = OS.XmImMbLookupString (handle, xEvent, buffer, buffer.length, unused, unused);
-	if (length != 0) return;
-	int [] start = new int [1], end = new int [1];
-	OS.XmTextGetSelectionPosition (handle, start, end);
-	if (start [0] == end [0]) {
-		start [0] = end [0] = OS.XmTextGetInsertionPosition (handle);
-	}
-	Display display = getDisplay();
-	boolean warnings = display.getWarnings ();
-	display.setWarnings (false);
-	OS.XmTextReplace (handle, start [0], end [0], mbcs);
-	int index = 0;
-	while (index < chars.length) {
-		if (chars [index] == 0) break;
-		index++;
-	}
-	int position = start [0] + index;
-	OS.XmTextSetInsertionPosition (handle, position);
-	display.setWarnings (warnings);
+boolean sendIMKeyEvent (int type, XKeyEvent xEvent) {
+	return super.sendIMKeyEvent (type, xEvent, handle);
 }
 /**
  * Selects all the text in the receiver.
@@ -1072,7 +1059,6 @@ public void selectAll () {
 	/* Set the selection. */
 	int xDisplay = OS.XtDisplay (handle);
 	if (xDisplay == 0) return;
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XmTextSetSelection (handle, 0, position, OS.XtLastTimestampProcessed (xDisplay));
@@ -1088,7 +1074,6 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
 	* the visible region during a resize.  The fix is
 	* to temporarily turn off warnings below.
 	*/
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	boolean changed = super.setBounds (x, y, width, height, move, resize);
@@ -1152,11 +1137,12 @@ public void setDoubleClickEnabled (boolean doubleClick) {
  */
 public void setEchoChar (char echo) {
 	checkWidget();
+	if ((style & SWT.MULTI) != 0) return;
 	if (echoCharacter == echo) return;
 	String newText;
 	if (echo == 0) {
 		newText = hiddenText;
-		hiddenText = null;
+		hiddenText = "";
 	} else {
 		newText = hiddenText = getText();
 	}
@@ -1189,10 +1175,10 @@ public void setEditable (boolean editable) {
 }
 /**
  * Sets the orientation of the receiver, which must be one
- * of the constants <code>SWT.LEFT_TO_RIGHT</code> or <code>SWT.LEFT_TO_RIGHT</code>.
+ * of the constants <code>SWT.LEFT_TO_RIGHT</code> or <code>SWT.RIGHT_TO_LEFT</code>.
  * <p>
  *
- * @param orientation new orientation bit
+ * @param orientation new orientation style
  * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1243,7 +1229,6 @@ public void setSelection (int start) {
 	if (xDisplay == 0) return;
 	int position = OS.XmTextGetLastPosition (handle);
 	int nStart = Math.min (Math.max (start, 0), position);
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 //	OS.XmTextSetHighlight (handle, 0, position, OS.XmHIGHLIGHT_NORMAL);
@@ -1298,7 +1283,6 @@ public void setSelection (int start, int end) {
 	if (xDisplay == 0) return;
 	int nStart = Math.min (Math.max (Math.min (start, end), 0), position);
 	int nEnd = Math.min (Math.max (Math.max (start, end), 0), position);
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XmTextSetSelection (handle, nStart, nEnd, OS.XtLastTimestampProcessed (xDisplay));
@@ -1363,7 +1347,7 @@ public void setTabs (int tabs) {
  * SINGLE and the argument contains multiple lines of text, the result of this
  * operation is undefined and may vary from platform to platform.
  *
- * @param text the new text
+ * @param string the new text
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the string is null</li>
@@ -1377,7 +1361,6 @@ public void setText (String string) {
 	checkWidget();
 	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
 	byte [] buffer = Converter.wcsToMbcs (getCodePage (), string, true);
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XmTextSetString (handle, buffer);
@@ -1446,9 +1429,6 @@ public void setTopIndex (int index) {
  * lines are scrolled until the selection is visible.
  * </p>
  * 
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
- * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -1456,7 +1436,6 @@ public void setTopIndex (int index) {
  */
 public void showSelection () {
 	checkWidget();
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	int position = OS.XmTextGetInsertionPosition (handle);

@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -15,7 +15,6 @@ import org.eclipse.swt.*;
 import org.eclipse.swt.events.*;
 import org.eclipse.swt.graphics.*;
 import java.util.Enumeration;
-import java.util.Stack;
 import java.util.Vector;
  
 /**
@@ -98,7 +97,7 @@ public class Tree extends SelectableItemWidget {
  */
 public Tree(Composite parent, int style) {
 	super(parent, checkStyle (style));
-	CONNECTOR_LINE_COLOR = new Color(getDisplay(), 170, 170, 170);	// Light gray;
+	CONNECTOR_LINE_COLOR = new Color(display, 170, 170, 170);	// Light gray;
 }
 /**
  * Add 'item' to the list of root items.
@@ -312,6 +311,12 @@ void collapse(TreeItem item, boolean notifyListeners) {
 	if (item.getExpanded() == false) {
 		return;
 	}
+	if (notifyListeners == true) {
+		event = new Event();
+		event.item = item;
+		notifyListeners(SWT.Collapse, event);
+		if (isDisposed()) return;
+	}
 	collapseNoRedraw(item);
 	itemIndex = item.getVisibleIndex();
 	if (itemIndex != -1) {						// if the item's parent is not collapsed (and the item is thus visible) do the screen updates
@@ -321,11 +326,6 @@ void collapse(TreeItem item, boolean notifyListeners) {
 		calculateWidestShowingItem();
 		claimRightFreeSpace();
 		claimBottomFreeSpace();		
-	}
-	if (notifyListeners == true) {
-		event = new Event();
-		event.item = item;
-		notifyListeners(SWT.Collapse, event);
 	}
 }
 
@@ -379,6 +379,7 @@ public Point computeSize(int wHint, int hHint, boolean changed) {
 				width += itemImage.getBounds().width;
 			}
 			if (itemText != null) {
+				gc.setFont(item.getFont());
 				width += gc.stringExtent(itemText).x;
 			}
 			newItemWidth = Math.max(newItemWidth, width);
@@ -468,7 +469,7 @@ void doArrowRight(int keyMask) {
 /**
  * Expand the selected item and all of its children.
  */
-void doAsterix() {
+void doAsterisk() {
 	expandAll((TreeItem) getLastFocus());
 }
 /**
@@ -566,7 +567,7 @@ void expandAll(TreeItem item) {
  */
 Image getCollapsedImage() {
 	if (collapsedImage == null) {
-		collapsedImage = new Image(getDisplay(), CollapsedImageData);
+		collapsedImage = new Image(display, CollapsedImageData);
 	}
 	return collapsedImage;
 }
@@ -588,7 +589,7 @@ int getContentWidth(int itemIndex) {
  */
 Image getExpandedImage() {
 	if (expandedImage == null) {
-		expandedImage = new Image(getDisplay(), ExpandedImageData);
+		expandedImage = new Image(display, ExpandedImageData);
 	}
 	return expandedImage;
 }
@@ -666,7 +667,7 @@ public int getItemHeight() {
 	return super.getItemHeight();
 }
 /**
- * Returns the number of items contained in the receiver
+ * Returns the items contained in the receiver
  * that are direct item children of the receiver.  These
  * are the roots of the tree.
  * <p>
@@ -675,7 +676,7 @@ public int getItemHeight() {
  * not affect the receiver. 
  * </p>
  *
- * @return the number of items
+ * @return the items
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -976,7 +977,7 @@ void keyDown(Event event) {
 			doMinus();
 			break;
 		case '*':
-			doAsterix();
+			doAsterisk();
 			break;
 	}
 }
@@ -994,9 +995,11 @@ void mouseDoubleClick(Event event) {
 		return;
 	}
 	if (isListening(SWT.DefaultSelection) == true) {
-		newEvent = new Event();
-		newEvent.item = hitItem;
-		notifyListeners(SWT.DefaultSelection, newEvent);
+		if (!getIgnoreDoubleClick()) {
+			newEvent = new Event();
+			newEvent.item = hitItem;
+			postEvent(SWT.DefaultSelection, newEvent);
+		}
 	}
 	else
 	if (hitItem.isLeaf() == false) {		// item with children was hit. Default behavior is expand/collapse item
@@ -1417,7 +1420,9 @@ void scrollVertical(int scrollIndexCount) {
 		clientArea.width, clientArea.height, true);
 }
 /**
- * Selects all the items in the receiver.
+ * Selects all of the items in the receiver.
+ * <p>
+ * If the receiver is single-select, do nothing.
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1442,7 +1447,7 @@ void setExpandingItem(TreeItem item) {
 }
 public void setFont(Font font) {
 	checkWidget();
-	Stack children = new Stack();						// traverse the tree depth first
+	Vector children = new Vector();
 	Enumeration elements;
 	AbstractTreeItem item;
 
@@ -1456,14 +1461,17 @@ public void setFont(Font font) {
 	// Call itemChanged for all tree items
 	elements = getRoot().getChildren().elements();
 	while (elements.hasMoreElements() == true) {
-		children.push(elements.nextElement());
-	}			
-	while (children.empty() == false) {
-		item = (AbstractTreeItem) children.pop();
+		children.addElement(elements.nextElement());
+	}
+	// traverse the tree depth first	
+	int size;
+	while ((size = children.size()) != 0) {
+		item = (AbstractTreeItem)children.elementAt(size - 1);
+		children.removeElementAt(size - 1);
 		itemChanged(item, 0, getClientArea().width);
 		elements = item.getChildren().elements();
 		while (elements.hasMoreElements() == true) {
-			children.push(elements.nextElement());
+			children.addElement(elements.nextElement());
 		}			
 	}
 	setRedraw(true);									// re-enable redraw
@@ -1474,7 +1482,7 @@ public void setFont(Font font) {
  * will be inserted when dropped on the tree.
  * 
  * @param item the insert item.  Null will clear the insertion mark.
- * @param after true places the insert mark above 'item'. false places 
+ * @param before true places the insert mark above 'item'. false places 
  *	the insert mark below 'item'.
  *
  * @exception IllegalArgumentException <ul>
@@ -1492,14 +1500,17 @@ public void setInsertMark(TreeItem item, boolean before){
 }
 /**
  * Sets the receiver's selection to be the given array of items.
- * The current selected is first cleared, then the new items are
- * selected.
+ * The current selection is cleared before the new items are selected.
+ * <p>
+ * Items that are not in the receiver are ignored.
+ * If the receiver is single-select and multiple items are specified,
+ * then all items are ignored.
  *
  * @param items the array of items
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the array of items is null</li>
- *    <li>ERROR_INVALID_ARGUMENT - if one of the item has been disposed</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if one of the items has been disposed</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1508,12 +1519,15 @@ public void setInsertMark(TreeItem item, boolean before){
  *
  * @see Tree#deselectAll()
  */
-public void setSelection(TreeItem selectionItems[]) {
-	checkWidget();
-	if (selectionItems == null)  {
-		error(SWT.ERROR_NULL_ARGUMENT);
-	}	
-	setSelectableSelection(selectionItems);
+public void setSelection(TreeItem items[]) {
+	checkWidget ();
+	if (items == null) error (SWT.ERROR_NULL_ARGUMENT);
+	int length = items.length;
+	if (length == 0 || ((style & SWT.SINGLE) != 0 && length > 1)) {
+		deselectAll ();
+		return;
+	}
+	setSelectableSelection(items);
 }
 /**
  * Set the index of the first visible item in the tree client area 

@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -54,6 +54,8 @@ import org.eclipse.swt.events.*;
  * @see List
  */
 public class Combo extends Composite {
+	int visibleCount = 5;
+
 	/**
 	 * the operating system limit for the number of characters
 	 * that the text field in an instance of this class can hold
@@ -386,9 +388,6 @@ void createHandle (int index) {
  * clipboard and then deleted from the widget.
  * </p>
  *
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
- * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -423,7 +422,6 @@ public void deselect (int index) {
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	
 	if (OS.XmListPosSelected (argList[3], index + 1)) {
-		Display display = getDisplay ();
 		boolean warnings = display.getWarnings ();
 		display.setWarnings (false);
 		OS.XmTextSetString (argList[1], new byte[1]);
@@ -449,7 +447,6 @@ public void deselectAll () {
 	checkWidget();
 	int [] argList = {OS.XmNtextField, 0, OS.XmNlist, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XmTextSetString (argList[1], new byte[1]);
@@ -489,13 +486,14 @@ public String getItem (int index) {
 	int [] buffer1 = new int [1]; 
 	OS.memmove (buffer1, ptr, 4);
 	ptr = buffer1 [0];
+	int [] table = new int [] {display.tabMapping, display.crMapping};
 	int address = OS.XmStringUnparse (
 		ptr,
 		null,
 		OS.XmCHARSET_TEXT,
 		OS.XmCHARSET_TEXT,
-		null,
-		0,
+		table,
+		table.length,
 		OS.XmOUTPUT_ALL);
 	if (address == 0) error (SWT.ERROR_CANNOT_GET_ITEM);
 	int length = OS.strlen (address);
@@ -541,11 +539,11 @@ public int getItemHeight () {
 	checkWidget();
 	int [] listHandleArgs = {OS.XmNlist, 0};
 	OS.XtGetValues (handle, listHandleArgs, listHandleArgs.length / 2);
-	int [] argList = {OS.XmNlistSpacing, 0, OS.XmNhighlightThickness, 0};
+	int [] argList = {OS.XmNlistSpacing, 0, OS.XmNhighlightThickness, 0, OS.XmNfontList, 0};
 	OS.XtGetValues (listHandleArgs[1], argList, argList.length / 2);
-	int spacing = argList [1], highlight = argList [3];
+	int spacing = argList [1], highlight = argList [3], fontList = argList [5];
 	/* Result is from empirical analysis on Linux and AIX */
-	return getFontHeight () + spacing + (2 * highlight);
+	return getFontHeight (fontList) + spacing + (2 * highlight);
 }
 /**
  * Returns an array of <code>String</code>s which are the items
@@ -577,13 +575,14 @@ public String [] getItems () {
 	for (int i = 0; i < itemCount; i++) {
 		OS.memmove (buffer1, items, 4);
 		int ptr = buffer1 [0];
+		int [] table = new int [] {display.tabMapping, display.crMapping};
 		int address = OS.XmStringUnparse (
 			ptr,
 			null,
 			OS.XmCHARSET_TEXT,
 			OS.XmCHARSET_TEXT,
-			null,
-			0,
+			table,
+			table.length,
 			OS.XmOUTPUT_ALL);
 		if (address == 0) error (SWT.ERROR_CANNOT_GET_ITEM);
 		int length = OS.strlen (address);
@@ -601,7 +600,7 @@ String getNameText () {
 /**
  * Returns the orientation of the receiver.
  *
- * @return the orientation bit.
+ * @return the orientation style
  * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -723,7 +722,7 @@ public int getTextHeight () {
 		OS.XtGetValues (handle, argList, argList.length / 2);	
 		int [] argList2 = {OS.XmNmarginHeight, 0};
 		OS.XtGetValues (argList[1], argList2, argList2.length / 2);	
-		int height = getFontHeight ();
+		int height = getFontHeight (font.handle);
 		XRectangle rect = new XRectangle ();
 		OS.XmWidgetGetDisplayRect (argList[1], rect);
 		height += (rect.y * 2) + (2 * argList2[1]);
@@ -755,9 +754,29 @@ public int getTextLimit () {
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	return OS.XmTextGetMaxLength (argList[1]);
 }
+/**
+ * Gets the number of items that are visible in the drop
+ * down portion of the receiver's list.
+ *
+ * @return the number of items that are visible
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.0
+ */
+public int getVisibleItemCount () {
+	checkWidget ();
+	if ((style & SWT.SIMPLE) != 0) return visibleCount;
+	int [] argList = new int [] {OS.XmNvisibleItemCount, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	return argList [1];
+}
 void hookEvents () {
 	super.hookEvents ();
-	int windowProc = getDisplay ().windowProc;
+	int windowProc = display.windowProc;
 	OS.XtAddCallback (handle, OS.XmNselectionCallback, windowProc, SELECTION_CALLBACK);
 	int [] argList = {OS.XmNtextField, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
@@ -807,6 +826,7 @@ public int indexOf (String string) {
  * returns -1.
  *
  * @param string the search item
+ * @param start the zero-relative index at which to begin the search
  * @return the index of the item
  *
  * @exception IllegalArgumentException <ul>
@@ -855,7 +875,6 @@ public int indexOf (String string, int start) {
  */
 public void paste () {
 	checkWidget();
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	int [] argList = {OS.XmNtextField, 0};
@@ -918,28 +937,20 @@ public void remove (int index) {
 public void remove (int start, int end) {
 	checkWidget();
 	if (start > end) return;
-	/*
-	* Feature in Motif.  An index out of range handled
-	* correctly by the list widget but causes an unwanted
-	* Xm Warning.  The fix is to check the range before
-	* deleting an item.
-	*/
 	int [] argList = {OS.XmNitemCount, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
-	if (!(0 <= start && start < argList [1])) {
+	if (!(0 <= start && start <= end && end < argList [1])) {
 		error (SWT.ERROR_INVALID_RANGE);
 	}
-	int newEnd = Math.min (end, argList [1] - 1);
-	for (int i = start; i <= newEnd; i++) {
+	for (int i = start; i <= end; i++) {
 		OS.XmComboBoxDeletePos (handle, start + 1);	
 	}
-	if (end >= argList [1]) error (SWT.ERROR_INVALID_RANGE);
 }
 void register () {
 	super.register ();
 	int [] argList = {OS.XmNtextField, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
-	WidgetTable.put(argList[1], this);
+	display.addWidget (argList[1], this);
 }
 /**
  * Searches the receiver's list starting at the first item
@@ -989,7 +1000,6 @@ public void removeAll () {
 	int [] argList = {OS.XmNtextField, 0, OS.XmNlist, 0, OS.XmNitemCount, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XmTextSetString (argList[1], new byte[1]);
@@ -1064,7 +1074,6 @@ public void select (int index) {
 	if (index == -1) {
 		int [] argList = {OS.XmNtextField, 0, OS.XmNlist, 0};
 		OS.XtGetValues (handle, argList, argList.length / 2);
-		Display display = getDisplay ();
 		boolean warnings = display.getWarnings ();
 		display.setWarnings (false);
 		OS.XmTextSetString (argList[1], new byte[1]);
@@ -1080,39 +1089,10 @@ public void select (int index) {
 		ignoreSelect = false;
 	}
 }
-void sendIMKeyEvent (int type, XKeyEvent xEvent, byte [] mbcs, char [] chars) {
-	/*
-	* Bug in Motif. On Solaris and Linux, XmImMbLookupString() clears
-	* the characters from the IME. This causes the characters to be
-	* stolen from the text widget. The fix is to detect that the IME
-	* has been cleared and use XmTextInsert() to insert the stolen
-	* characters. This problem does not happen on AIX.
-	*/
-	super.sendIMKeyEvent (type, xEvent, mbcs, chars);
-	if (mbcs == null || xEvent.keycode != 0) return;
+boolean sendIMKeyEvent (int type, XKeyEvent xEvent) {
 	int [] argList = {OS.XmNtextField, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
-	int [] unused = new int [1];
-	byte [] buffer = new byte [2];
-	int length = OS.XmImMbLookupString (argList [1], xEvent, buffer, buffer.length, unused, unused);
-	if (length != 0) return;
-	int [] start = new int [1], end = new int [1];
-	OS.XmTextGetSelectionPosition (argList [1], start, end);
-	if (start [0] == end [0]) {
-		start [0] = end [0] = OS.XmTextGetInsertionPosition (argList [1]);
-	}
-	Display display = getDisplay();
-	boolean warnings = display.getWarnings ();
-	display.setWarnings (false);
-	OS.XmTextReplace (argList [1], start [0], end [0], mbcs);
-	int index = 0;
-	while (index < chars.length) {
-		if (chars [index] == 0) break;
-		index++;
-	}
-	int position = start [0] + index;
-	OS.XmTextSetInsertionPosition (argList [1], position);
-	display.setWarnings (warnings);
+	return super.sendIMKeyEvent (type, xEvent, argList [1]);
 }
 void setBackgroundPixel (int pixel) {
 	super.setBackgroundPixel (pixel);
@@ -1135,8 +1115,25 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
 }
 public void setFont (Font font) {
 	checkWidget();
-	super.setFont (font);
 	
+	/*
+	* Bug in Motif. Setting the font in a combo widget that does
+	* not have any items causes a GP on UTF-8 locale.
+	* The fix is to add an item, change the font, then
+	* remove the added item at the end. 
+	*/
+	int [] argList1 = {OS.XmNitems, 0, OS.XmNitemCount, 0,};
+	OS.XtGetValues (handle, argList1, argList1.length / 2);
+	boolean fixString = OS.IsDBLocale && argList1 [3] == 0;
+	if (fixString) {
+		byte [] buffer = Converter.wcsToMbcs (getCodePage (), "string", true);
+		int xmString = OS.XmStringCreateLocalized (buffer);
+		OS.XmComboBoxAddItem (handle, xmString, -1, false);
+		OS.XmStringFree (xmString);
+	}
+	super.setFont (font);
+	if (fixString) OS.XtSetValues (handle, argList1, argList1.length / 2);	
+
 	/*
 	* Bug in Motif.  When a font is set in a combo box after the widget
 	* is realized, the combo box does not lay out properly.  For example,
@@ -1149,10 +1146,10 @@ public void setFont (Font font) {
 	* NOTE: This problem also occurs for simple combo boxes.
 	*/
 	if (OS.XtIsRealized (handle)) {
-		int [] argList = {OS.XmNwidth, 0, OS.XmNheight, 0, OS.XmNborderWidth, 0};
-		OS.XtGetValues (handle, argList, argList.length / 2);
-		OS.XtResizeWidget (handle, argList [1], argList [3] + 1, argList [5]);
-		OS.XtResizeWidget (handle, argList [1], argList [3], argList [5]);
+		int [] argList2 = {OS.XmNwidth, 0, OS.XmNheight, 0, OS.XmNborderWidth, 0};
+		OS.XtGetValues (handle, argList2, argList2.length / 2);
+		OS.XtResizeWidget (handle, argList2 [1], argList2 [3] + 1, argList2 [5]);
+		OS.XtResizeWidget (handle, argList2 [1], argList2 [3], argList2 [5]);
 	}
 }
 void setForegroundPixel (int pixel) {
@@ -1174,6 +1171,7 @@ void setForegroundPixel (int pixel) {
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_INVALID_RANGE - if the index is not between 0 and the number of elements in the list minus 1 (inclusive)</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the string is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1206,6 +1204,9 @@ public void setItem (int index, String string) {
  *
  * @param items the array of items
  *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the items array is null</li>
+ * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -1244,7 +1245,6 @@ public void setItems (String [] items) {
 	
 	int [] argList2 = {OS.XmNtextField, 0};
 	OS.XtGetValues (handle, argList2, argList2.length / 2);
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XmTextSetString (argList2[1], new byte[1]);
@@ -1256,10 +1256,10 @@ public void setItems (String [] items) {
 }
 /**
  * Sets the orientation of the receiver, which must be one
- * of the constants <code>SWT.LEFT_TO_RIGHT</code> or <code>SWT.LEFT_TO_RIGHT</code>.
+ * of the constants <code>SWT.LEFT_TO_RIGHT</code> or <code>SWT.RIGHT_TO_LEFT</code>.
  * <p>
  *
- * @param orientation new orientation bit
+ * @param orientation new orientation style
  * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1277,7 +1277,7 @@ public void setOrientation (int orientation) {
  * start of the selection and whose y coordinate is the end
  * of the selection. 
  *
- * @param a point representing the new selection start and end
+ * @param selection a point representing the new selection start and end
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the point is null</li>
@@ -1289,6 +1289,7 @@ public void setOrientation (int orientation) {
  */
 public void setSelection (Point selection) {
 	checkWidget();
+	if (selection == null) error (SWT.ERROR_NULL_ARGUMENT);
 	
 	int [] argList = {OS.XmNtextField, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
@@ -1311,7 +1312,6 @@ public void setSelection (Point selection) {
 	if (xDisplay == 0) return;
 	int nStart = Math.min (Math.max (Math.min (selection.x, selection.y), 0), position);
 	int nEnd = Math.min (Math.max (Math.max (selection.x, selection.y), 0), position);
-	Display display = getDisplay ();
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XmTextSetSelection (argList[1], nStart, nEnd, OS.XtLastTimestampProcessed (xDisplay));
@@ -1331,7 +1331,7 @@ public void setSelection (Point selection) {
  * display incorrectly.
  * </p>
  *
- * @param text the new text
+ * @param string the new text
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the string is null</li>
@@ -1367,7 +1367,6 @@ public void setText (String string) {
 			OS.XmComboBoxSelectItem(handle, xmString);
 		} else {
 			/* The list does not contain the item. */
-			Display display = getDisplay ();
 			boolean warnings = display.getWarnings ();
 			display.setWarnings (false);
 			OS.XmTextSetString (argList[1], buffer);
@@ -1398,12 +1397,41 @@ public void setTextLimit (int limit) {
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	OS.XmTextSetMaxLength (argList[1], limit);
 }
-
+/**
+ * Sets the number of items that are visible in the drop
+ * down portion of the receiver's list.
+ *
+ * @param count the new number of items to be visible
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.0
+ */
+public void setVisibleItemCount (int count) {
+	checkWidget ();
+	if (count < 0) return;
+	this.visibleCount = count;
+	/*
+	* But in Motif.  Setting the XmNvisibleItemCount resource
+	* for the combo box after it has been realized causes the
+	* widget to layout badly, sometimes moving the drop down
+	* arrow part of the combo box outside of the bounds.
+	* The fix is to set the XmNvisibleItemCount resource on
+	* the list instead.
+	*/
+	int [] argList1 = new int [] {OS.XmNlist, 0};
+	OS.XtGetValues (handle, argList1, argList1.length / 2);
+	int [] argList2 = {OS.XmNvisibleItemCount, count};
+	OS.XtSetValues (argList1 [1], argList2, argList2.length / 2);
+}
 void deregister () {
 	super.deregister ();
 	int [] argList = {OS.XmNtextField, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
-	WidgetTable.remove (argList[1]);
+	display.removeWidget (argList[1]);
 }
 void enableWidget (boolean enabled) {
 	super.enableWidget (enabled);

@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -49,6 +49,13 @@ public class SWT {
 //	}
 	
 	/* Widget Event Constants */
+	
+	/**
+	 * The null event type (value is 0).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int None = 0;
 	
 	/**
 	 * The key down event type (value is 1).
@@ -219,7 +226,21 @@ public class SWT {
 	 * The hardware key up event type (value is 34).
 	 */
 	public static final int HardKeyUp = 34;
+
+	/**
+	 * The menu detect event type (value is 35).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int MenuDetect = 35;
 	
+	/**
+	 * The set data event type (value is 36).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int SetData = 36;
+		
 	/* Event Details */
 	
 	/**
@@ -388,6 +409,16 @@ public class SWT {
 	 */
 	public static final int SIMPLE = 1 << 6;
 
+	/**
+	 * Style constant for password behavior (value is 1&lt;&lt;22).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>Text</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.0
+	 */
+	public static final int PASSWORD = 1 << 22;
+	
 	/**
 	 * Style constant for shadow in behavior (value is 1&lt;&lt;2).
 	 * <br>Note that this is a <em>HINT</em>.
@@ -567,7 +598,7 @@ public class SWT {
 	 * Style constant for always on top behavior (value is 1&lt;&lt;14).
 	 * <br>Note that this is a <em>HINT</em>.
 	 * <p><b>Used By:</b><ul>
-	 * <li><code>Decorations</code>and subclasses</li>
+	 * <li><code>Shell</code> and subclasses</li>
 	 * </ul></p>
 	 */
 	public static final int ON_TOP = 1 << 14;
@@ -631,7 +662,7 @@ public class SWT {
 	public static final int SYSTEM_MODAL = 1 << 17;
 
 	/**
-	 * Style constant for selection hiding behavior. (value is 1&lt;&lt;15).
+	 * Style constant for selection hiding behavior when the widget loses focus (value is 1&lt;&lt;15).
 	 * <br>Note that this is a <em>HINT</em>.
 	 * <p><b>Used By:</b><ul>
 	 * <li><code>Table</code></li>
@@ -643,7 +674,9 @@ public class SWT {
 	 * Style constant for full row selection behavior. (value is 1&lt;&lt;16).
 	 * <br>Note that this is a <em>HINT</em>.
 	 * <p><b>Used By:</b><ul>
+	 * <li><code>StyledText</code></li>
 	 * <li><code>Table</code></li>
+	 * <li><code>TableTree</code></li>
 	 * </ul></p>
 	 */
 	public static final int FULL_SELECTION = 1 << 16;
@@ -768,6 +801,26 @@ public class SWT {
 	 * @since 2.1.2
 	 */
 	public static final int MIRRORED = 1 << 27;
+	
+	/**
+	 * Style constant to allow embedding (value is 1&lt;&lt;24).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>Composite</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.0
+	 */
+	public static final int EMBEDDED = 1 << 24;
+	
+	/**
+	 * Style constant to allow virtual data (value is 1&lt;&lt;28).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>Table</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.0
+	 */
+	public static final int VIRTUAL = 1 << 28;
 
 	/**
 	 * Style constant for align up behavior (value is 1&lt;&lt;7,
@@ -860,7 +913,7 @@ public class SWT {
 	 * <li><code>FormAttachment</code> in a <code>FormLayout</code></li>
 	 * </ul></p>
 	 */
-	public static final int CENTER             = 1 << 24;
+	public static final int CENTER = 1 << 24;
 
 	/**
 	 * Style constant for horizontal alignment or orientation behavior (value is 1&lt;&lt;8).
@@ -894,6 +947,22 @@ public class SWT {
 	 */
 	public static final int VERTICAL = 1 << 9;
 
+	/**
+	 * Style constant for vertical alignment or orientation behavior (value is 1).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>GridLayout</code> type</li>
+	 * </ul></p>
+	 */
+	public static final int BEGINNING = 1;
+	
+	/**
+	 * Style constant for vertical alignment or orientation behavior (value is 4).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>GridLayout</code> type</li>
+	 * </ul></p>
+	 */
+	public static final int FILL = 4;
+	
 	/**
 	 * Input Method Editor style constant for double byte
 	 * input behavior (value is 1&lt;&lt;1).
@@ -1245,6 +1314,229 @@ public class SWT {
 	 * (value is (1&lt;&lt;24)+21).
 	 */
 	public static final int F12 = KEYCODE_BIT + 21;
+
+	/**
+	 * Keyboard event constant representing the F13 key
+	 * (value is (1&lt;&lt;24)+22).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int F13 = KEYCODE_BIT + 22;
+	
+	/**
+	 * Keyboard event constant representing the F14 key
+	 * (value is (1&lt;&lt;24)+23).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int F14 = KEYCODE_BIT + 23;
+	
+	/**
+	 * Keyboard event constant representing the F15 key
+	 * (value is (1&lt;&lt;24)+24).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int F15 = KEYCODE_BIT + 24;
+	
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad multiply key (value is (1&lt;&lt;24)+42).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_MULTIPLY = KEYCODE_BIT + 42;
+	
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad add key (value is (1&lt;&lt;24)+43).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_ADD = KEYCODE_BIT + 43;
+	
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad subtract key (value is (1&lt;&lt;24)+45).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_SUBTRACT = KEYCODE_BIT + 45;
+
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad decimal key (value is (1&lt;&lt;24)+46).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_DECIMAL = KEYCODE_BIT + 46;
+
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad divide key (value is (1&lt;&lt;24)+47).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_DIVIDE = KEYCODE_BIT + 47;
+
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad zero key (value is (1&lt;&lt;24)+48).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_0 = KEYCODE_BIT + 48;
+
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad one key (value is (1&lt;&lt;24)+49).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_1 = KEYCODE_BIT + 49;
+
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad two key (value is (1&lt;&lt;24)+50).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_2 = KEYCODE_BIT + 50;
+
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad three key (value is (1&lt;&lt;24)+51).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_3 = KEYCODE_BIT + 51;
+
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad four key (value is (1&lt;&lt;24)+52).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_4 = KEYCODE_BIT + 52;
+	
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad five key (value is (1&lt;&lt;24)+53).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_5 = KEYCODE_BIT + 53;
+	
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad six key (value is (1&lt;&lt;24)+54).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_6 = KEYCODE_BIT + 54;
+
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad seven key (value is (1&lt;&lt;24)+55).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_7 = KEYCODE_BIT + 55;
+
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad eight key (value is (1&lt;&lt;24)+56).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_8 = KEYCODE_BIT + 56;
+	
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad nine key (value is (1&lt;&lt;24)+57).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_9 = KEYCODE_BIT + 57;
+
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad equal key (value is (1&lt;&lt;24)+61).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_EQUAL = KEYCODE_BIT + 61;
+	
+	/**
+	 * Keyboard event constant representing the numeric key
+	 * pad enter key (value is (1&lt;&lt;24)+80).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int KEYPAD_CR = KEYCODE_BIT + 80;
+	
+	/**
+	 * Keyboard event constant representing the help
+	 * key (value is (1&lt;&lt;24)+81).
+	 * 
+	 * NOTE: The HELP key maps to the key labeled "help",
+	 * not "F1". If your keyboard does not have a HELP key,
+	 * you will never see this key press.  To listen for
+	 * help on a control, use SWT.Help.
+	 * 
+	 * @since 3.0
+	 * 
+	 * @see SWT#Help
+	 */
+	public static final int HELP = KEYCODE_BIT + 81;
+	
+	/**
+	 * Keyboard event constant representing the caps
+	 * lock key (value is (1&lt;&lt;24)+82).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int CAPS_LOCK = KEYCODE_BIT + 82;
+	
+	/**
+	 * Keyboard event constant representing the num
+	 * lock key (value is (1&lt;&lt;24)+83).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int NUM_LOCK = KEYCODE_BIT + 83;
+	
+	/**
+	 * Keyboard event constant representing the scroll
+	 * lock key (value is (1&lt;&lt;24)+84).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int SCROLL_LOCK = KEYCODE_BIT + 84;
+	
+	/**
+	 * Keyboard event constant representing the pause
+	 * key (value is (1&lt;&lt;24)+85).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int PAUSE = KEYCODE_BIT + 85;
+	
+	/**
+	 * Keyboard event constant representing the break
+	 * key (value is (1&lt;&lt;24)+86).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int BREAK = KEYCODE_BIT + 86;
+	
+	/**
+	 * Keyboard event constant representing the break
+	 * key (value is (1&lt;&lt;24)+87).
+	 * 
+	 * @since 3.0
+	 */
+	public static final int PRINT_SCREEN = KEYCODE_BIT + 87;
 	
 	/**
 	 * The <code>MessageBox</code> style constant for error icon
@@ -2117,6 +2409,11 @@ public class SWT {
 	public static final int IMAGE_PNG = 5;
 
 	/**
+	 * Image format constant indicating a TIFF format image (value is 6).
+	 */
+	public static final int IMAGE_TIFF = 6;
+
+	/**
 	 * GIF image disposal method constants indicating that the
 	 * disposal method is unspecified (value is 0).
 	 */
@@ -2166,6 +2463,36 @@ public class SWT {
 	 * contains a transparent pixel (value is 1&lt;&lt;2).
 	 */
 	public static final int TRANSPARENCY_PIXEL = 1 << 2;
+
+	/**
+	 * The character movement type (value is 1&lt;&lt;0).
+	 * 
+	 * @see org.eclipse.swt.graphics.TextLayout#getNextOffset(int, int)
+	 * @see org.eclipse.swt.graphics.TextLayout#getPreviousOffset(int, int)
+	 * 
+	 * @since 3.0
+	 */	
+	public static final int MOVEMENT_CHAR = 1 << 0;
+
+	/**
+	 * The cluster movement type (value is 1&lt;&lt;1).
+	 * 
+	 * @see org.eclipse.swt.graphics.TextLayout#getNextOffset(int, int)
+	 * @see org.eclipse.swt.graphics.TextLayout#getPreviousOffset(int, int)
+	 * 
+	 * @since 3.0
+	 */
+	public static final int MOVEMENT_CLUSTER = 1 << 1;
+
+	/**
+	 * The word movement type (value is 1&lt;&lt;2).
+	 * 
+	 * @see org.eclipse.swt.graphics.TextLayout#getNextOffset(int, int)
+	 * @see org.eclipse.swt.graphics.TextLayout#getPreviousOffset(int, int)
+	 * 
+	 * @since 3.0
+	 */	
+	public static final int MOVEMENT_WORD = 1 << 2;
 
 /**
  * Answers a concise, human readable description of the error code.
@@ -2238,7 +2565,7 @@ public static String getMessage(String key) {
  * @return the SWT platform name
  */
 public static String getPlatform () {
-	return Callback.getPlatform ();
+	return Library.getPlatform ();
 }
 
 /**
@@ -2286,6 +2613,38 @@ public static void error (int code) {
  * @see IllegalArgumentException
  */
 public static void error (int code, Throwable throwable) {
+	error (code, throwable, null);
+}
+
+/**
+ * Throws an appropriate exception based on the passed in error code.
+ * The <code>throwable</code> argument should be either null, or the
+ * throwable which caused SWT to throw an exception.
+ * <p>
+ * In SWT, errors are reported by throwing one of three exceptions:
+ * <dl>
+ * <dd>java.lang.IllegalArgumentException</dd>
+ * <dt>thrown whenever one of the API methods is invoked with an illegal argument</dt>
+ * <dd>org.eclipse.swt.SWTException (extends java.lang.RuntimeException)</dd>
+ * <dt>thrown whenever a recoverable error happens internally in SWT</dt>
+ * <dd>org.eclipse.swt.SWTError (extends java.lang.Error)</dd>
+ * <dt>thrown whenever a <b>non-recoverable</b> error happens internally in SWT</dt>
+ * </dl>
+ * This method provides the logic which maps between error codes
+ * and one of the above exceptions.
+ * </p>
+ *
+ * @param code the SWT error code.
+ * @param throwable the exception which caused the error to occur.
+ * @param detail more information about error.
+ *
+ * @see SWTError
+ * @see SWTException
+ * @see IllegalArgumentException
+ * 
+ * @since 3.0
+ */
+public static void error (int code, Throwable throwable, String detail) {
 
 	/*
 	* This code prevents the creation of "chains" of SWTErrors and
@@ -2300,7 +2659,9 @@ public static void error (int code, Throwable throwable) {
 	*/
 	if (throwable instanceof SWTError) throw (SWTError) throwable;
 	if (throwable instanceof SWTException) throw (SWTException) throwable;
-		
+
+	String message = findErrorText (code);
+	if (detail != null) message += detail;
 	switch (code) {
 		
 		/* Illegal Arguments (non-fatal) */
@@ -2313,7 +2674,7 @@ public static void error (int code, Throwable throwable) {
 		case ERROR_MENUITEM_NOT_CASCADE:
 		case ERROR_INVALID_PARENT: 		
 		case ERROR_INVALID_RANGE: {
-			throw new IllegalArgumentException (findErrorText (code));
+			throw new IllegalArgumentException (message);
 		}
 		
 		/* SWT Errors (non-fatal) */
@@ -2327,7 +2688,7 @@ public static void error (int code, Throwable throwable) {
 		case ERROR_UNSUPPORTED_FORMAT:
 		case ERROR_FAILED_EXEC:
 		case ERROR_IO: {
-			SWTException exception = new SWTException (code);
+			SWTException exception = new SWTException (code, message);
 			exception.throwable = throwable;
 			throw exception;
 		}
@@ -2353,14 +2714,14 @@ public static void error (int code, Throwable throwable) {
 		case ERROR_NO_MORE_CALLBACKS:
 		case ERROR_NOT_IMPLEMENTED:
 		case ERROR_UNSPECIFIED: {
-			SWTError error = new SWTError (code);
+			SWTError error = new SWTError (code, message);
 			error.throwable = throwable;
 			throw error;
 		}
 	}
 	
 	/* Unknown/Undefined Error */
-	SWTError error = new SWTError (code);
+	SWTError error = new SWTError (code, message);
 	error.throwable = throwable;
 	throw error;
 }

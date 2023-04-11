@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -37,9 +37,9 @@ import org.eclipse.swt.events.*;
  */
 public class Tracker extends Widget {
 	Composite parent;
-	Display display;
 	boolean tracking, stippled;
 	Rectangle [] rectangles, proportions;
+	Rectangle bounds;
 	int cursorOrientation = SWT.NONE;
 	int cursor;
 	final static int STEPSIZE_SMALL = 1;
@@ -80,7 +80,6 @@ public class Tracker extends Widget {
 public Tracker (Composite parent, int style) {
 	super (parent, checkStyle (style));
 	this.parent = parent;
-	display = parent.getDisplay ();
 }
 
 /**
@@ -150,7 +149,8 @@ public void addControlListener (ControlListener listener) {
 	checkWidget ();
 	if (listener == null) error (SWT.ERROR_NULL_ARGUMENT);
 	TypedListener typedListener = new TypedListener (listener);
-	addListener (SWT.Move,typedListener);
+	addListener (SWT.Resize, typedListener);
+	addListener (SWT.Move, typedListener);
 }
 
 Point adjustMoveCursor (int xDisplay, int xWindow) {
@@ -158,7 +158,6 @@ Point adjustMoveCursor (int xDisplay, int xWindow) {
 	int actualX[] = new int[1];
 	int actualY[] = new int[1];
 	
-	Rectangle bounds = computeBounds ();
 	int newX = bounds.x + bounds.width / 2;
 	int newY = bounds.y;
 	
@@ -173,7 +172,6 @@ Point adjustMoveCursor (int xDisplay, int xWindow) {
 }
 Point adjustResizeCursor (int xDisplay, int xWindow) {
 	int newX, newY;
-	Rectangle bounds = computeBounds ();
 
 	if ((cursorOrientation & SWT.LEFT) != 0) {
 		newX = bounds.x;
@@ -242,18 +240,27 @@ Rectangle computeBounds () {
 
 Rectangle [] computeProportions (Rectangle [] rects) {
 	Rectangle [] result = new Rectangle [rects.length];
-	Rectangle bounds = computeBounds ();
+	bounds = computeBounds ();
 	for (int i = 0; i < rects.length; i++) {
-		result[i] = new Rectangle (
-			(rects[i].x - bounds.x) * 100 / bounds.width,
-			(rects[i].y - bounds.y) * 100 / bounds.height,
-			rects[i].width * 100 / bounds.width,
-			rects[i].height * 100 / bounds.height);
+		int x = 0, y = 0, width = 0, height = 0;
+		if (bounds.width != 0) {
+			x = (rects [i].x - bounds.x) * 100 / bounds.width;
+			width = rects [i].width * 100 / bounds.width;
+		} else {
+			width = 100;
+		}
+		if (bounds.height != 0) {
+			y = (rects [i].y - bounds.y) * 100 / bounds.height;
+			height = rects [i].height * 100 / bounds.height;
+		} else {
+			height = 100;
+		}
+		result [i] = new Rectangle (x, y, width, height);			
 	}
 	return result;
 }
 
-void drawRectangles () {
+void drawRectangles (Rectangle [] rects, boolean stippled) {
 	if (parent != null) {
 		if (parent.isDisposed ()) return;
 		parent.getShell ().update ();
@@ -282,17 +289,14 @@ void drawRectangles () {
 		OS.XSetFillStyle (xDisplay, gc, OS.FillStippled);
 		OS.XSetLineAttributes (xDisplay, gc, 3, OS.LineSolid, OS.CapButt, OS.JoinMiter);
 	}
-	for (int i=0; i<rectangles.length; i++) {
-		Rectangle rect = rectangles [i];
+	for (int i=0; i<rects.length; i++) {
+		Rectangle rect = rects [i];
 		OS.XDrawRectangle (xDisplay, xWindow, gc, rect.x, rect.y, rect.width, rect.height);
 	}
 	if (stippled) {
 		OS.XFreePixmap (xDisplay, stipplePixmap);
 	}
 	OS.XFreeGC (xDisplay, gc);
-}
-public Display getDisplay () {
-	return display;
 }
 /**
  * Returns the bounds that are being drawn, expressed relative to the parent
@@ -307,8 +311,15 @@ public Display getDisplay () {
  * </ul>
  */
 public Rectangle [] getRectangles () {
-	checkWidget ();
-	return rectangles;
+	checkWidget();
+	int length = 0;
+	if (rectangles != null) length = rectangles.length;
+	Rectangle [] result = new Rectangle [length];
+	for (int i = 0; i < length; i++) {
+		Rectangle current = rectangles [i];
+		result [i] = new Rectangle (current.x, current.y, current.width, current.height);
+	}
+	return result;
 }
 /**
  * Returns <code>true</code> if the rectangles are drawn with a stippled line, <code>false</code> otherwise.
@@ -326,10 +337,12 @@ public boolean getStippled () {
 }
 
 void moveRectangles (int xChange, int yChange) {
-	if (xChange < 0 && ((style & SWT.LEFT) == 0)) return;
-	if (xChange > 0 && ((style & SWT.RIGHT) == 0)) return;
-	if (yChange < 0 && ((style & SWT.UP) == 0)) return;
-	if (yChange > 0 && ((style & SWT.DOWN) == 0)) return;
+	if (xChange < 0 && ((style & SWT.LEFT) == 0)) xChange = 0;
+	if (xChange > 0 && ((style & SWT.RIGHT) == 0)) xChange = 0;
+	if (yChange < 0 && ((style & SWT.UP) == 0)) yChange = 0;
+	if (yChange > 0 && ((style & SWT.DOWN) == 0)) yChange = 0;
+	if (xChange == 0 && yChange == 0) return;
+	bounds.x += xChange; bounds.y += yChange;
 	for (int i = 0; i < rectangles.length; i++) {
 		rectangles [i].x += xChange;
 		rectangles [i].y += yChange;
@@ -359,10 +372,24 @@ public boolean open () {
 	}
 	boolean cancelled = false;
 	tracking = true;
-	drawRectangles ();
+	drawRectangles (rectangles, stippled);
 	int [] oldX = new int [1], oldY = new int [1];
 	int [] unused = new int [1], mask = new int [1];
 	OS.XQueryPointer (xDisplay, xWindow, unused, unused, oldX, oldY, unused, unused, mask);
+	
+	/*
+	* If exactly one of UP/DOWN is specified as a style then set the cursor
+	* orientation accordingly (the same is done for LEFT/RIGHT styles below).
+	*/
+	int vStyle = style & (SWT.UP | SWT.DOWN);
+	if (vStyle == SWT.UP || vStyle == SWT.DOWN) {
+		cursorOrientation |= vStyle;
+	}
+	int hStyle = style & (SWT.LEFT | SWT.RIGHT);
+	if (hStyle == SWT.LEFT || hStyle == SWT.RIGHT) {
+		cursorOrientation |= hStyle;
+	}
+	
 	Point cursorPos;
 	int mouseMasks = OS.Button1Mask | OS.Button2Mask | OS.Button3Mask;
 	boolean mouseDown = (mask [0] & mouseMasks) != 0;
@@ -375,7 +402,8 @@ public boolean open () {
 		oldX [0] = cursorPos.x;  oldY [0] = cursorPos.y;
 	}
 
-	XAnyEvent xEvent = new XAnyEvent ();
+	int xEvent = OS.XtMalloc (XEvent.sizeof);
+	XEvent anyEvent = new XEvent();
 	int [] newX = new int [1], newY = new int [1];
 	int xtContext = OS.XtDisplayToApplicationContext (xDisplay);
 	
@@ -398,12 +426,13 @@ public boolean open () {
 		OS.CurrentTime);
 				
 	/*
-	 *  Tracker behaves like a Dialog with its own OS event loop.
+	 * Tracker behaves like a Dialog with its own OS event loop.
 	 */
 	while (tracking) {
 		if (parent != null && parent.isDisposed ()) break;
 		OS.XtAppNextEvent (xtContext, xEvent);
-		switch (xEvent.type) {
+		OS.memmove (anyEvent, xEvent, XEvent.sizeof);
+		switch (anyEvent.type) {
 			case OS.MotionNotify:
 				if (cursor != 0) {
 					OS.XChangeActivePointerGrab (
@@ -416,34 +445,100 @@ public boolean open () {
 			case OS.ButtonRelease:
 				OS.XQueryPointer (xDisplay, xWindow, unused, unused, newX, newY, unused, unused, unused);
 				if (oldX [0] != newX [0] || oldY [0] != newY [0]) {
-					drawRectangles ();
+					Rectangle [] oldRectangles = rectangles;
+					boolean oldStippled = stippled;
+					Rectangle [] rectsToErase = new Rectangle [rectangles.length];
+					for (int i = 0; i < rectangles.length; i++) {
+						Rectangle current = rectangles [i];
+						rectsToErase [i] = new Rectangle (current.x, current.y, current.width, current.height);
+					}
 					Event event = new Event ();
 					event.x = newX [0];
 					event.y = newY [0];
 					if ((style & SWT.RESIZE) != 0) {
 						resizeRectangles (newX [0] - oldX [0], newY [0] - oldY [0]);
 						sendEvent (SWT.Resize, event);
+						/*
+						 * It is possible (but unlikely) that application code
+						 * could have disposed the widget in the resize event.
+						 * If this happens then return false to indicate that
+						 * the move failed.
+						 */
+						if (isDisposed ()) {
+							cancelled = true;
+							break;
+						}
+						boolean draw = false;
+						/*
+						 * It is possible that application code could have
+						 * changed the rectangles in the resize event.  If this
+						 * happens then only redraw the tracker if the rectangle
+						 * values have changed.
+						 */
+						if (rectangles != oldRectangles) {
+							int length = rectangles.length;
+							if (length != rectsToErase.length) {
+								draw = true;
+							} else {
+								for (int i = 0; i < length; i++) {
+									if (!rectangles [i].equals (rectsToErase [i])) {
+										draw = true;
+										break;
+									}
+								}
+							}
+						} else {
+							draw = true;
+						}
+						if (draw) {
+							drawRectangles (rectsToErase, oldStippled);
+							drawRectangles (rectangles, stippled);
+						}
 						cursorPos = adjustResizeCursor (xDisplay, xWindow);
-						newX [0] = cursorPos.x; newY [0] = cursorPos.y;
+						newX [0] = cursorPos.x;  newY [0] = cursorPos.y;
 					} else {
 						moveRectangles (newX [0] - oldX [0], newY [0] - oldY [0]);
 						sendEvent (SWT.Move, event);
+						/*
+						 * It is possible (but unlikely) that application code
+						 * could have disposed the widget in the move event.
+						 * If this happens then return false to indicate that
+						 * the move failed.
+						 */
+						if (isDisposed ()) {
+							cancelled = true;
+							break;
+						}
+						boolean draw = false;
+						/*
+						 * It is possible that application code could have
+						 * changed the rectangles in the move event.  If this
+						 * happens then only redraw the tracker if the rectangle
+						 * values have changed.
+						 */
+						if (rectangles != oldRectangles) {
+							int length = rectangles.length;
+							if (length != rectsToErase.length) {
+								draw = true;
+							} else {
+								for (int i = 0; i < length; i++) {
+									if (!rectangles [i].equals (rectsToErase [i])) {
+										draw = true;
+										break;
+									}
+								}
+							}
+						} else {
+							draw = true;
+						}
+						if (draw) {
+							drawRectangles (rectsToErase, oldStippled);
+							drawRectangles (rectangles, stippled);
+						}
 					}
-					/*
-					 * It is possible (but unlikely) that application code
-					 * could have disposed the widget in the move event.
-					 * If this happens then return false to indicate that
-					 * the move failed.
-					 */
-					if (isDisposed ()) {
-						if (ptrGrabResult == OS.GrabSuccess) OS.XUngrabPointer (xDisplay, OS.CurrentTime);
-						if (kbdGrabResult == OS.GrabSuccess) OS.XUngrabKeyboard (xDisplay, OS.CurrentTime);
-						return false;
-					}
-					drawRectangles ();
 					oldX [0] = newX [0];  oldY [0] = newY [0];
 				}
-				tracking = xEvent.type != OS.ButtonRelease;
+				tracking = anyEvent.type != OS.ButtonRelease;
 				break;
 			case OS.KeyPress:
 				XKeyEvent keyEvent = new XKeyEvent ();
@@ -464,7 +559,6 @@ public boolean open () {
 							OS.XtAppNextEvent (xtContext, xEvent);
 							break;
 						case OS.XK_Escape:
-						case OS.XK_Cancel:
 							tracking = false;
 							cancelled = true;
 							/*
@@ -486,46 +580,113 @@ public boolean open () {
 							break;
 					}
 					if (xChange != 0 || yChange != 0) {
-						drawRectangles ();
+						Rectangle [] oldRectangles = rectangles;
+						boolean oldStippled = stippled;
+						Rectangle [] rectsToErase = new Rectangle [rectangles.length];
+						for (int i = 0; i < rectangles.length; i++) {
+							Rectangle current = rectangles [i];
+							rectsToErase [i] = new Rectangle (current.x, current.y, current.width, current.height);
+						}
 						Event event = new Event ();
-						event.x = oldX[0] + xChange;
-						event.y = oldY[0] + yChange;
+						event.x = oldX [0] + xChange;
+						event.y = oldY [0] + yChange;
 						if ((style & SWT.RESIZE) != 0) {
 							resizeRectangles (xChange, yChange);
 							sendEvent (SWT.Resize, event);
+							/*
+							 * It is possible (but unlikely) that application code
+							 * could have disposed the widget in the resize event.
+							 * If this happens then return false to indicate that
+							 * the move failed.
+							 */
+							if (isDisposed ()) {
+								cancelled = true;
+								break;
+							}
+							boolean draw = false;
+							/*
+							 * It is possible that application code could have
+							 * changed the rectangles in the resize event.  If this
+							 * happens then only redraw the tracker if the rectangle
+							 * values have changed.
+							 */
+							if (rectangles != oldRectangles) {
+								int length = rectangles.length;
+								if (length != rectsToErase.length) {
+									draw = true;
+								} else {
+									for (int i = 0; i < length; i++) {
+										if (!rectangles [i].equals (rectsToErase [i])) {
+											draw = true;
+											break;
+										}
+									}
+								}
+							} else {
+								draw = true;
+							}
+							if (draw) {
+								drawRectangles (rectsToErase, oldStippled);
+								drawRectangles (rectangles, stippled);
+							}
 							cursorPos = adjustResizeCursor (xDisplay, xWindow);
 						} else {
 							moveRectangles (xChange, yChange);
 							sendEvent (SWT.Move, event);
+							/*
+							 * It is possible (but unlikely) that application code
+							 * could have disposed the widget in the move event.
+							 * If this happens then return false to indicate that
+							 * the move failed.
+							 */
+							if (isDisposed ()) {
+								cancelled = true;
+								break;
+							}
+							boolean draw = false;
+							/*
+							 * It is possible that application code could have
+							 * changed the rectangles in the move event.  If this
+							 * happens then only redraw the tracker if the rectangle
+							 * values have changed.
+							 */
+							if (rectangles != oldRectangles) {
+								int length = rectangles.length;
+								if (length != rectsToErase.length) {
+									draw = true;
+								} else {
+									for (int i = 0; i < length; i++) {
+										if (!rectangles [i].equals (rectsToErase [i])) {
+											draw = true;
+											break;
+										}
+									}
+								}
+							} else {
+								draw = true;
+							}
+							if (draw) {
+								drawRectangles (rectsToErase, oldStippled);
+								drawRectangles (rectangles, stippled);
+							}
 							cursorPos = adjustMoveCursor (xDisplay, xWindow);
 						}
-						/*
-						 * It is possible (but unlikely) that application code
-						 * could have disposed the widget in the move event.
-						 * If this happens then return false to indicate that
-						 * the move failed.
-						 */
-						if (isDisposed ()) {
-							if (ptrGrabResult == OS.GrabSuccess) OS.XUngrabPointer (xDisplay, OS.CurrentTime);
-							if (kbdGrabResult == OS.GrabSuccess) OS.XUngrabKeyboard (xDisplay, OS.CurrentTime);
-							return false;
-						}
-						drawRectangles ();
-						oldX[0] = cursorPos.x;  oldY[0] = cursorPos.y;
+						oldX [0] = cursorPos.x;  oldY [0] = cursorPos.y;
 					}
 				}
 				break;
+			case OS.ButtonPress:
+			case OS.KeyRelease:
 			case OS.EnterNotify:
 			case OS.LeaveNotify:
-				/*
-				 * Do not dispatch these
-				 */
+				/* Do not dispatch these */
 				break;
 			default:
 				OS.XtDispatchEvent (xEvent);
 		}
 	}
-	drawRectangles ();
+	OS.XtFree (xEvent);
+	if (!isDisposed()) drawRectangles (rectangles, stippled);
 	if (ptrGrabResult == OS.GrabSuccess) OS.XUngrabPointer (xDisplay, OS.CurrentTime);
 	if (kbdGrabResult == OS.GrabSuccess) OS.XUngrabKeyboard (xDisplay, OS.CurrentTime);
 	return !cancelled;
@@ -551,13 +712,14 @@ public void removeControlListener (ControlListener listener) {
 	checkWidget ();
 	if (listener == null) error (SWT.ERROR_NULL_ARGUMENT);
 	if (eventTable == null) return;
+	eventTable.unhook (SWT.Resize, listener);
 	eventTable.unhook (SWT.Move, listener);
 }
 void resizeRectangles (int xChange, int yChange) {
 	/*
-	* If the cursor orientation has not been set in the orientation of
-	* this change then try to set it here.
-	*/
+	 * If the cursor orientation has not been set in the orientation of
+	 * this change then try to set it here.
+	 */
 	if (xChange < 0 && ((style & SWT.LEFT) != 0) && ((cursorOrientation & SWT.RIGHT) == 0)) {
 		cursorOrientation |= SWT.LEFT;
 	} else if (xChange > 0 && ((style & SWT.RIGHT) != 0) && ((cursorOrientation & SWT.LEFT) == 0)) {
@@ -567,7 +729,75 @@ void resizeRectangles (int xChange, int yChange) {
 	} else if (yChange > 0 && ((style & SWT.DOWN) != 0) && ((cursorOrientation & SWT.UP) == 0)) {
 		cursorOrientation |= SWT.DOWN;
 	}
-	Rectangle bounds = computeBounds ();
+	
+	/*
+	 * If the bounds will flip about the x or y axis then apply the adjustment
+	 * up to the axis (ie.- where bounds width/height becomes 0), change the
+	 * cursor's orientation accordingly, and flip each Rectangle's origin (only
+	 * necessary for > 1 Rectangles) 
+	 */
+	if ((cursorOrientation & SWT.LEFT) != 0) {
+		if (xChange > bounds.width) {
+			if ((style & SWT.RIGHT) == 0) return;
+			cursorOrientation |= SWT.RIGHT;
+			cursorOrientation &= ~SWT.LEFT;
+			bounds.x += bounds.width;
+			xChange -= bounds.width;
+			bounds.width = 0;
+			if (proportions.length > 1) {
+				for (int i = 0; i < proportions.length; i++) {
+					Rectangle proportion = proportions [i];
+					proportion.x = 100 - proportion.x - proportion.width;
+				}
+			}
+		}
+	} else if ((cursorOrientation & SWT.RIGHT) != 0) {
+		if (bounds.width < -xChange) {
+			if ((style & SWT.LEFT) == 0) return;
+			cursorOrientation |= SWT.LEFT;
+			cursorOrientation &= ~SWT.RIGHT;
+			xChange += bounds.width;
+			bounds.width = 0;
+			if (proportions.length > 1) {
+				for (int i = 0; i < proportions.length; i++) {
+					Rectangle proportion = proportions [i];
+					proportion.x = 100 - proportion.x - proportion.width;
+				}
+			}
+		}
+	}
+	if ((cursorOrientation & SWT.UP) != 0) {
+		if (yChange > bounds.height) {
+			if ((style & SWT.DOWN) == 0) return;
+			cursorOrientation |= SWT.DOWN;
+			cursorOrientation &= ~SWT.UP;
+			bounds.y += bounds.height;
+			yChange -= bounds.height;
+			bounds.height = 0;
+			if (proportions.length > 1) {
+				for (int i = 0; i < proportions.length; i++) {
+					Rectangle proportion = proportions [i];
+					proportion.y = 100 - proportion.y - proportion.height;
+				}
+			}
+		}
+	} else if ((cursorOrientation & SWT.DOWN) != 0) {
+		if (bounds.height < -yChange) {
+			if ((style & SWT.UP) == 0) return;
+			cursorOrientation |= SWT.UP;
+			cursorOrientation &= ~SWT.DOWN;
+			yChange += bounds.height;
+			bounds.height = 0;
+			if (proportions.length > 1) {
+				for (int i = 0; i < proportions.length; i++) {
+					Rectangle proportion = proportions [i];
+					proportion.y = 100 - proportion.y - proportion.height;
+				}
+			}
+		}
+	}
+	
+	// apply the bounds adjustment
 	if ((cursorOrientation & SWT.LEFT) != 0) {
 		bounds.x += xChange;
 		bounds.width -= xChange;
@@ -580,10 +810,6 @@ void resizeRectangles (int xChange, int yChange) {
 	} else if ((cursorOrientation & SWT.DOWN) != 0) {
 		bounds.height += yChange;
 	}
-	/*
-	* The following are conditions under which the resize should not be applied
-	*/
-	if (bounds.width < 0 || bounds.height < 0) return;
 	
 	Rectangle [] newRects = new Rectangle [rectangles.length];
 	for (int i = 0; i < rectangles.length; i++) {
@@ -619,6 +845,9 @@ public void setCursor (Cursor value) {
  *
  * @param rectangles the bounds of the rectangles to be drawn
  *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the set of rectangles is null or contains a null rectangle</li>
+ * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -626,7 +855,14 @@ public void setCursor (Cursor value) {
  */
 public void setRectangles (Rectangle [] rectangles) {
 	checkWidget ();
-	this.rectangles = rectangles;
+	if (rectangles == null) error (SWT.ERROR_NULL_ARGUMENT);
+	int length = rectangles.length;
+	this.rectangles = new Rectangle [length];
+	for (int i = 0; i < length; i++) {
+		Rectangle current = rectangles [i];
+		if (current == null) error (SWT.ERROR_NULL_ARGUMENT);
+		this.rectangles [i] = new Rectangle (current.x, current.y, current.width, current.height);
+	}
 	proportions = computeProportions (rectangles);
 }
 /**

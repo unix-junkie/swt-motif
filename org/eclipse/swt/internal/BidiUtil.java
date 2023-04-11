@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -41,7 +41,7 @@ public class BidiUtil {
 /*
  * Not implemented.
  */
-public static void addLanguageListener(int hwnd, Runnable runnable) {
+public static void addLanguageListener(int /*long*/ hwnd, Runnable runnable) {
 }
 /*
  * Not implemented.
@@ -90,7 +90,7 @@ public static int getKeyboardLanguage() {
 /*
  * Not implemented.
  */
-public static void removeLanguageListener(int hwnd) {
+public static void removeLanguageListener(int /*long*/ hwnd) {
 }
 /*
  * Not implemented.
@@ -100,7 +100,7 @@ public static void setKeyboardLanguage(int language) {
 /*
  * Not implemented.
  */
-public static boolean setOrientation(int hwnd, int orientation) {
+public static boolean setOrientation(int /*long*/ hwnd, int orientation) {
 	return false;
 }
 }

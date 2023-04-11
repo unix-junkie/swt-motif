@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -131,6 +131,7 @@ public PaletteData(int redMask, int greenMask, int blueMask) {
 /**
  * Returns the pixel value corresponding to the given <code>RBG</code>.
  *
+ * @param rgb the RGB to get the pixel value for
  * @return the pixel value for the given RGB
  * 
  * @exception IllegalArgumentException <ul>
@@ -159,6 +160,7 @@ public int getPixel(RGB rgb) {
 /**
  * Returns an <code>RGB</code> corresponding to the given pixel value.
  *
+ * @param pixel the pixel to get the RGB value for
  * @return the RGB value for the given pixel
  *
  * @exception IllegalArgumentException <ul>

@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -84,7 +84,7 @@ public Color (Device device, int red, int green, int blue) {
  * </p>
  *
  * @param device the device on which to allocate the color
- * @param RGB the RGB values of the desired color
+ * @param rgb the RGB values of the desired color
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if device is null and there is no current device</li>
@@ -183,6 +183,8 @@ public int getRed () {
 }
 /**
  * Returns an <code>RGB</code> representing the receiver.
+ *
+ * @return the RGB for the color
  *
  * @exception SWTException <ul>
  *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>

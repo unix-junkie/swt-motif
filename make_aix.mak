@@ -1,6 +1,6 @@
 #*******************************************************************************
-# Copyright (c) 2000, 2003 IBM Corporation and others.
-# All rights reserved. This program and the accompanying materials 
+# Copyright (c) 2000, 2004 IBM Corporation and others.
+# All rights reserved. This program and the accompanying materials
 # are made available under the terms of the Common Public License v1.0
 # which accompanies this distribution, and is available at
 # http://www.eclipse.org/legal/cpl-v10.html
@@ -30,14 +30,14 @@ CDE_HOME   = /usr/dt
 
 SWT_PREFIX   = swt
 WS_PREFIX    = motif
-SWT_DLL      = lib$(SWT_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).a
-SWT_OBJ      = callback.o structs.o swt.o 
-SWT_LIB      = -L$(MOTIF_HOME) -G -bnoentry -lc_r -lC_r -lm -bexpall -lXm -lMrm -lXt -lX11 -lXext -liconv
+SWT_LIB      = lib$(SWT_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).a
+SWT_OBJS      = swt.o callback.o os.o os_structs.o os_custom.o os_stats.o
+SWT_LIBS      = -L$(MOTIF_HOME) -G -bnoentry -lc_r -lC_r -lm -bexpall -lXm -lMrm -lXt -lX11 -lXext -liconv -lXtst
 
 CDE_PREFIX   = swt-cde
-CDE_DLL      = lib$(CDE_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).a
-CDE_OBJ      = cde.o
-CDE_LIB      = -L$(CDE_HOME)/lib -bnoentry -bexpall -lDtSvc -lc
+CDE_LIB      = lib$(CDE_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).a
+CDE_OBJS      = cde.o
+CDE_LIBS      = -L$(CDE_HOME)/lib -bnoentry -bexpall -lDtSvc -lc
 
 #
 # The following CFLAGS are for compiling both the SWT library and the CDE
@@ -45,7 +45,8 @@ CDE_LIB      = -L$(CDE_HOME)/lib -bnoentry -bexpall -lDtSvc -lc
 #
 CFLAGS = -O -s \
 	-DSWT_VERSION=$(SWT_VERSION) \
-	-DAIX -DMOTIF -DCDE -DNO_XPRINTING_EXTENSIONS \
+	-DAIX -DMOTIF -DCDE \
+	-DNO_XPRINTING_EXTENSIONS -DNO_XINERAMA_EXTENSIONS \
 	-q mbcs -qlanglvl=extended -qmaxmem=8192 \
 	-I$(JAVA_HOME)/include \
 	-I$(MOTIF_HOME)/include \
@@ -53,15 +54,15 @@ CFLAGS = -O -s \
 
 all: make_swt
 
-make_swt: $(SWT_DLL)
+make_swt: $(SWT_LIB)
 
-$(SWT_DLL): $(SWT_OBJ)
-	ld $(SWT_LIB) -o $(SWT_DLL) $(SWT_OBJ)
+$(SWT_LIB): $(SWT_OBJS)
+	ld $(SWT_LIBS) -o $(SWT_LIB) $(SWT_OBJS)
 
-make_cde: $(CDE_DLL)
+make_cde: $(CDE_LIB)
 
-$(CDE_DLL): $(CDE_OBJ)
-	ld -o $@ $(CDE_OBJ) $(CDE_LIB)
+$(CDE_LIB): $(CDE_OBJS)
+	ld -o $@ $(CDE_OBJS) $(CDE_LIBS)
 
 
 clean:

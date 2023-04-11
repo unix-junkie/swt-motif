@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -41,6 +41,7 @@ import org.eclipse.swt.events.*;
  * </p>
  */
 public class Button extends Control {
+	String text = "";
 	Image image, bitmap, disabled;
 	static final byte [] ARM_AND_ACTIVATE;
 	static {
@@ -126,26 +127,28 @@ public void addSelectionListener(SelectionListener listener) {
 }
 static int checkStyle (int style) {
 	style = checkBits (style, SWT.PUSH, SWT.ARROW, SWT.CHECK, SWT.RADIO, SWT.TOGGLE, 0);
-	if ((style & SWT.PUSH) != 0) {
+	if ((style & (SWT.PUSH | SWT.TOGGLE)) != 0) {
 		return checkBits (style, SWT.CENTER, SWT.LEFT, SWT.RIGHT, 0, 0, 0);
 	}
-	if ((style & (SWT.CHECK | SWT.RADIO | SWT.TOGGLE)) != 0) {
+	if ((style & (SWT.CHECK | SWT.RADIO)) != 0) {
 		return checkBits (style, SWT.LEFT, SWT.RIGHT, SWT.CENTER, 0, 0, 0);
 	}
 	if ((style & SWT.ARROW) != 0) {
+		style |= SWT.NO_FOCUS;
 		return checkBits (style, SWT.UP, SWT.DOWN, SWT.LEFT, SWT.RIGHT, 0, 0);
 	}
 	return style;
 }
 void click () {
-	OS.XtCallActionProc (handle, ARM_AND_ACTIVATE, new XAnyEvent (), null, 0);
+	int event = OS.XtMalloc (XEvent.sizeof);
+	OS.XtCallActionProc (handle, ARM_AND_ACTIVATE, event, null, 0);
+	OS.XtFree (event);
 }
 public Point computeSize (int wHint, int hHint, boolean changed) {
 	checkWidget();
 	int border = getBorderWidth ();
 	int width = border * 2, height = border * 2;
 	if ((style & SWT.ARROW) != 0) {
-		Display display = getDisplay ();
 		width += display.scrolledMarginX;
 		height += display.scrolledMarginY;
 		if (wHint != SWT.DEFAULT) width = wHint + (border * 2);
@@ -173,7 +176,7 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 		int [] argList1 = {OS.XmNlabelString, 0};
 		OS.XtGetValues (handle, argList1, argList1.length / 2);
 		int xmString = argList1 [1];
-		if (OS.XmStringEmpty (xmString)) height += getFontHeight ();
+		if (OS.XmStringEmpty (xmString)) height += getFontHeight (font.handle);
 		if (xmString != 0) OS.XmStringFree (xmString);
 	}
 	if (wHint != SWT.DEFAULT || hHint != SWT.DEFAULT) {	
@@ -229,7 +232,6 @@ void createHandle (int index) {
 		* push button look.  The fix is to set the shadow
 		* thickness when ever this resource is changed.
 		*/
-		Display display = getDisplay ();
 		int thickness = display.buttonShadowThickness;
 		int [] argList = {
 			OS.XmNancestorSensitive, 1,
@@ -310,13 +312,13 @@ void createWidget (int index) {
 	OS.XtSetValues (handle, argList, argList.length / 2);
 }
 int defaultBackground () {
-	return getDisplay ().buttonBackground;
+	return display.buttonBackground;
 }
 Font defaultFont () {
-	return getDisplay ().buttonFont;
+	return display.buttonFont;
 }
 int defaultForeground () {
-	return getDisplay ().buttonForeground;
+	return display.buttonForeground;
 }
 /**
  * Returns a value which describes the position of the
@@ -356,9 +358,10 @@ public int getAlignment () {
 }
 boolean getDefault () {
 	if ((style & SWT.PUSH) == 0) return false;
-	int [] argList = {OS.XmNshowAsDefault, 0};
-	OS.XtGetValues (handle, argList, argList.length / 2);
-	return argList [1] != 0;
+//	int [] argList = {OS.XmNshowAsDefault, 0};
+//	OS.XtGetValues (handle, argList, argList.length / 2);
+//	return argList [1] != 0;
+	return this == menuShell ().defaultButton;
 }
 /**
  * Returns the receiver's image if it has one, or null
@@ -403,7 +406,8 @@ public boolean getSelection () {
 }
 /**
  * Returns the receiver's text, which will be an empty
- * string if it has never been set.
+ * string if it has never been set or if the receiver is
+ * an <code>ARROW</code> button.
  *
  * @return the receiver's text
  *
@@ -415,51 +419,11 @@ public boolean getSelection () {
 public String getText () {
 	checkWidget();
 	if ((style & SWT.ARROW) != 0) return "";
-	int [] argList = {OS.XmNlabelString, 0, OS.XmNmnemonic, 0};
-	OS.XtGetValues (handle, argList, argList.length / 2);
-	int xmString = argList [1];
-	int mnemonic = argList [3];
-	if (mnemonic == OS.XK_VoidSymbol) mnemonic = 0;
-	if (xmString == 0) error (SWT.ERROR_CANNOT_GET_TEXT);
-	char [] result = null;	
-	int address = OS.XmStringUnparse (
-		xmString,
-		null,
-		OS.XmCHARSET_TEXT,
-		OS.XmCHARSET_TEXT,
-		null,
-		0,
-		OS.XmOUTPUT_ALL);
-	if (address != 0) {
-		int length = OS.strlen (address);
-		byte [] buffer = new byte [length];
-		OS.memmove (buffer, address, length);
-		OS.XtFree (address);
-		result = Converter.mbcsToWcs (getCodePage (), buffer);
-	}	
-	OS.XmStringFree (xmString);
-	int count = 0;
-	if (mnemonic != 0) count++;
-	for (int i=0; i<result.length-1; i++)
-		if (result [i] == Mnemonic) count++;
-	char [] newResult = result;
-	if ((count != 0) || (mnemonic != 0)) {
-		newResult = new char [result.length + count];
-		int i = 0, j = 0;
-		while (i < result.length) {
-			if ((mnemonic != 0) && (result [i] == mnemonic)) {
-				if (j < newResult.length) newResult [j++] = Mnemonic;
-				mnemonic = 0;
-			}
-			if ((newResult [j++] = result [i++]) == Mnemonic)
-				if (j < newResult.length) newResult [j++] = Mnemonic;
-		}
-	}
-	return new String (newResult);
+	return text;
 }
 void hookEvents () {
 	super.hookEvents ();
-	int windowProc = getDisplay ().windowProc;
+	int windowProc = display.windowProc;
 	if ((style & (SWT.CHECK | SWT.RADIO | SWT.TOGGLE)) != 0) {
 		OS.XtAddCallback (handle, OS.XmNvalueChangedCallback, windowProc, VALUE_CHANGED_CALLBACK);
 	} else {
@@ -571,6 +535,12 @@ public void setAlignment (int alignment) {
 }
 void setBackgroundPixel (int pixel) {
 	super.setBackgroundPixel (pixel);
+	if ((style & SWT.FLAT) != 0) {
+		int [] argList1 = {OS.XmNbottomShadowColor, 0};
+		OS.XtGetValues (handle, argList1, argList1.length / 2);
+		int [] argList2 = {OS.XmNtopShadowColor, argList1 [1]};
+		OS.XtSetValues (handle, argList2, argList2.length / 2);
+	}
 	int [] argList = {OS.XmNlabelType, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	if (argList [1] == OS.XmPIXMAP) setBitmap (image);
@@ -583,7 +553,6 @@ void setBitmap (Image image) {
 	bitmap = disabled = null;
 	if (image != null) {
 		if (image.isDisposed()) error(SWT.ERROR_INVALID_ARGUMENT);
-		Display display = getDisplay ();
 		switch (image.type) {
 			case SWT.BITMAP:
 				labelPixmap = image.pixmap;
@@ -618,6 +587,31 @@ void setDefault (boolean value) {
 	if (getShell ().parent == null) return;
 	int [] argList = {OS.XmNshowAsDefault, (value ? 1 : 0)};
 	OS.XtSetValues (handle, argList, argList.length / 2);
+}
+public void setFont (Font font) {
+	checkWidget();
+	
+	/*
+	* Bug in Motif. Setting the font in a button widget that does
+	* not have a non-empty string causes GP on UTF-8 locale.
+	* The fix is to set a non-empty string, change the font,
+	* and restore the empty string at the end. 
+	*/	
+	int [] argList1 = {OS.XmNlabelString, 0, OS.XmNlabelType, 0};
+	OS.XtGetValues (handle, argList1, argList1.length / 2);
+	boolean fixString = OS.IsDBLocale && OS.XmStringEmpty (argList1 [1]); 
+	if (fixString) {
+		byte[] buffer = Converter.wcsToMbcs (getCodePage (), "string", true);
+		int xmString = OS.XmStringCreateLocalized (buffer);	
+		int [] argList2 = { 
+			OS.XmNlabelType, OS.XmSTRING,
+			OS.XmNlabelString, xmString,
+		};
+		OS.XtSetValues (handle, argList2, argList2.length / 2);
+		OS.XmStringFree (xmString);
+	}
+	super.setFont (font);
+	if (fixString) OS.XtSetValues (handle, argList1, argList1.length / 2);	
 }
 /**
  * Sets the receiver's image to the argument, which may be
@@ -699,18 +693,10 @@ public void setText (String string) {
 	checkWidget();
 	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
 	if ((style & SWT.ARROW) != 0) return;
+	text = string;
 	char [] text = new char [string.length ()];
 	string.getChars (0, text.length, text, 0);
-	int i=0, j=0, mnemonic=0;
-	while (i < text.length) {
-		if ((text [j++] = text [i++]) == Mnemonic) {
-			if (i == text.length) {continue;}
-			if (text [i] == Mnemonic) {i++; continue;}
-			if (mnemonic == 0) mnemonic = text [i];
-			j--;
-		}
-	}
-	while (j < text.length) text [j++] = 0;
+	int mnemonic = fixMnemonic (text);
 	byte [] buffer = Converter.wcsToMbcs (getCodePage (), text, true);
 	int xmString = OS.XmStringParseText (
 		buffer,
@@ -737,7 +723,6 @@ void updateShadows () {
 	if ((style & SWT.FLAT) != 0 && (style & SWT.TOGGLE) != 0) {
 		int [] argList1 = {OS.XmNset, 0};
 		OS.XtGetValues (handle, argList1, argList1.length / 2);
-		Display display = getDisplay ();
 		int pixel = argList1 [1] == OS.XmUNSET ? display.compositeBottomShadow : display.compositeTopShadow;
 		int [] argList2 = {OS.XmNtopShadowColor, pixel};
 		OS.XtSetValues (handle, argList2, argList2.length / 2);

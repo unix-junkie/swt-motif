@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -40,6 +40,7 @@ import org.eclipse.swt.graphics.*;
  * </p>
  */
 public class Label extends Control {
+	int formHandle;
 	String text = "";
 	Image image, bitmap, disabled;
 
@@ -84,6 +85,7 @@ public Label (Composite parent, int style) {
 	super (parent, checkStyle (style));
 }
 static int checkStyle (int style) {
+	style |= SWT.NO_FOCUS;
 	if ((style & SWT.SEPARATOR) != 0) {
 		style = checkBits (style, SWT.VERTICAL, SWT.HORIZONTAL, 0, 0, 0, 0);
 		return checkBits (style, SWT.SHADOW_OUT, SWT.SHADOW_IN, SWT.SHADOW_NONE, 0, 0, 0);
@@ -107,7 +109,7 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 	int [] argList = {OS.XmNlabelType, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	int labelType = argList [1];
-	if (labelType == OS.XmSTRING && (style & SWT.WRAP) != 0 && wHint != SWT.DEFAULT) {
+	if (labelType == OS.XmSTRING && (style & SWT.WRAP) != 0) {
 		/* If we are wrapping text, calculate the height based on wHint. */
 		int [] argList4 = {
 			OS.XmNmarginTop, 0,     /* 1 */
@@ -116,34 +118,38 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 			OS.XmNmarginWidth, 0,   /* 7 */
 		};
 		OS.XtGetValues (handle, argList4, argList4.length / 2);
-		int unavailable = 2 * (argList4 [7] + getBorderWidth());
-		Display display = getDisplay ();
-		String string = display.wrapText (text, font, wHint - unavailable);
+		String string = text;
+		if (wHint != SWT.DEFAULT) {
+			int unavailable = 2 * (argList4 [7] + getBorderWidth());
+			string = display.wrapText (string, font, wHint - unavailable);
+		}
 		GC gc = new GC(this);
 		Point extent = gc.textExtent(string);
 		gc.dispose();
 		height = extent.y + argList4 [1] + argList4 [3] + argList4 [5] * 2 + border * 2;
+		if (wHint == SWT.DEFAULT) {
+			width += extent.x + 2 * argList4 [7];
+		}
 	} else {
 		/* If we are not wrapping, ask the widget for its geometry. */
 		XtWidgetGeometry result = new XtWidgetGeometry ();
 		result.request_mode = OS.CWWidth | OS.CWHeight;
-		int [] argList2 = {OS.XmNrecomputeSize, 1};
-		OS.XtSetValues(handle, argList2, argList2.length / 2);
 		OS.XtQueryGeometry (handle, null, result);
-		int [] argList3 = {OS.XmNrecomputeSize, 0};
-		OS.XtSetValues(handle, argList3, argList3.length / 2);
 		width += result.width;
 		height += result.height;
 	}
 
 	/*
-	 * Feature in Motif. If a label's labelType is XmSTRING but it
-	 * has no label set into it yet, recomputing the size will
-	 * not take into account the height of the font, as we would
-	 * like it to. Take care of this case.
-	 */
+	* Feature in Motif. If a label's labelType is XmSTRING but 
+	* the label string is empty, recomputing the size will
+	* not take into account the height of the font, as we would
+	* like it to. Take care of this case.
+	* 
+	* Note:  When the label string is empty a single space is set
+	* into the widget. So the preferred height is computed properly.
+	* Just make sure the preferred width is zero.
+	*/
 	if (labelType == OS.XmSTRING && text.length () == 0) {
-		height += getFontHeight ();
 		width = 0;
 	}
 	if (wHint != SWT.DEFAULT) width = wHint + (border * 2);
@@ -167,36 +173,48 @@ void createHandle (int index) {
 		if (handle == 0) error (SWT.ERROR_NO_HANDLES);
 		return;
 	}
+	int [] argList1 = {
+		OS.XmNancestorSensitive, 1,
+		OS.XmNmarginWidth, 0,
+		OS.XmNmarginHeight, 0, 
+		OS.XmNresizePolicy, OS.XmRESIZE_NONE,
+		OS.XmNborderWidth, borderWidth,
+	};
+	formHandle = OS.XmCreateForm (parentHandle, null, argList1, argList1.length / 2);
+	if (formHandle == 0) error (SWT.ERROR_NO_HANDLES);
 	int alignment = OS.XmALIGNMENT_BEGINNING;
 	if ((style & SWT.CENTER) != 0) alignment = OS.XmALIGNMENT_CENTER;
 	if ((style & SWT.RIGHT) != 0) alignment = OS.XmALIGNMENT_END;
-	int [] argList = {
-		OS.XmNancestorSensitive, 1,
-		OS.XmNrecomputeSize, 0,
+	int [] argList2 = {
 		OS.XmNalignment, alignment,
-		OS.XmNborderWidth, borderWidth,
+		OS.XmNtopAttachment, OS.XmATTACH_FORM,
+		OS.XmNleftAttachment, OS.XmATTACH_FORM,
+		OS.XmNrightAttachment, OS.XmATTACH_FORM,
 	};
-	handle = OS.XmCreateLabel (parentHandle, null, argList, argList.length / 2);
+	/*
+	* Bug in Motif.  The widget will not receive mouse events, if the
+	* label string is empty.  The fix is to initialize it to a space.
+	*/
+	byte [] buffer = {(byte) ' ', 0};
+	handle = OS.XmCreateLabel (formHandle, buffer, argList2, argList2.length / 2);
 	if (handle == 0) error (SWT.ERROR_NO_HANDLES);
 }
 int defaultBackground () {
-	return getDisplay ().labelBackground;
+	return display.labelBackground;
 }
 Font defaultFont () {
-	return getDisplay ().labelFont;
+	return display.labelFont;
 }
 int defaultForeground () {
-	return getDisplay ().labelForeground;
+	return display.labelForeground;
 }
-public boolean forceFocus () {
-	checkWidget();
-	int [] argList = new int [] {OS.XmNtraversalOn, 1};
-	OS.XtSetValues (handle, argList, argList.length / 2);
-	overrideTranslations ();
-	if (super.forceFocus ()) return true;
-	argList [1] = 0;
-	OS.XtSetValues (handle, argList, argList.length / 2);
-	return false;
+void deregister () {
+	super.deregister ();
+	if (formHandle != 0) display.removeWidget (formHandle);
+}
+void enableWidget (boolean enabled) {
+	super.enableWidget (enabled);
+	if (formHandle != 0) enableHandle (enabled, formHandle);
 }
 /**
  * Returns a value which describes the position of the
@@ -258,6 +276,19 @@ public String getText () {
 	if ((style & SWT.SEPARATOR) != 0) return "";
 	return text;
 }
+void manageChildren () {
+	if (formHandle != 0) {
+		OS.XtSetMappedWhenManaged (formHandle, false);
+		OS.XtManageChild (formHandle);
+	}
+	super.manageChildren ();
+	if (formHandle != 0) {
+		int [] argList = {OS.XmNborderWidth, 0};
+		OS.XtGetValues (formHandle, argList, argList.length / 2);
+		OS.XtResizeWidget (formHandle, 1, 1, argList [1]);
+		OS.XtSetMappedWhenManaged (formHandle, true);
+	}
+}
 boolean mnemonicHit (char key) {
 	Composite control = this.parent;
 	while (control != null) {
@@ -280,6 +311,18 @@ boolean mnemonicMatch (char key) {
 	if (mnemonic == '\0') return false;
 	return Character.toUpperCase (key) == Character.toUpperCase (mnemonic);
 }
+void propagateWidget (boolean enabled) {
+	super.propagateWidget (enabled);
+	if (formHandle != 0) propagateHandle (enabled, formHandle, OS.None);
+}
+void register () {
+	super.register ();
+	if (formHandle != 0) display.addWidget (formHandle, this);
+}
+void releaseHandle () {
+	super.releaseHandle ();
+	formHandle = 0;
+}
 void releaseWidget () {
 	super.releaseWidget ();
 	int [] argList = {
@@ -294,7 +337,7 @@ void releaseWidget () {
 int separatorType () {
 	if ((style & (SWT.SHADOW_IN)) != 0) return OS.XmSHADOW_ETCHED_IN;
 	if ((style & (SWT.SHADOW_OUT)) != 0) return OS.XmSHADOW_ETCHED_OUT;
-	return OS.XmSHADOW_ETCHED_IN;
+	return OS.XmSINGLE_LINE;
 }
 /**
  * Controls how text and images will be displayed in the receiver.
@@ -331,7 +374,6 @@ void setBitmap (Image image) {
 	bitmap = disabled = null;
 	if (image != null) {
 		if (image.isDisposed()) error(SWT.ERROR_INVALID_ARGUMENT);
-		Display display = getDisplay ();
 		switch (image.type) {
 			case SWT.BITMAP:
 				labelPixmap = image.pixmap;
@@ -363,12 +405,42 @@ void setBitmap (Image image) {
 }
 boolean setBounds (int x, int y, int width, int height, boolean move, boolean resize) {
 	boolean changed = super.setBounds (x, y, width, height, move, resize);
-	if (changed && resize && (style & SWT.WRAP) != 0) setText (text);
+	if (changed && resize && (style & SWT.WRAP) != 0) {
+		int [] argList = {OS.XmNlabelType, 0,};
+		OS.XtGetValues (handle, argList, argList.length / 2);
+		if (argList [1] == OS.XmSTRING) setText (text);
+	} 
 	return changed;
 }
 public void setFont (Font font) {
+	checkWidget();
+	
+	/*
+	* Bug in Motif. Setting the font in a label widget that does
+	* not have a non-empty string causes GP on UTF-8 locale.
+	* The fix is to set a non-empty string, change the font,
+	* and restore the empty string at the end. 
+	*/
+	int [] argList1 = {OS.XmNlabelString, 0, OS.XmNlabelType, 0};
+	OS.XtGetValues (handle, argList1, argList1.length / 2);
+	boolean fixString = OS.IsDBLocale && OS.XmStringEmpty (argList1 [1]); 
+	if (fixString) {
+		byte[] buffer = Converter.wcsToMbcs (getCodePage (), "string", true);
+		int xmString = OS.XmStringCreateLocalized (buffer);	
+		int [] argList2 = { 
+			OS.XmNlabelType, OS.XmSTRING,
+			OS.XmNlabelString, xmString,
+		};
+		OS.XtSetValues (handle, argList2, argList2.length / 2);
+		OS.XmStringFree (xmString);
+	}
 	super.setFont (font);
-	if ((style & SWT.WRAP) != 0) setText (text);
+	if (fixString) OS.XtSetValues (handle, argList1, argList1.length / 2);	
+	if ((style & SWT.WRAP) != 0) {
+		int [] argList = {OS.XmNlabelType, 0,};
+		OS.XtGetValues (handle, argList, argList.length / 2);
+		if (argList [1] == OS.XmSTRING) setText (text);
+	} 
 }
 /**
  * Sets the receiver's image to the argument, which may be
@@ -421,20 +493,18 @@ public void setText (String string) {
 	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
 	if ((style & SWT.SEPARATOR) != 0) return;
 	text = string;
-	
+
+	/*
+	* Bug in Motif.  The widget will not receive mouse events, if the
+	* label string is empty.  The fix is to detect that and set a single
+	* space instead. 
+	*/
+	if (string.length () == 0) string = " ";
+
 	/* Strip out mnemonic marker symbols, and remember the mnemonic. */
 	char [] unicode = new char [string.length ()];
 	string.getChars (0, unicode.length, unicode, 0);
-	int i=0, j=0, mnemonic=0;
-	while (i < unicode.length) {
-		if ((unicode [j++] = unicode [i++]) == Mnemonic) {
-			if (i == unicode.length) {continue;}
-			if (unicode [i] == Mnemonic) {i++; continue;}
-			if (mnemonic == 0) mnemonic = unicode [i];
-			j--;
-		}
-	}
-	while (j < unicode.length) unicode [j++] = 0;
+	int mnemonic = fixMnemonic (unicode);
 	
 	/* Wrap the text if necessary, and convert to mbcs. */
 	byte [] buffer;
@@ -448,7 +518,6 @@ public void setText (String string) {
 		};
 		OS.XtGetValues (handle, argList, argList.length / 2);
 		int width = argList [1] - argList [3] - argList [5] - argList [7] * 2 - argList [9] * 2;
-		Display display = getDisplay ();
 		if (mnemonic != 0) string = new String (unicode);
 		string = display.wrapText (string, font, width);
 		buffer = Converter.wcsToMbcs (getCodePage (), string, true);
@@ -480,15 +549,8 @@ public void setText (String string) {
 	OS.XtSetValues (handle, argList, argList.length / 2);
 	if (xmString != 0) OS.XmStringFree (xmString);
 }
-int xFocusOut (XFocusChangeEvent xEvent) {
-	int result = super.xFocusOut (xEvent);
-	if (handle == 0) return result;
-	int [] argList = new int [] {OS.XmNtraversalOn, 0};
-	OS.XtGetValues (handle, argList, argList.length / 2);
-	if (argList [1] != 0) {
-		argList [1] = 0;
-		OS.XtSetValues (handle, argList, argList.length / 2);
-	}
-	return result;
+int topHandle () {
+	if (formHandle != 0) return formHandle;
+	return handle;
 }
 }

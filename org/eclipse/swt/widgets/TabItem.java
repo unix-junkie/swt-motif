@@ -1,6 +1,6 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Common Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/cpl-v10.html
@@ -71,7 +71,8 @@ public class TabItem extends Item {
  * @see Widget#getStyle
  */
 public TabItem (TabFolder parent, int style) {
-	this(parent, style, parent.getItemCount());
+	super (parent, style);
+	parent.createChild (this, parent.getItemCount());
 }
 
 /**
@@ -95,6 +96,7 @@ public TabItem (TabFolder parent, int style) {
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
+ *    <li>ERROR_INVALID_RANGE - if the index is either negative or greater than the parent's current tab count</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
@@ -155,10 +157,6 @@ Rectangle getBounds () {
 public Control getControl () {
 	checkWidget();
 	return control;
-}
-public Display getDisplay() {
-	if (parent == null) error(SWT.ERROR_WIDGET_DISPOSED);
-	return parent.getDisplay();
 }
 /**
  * Returns the receiver's parent, which must be a <code>TabFolder</code>.
@@ -227,7 +225,7 @@ private int imageWidth() {
  */
 void paint(GC gc, boolean isSelected) {
 	// high light colored line across left and top 
-	gc.setForeground(parent.getDisplay().getSystemColor(SWT.COLOR_WIDGET_HIGHLIGHT_SHADOW));
+	gc.setForeground(display.getSystemColor(SWT.COLOR_WIDGET_HIGHLIGHT_SHADOW));
 	gc.drawLine(x, y + height - 2, x, y + 2);
 	gc.drawLine(x, y + 2, x + 2, y);
 	gc.drawLine(x + 2, y, x + width - 3, y);
@@ -235,18 +233,18 @@ void paint(GC gc, boolean isSelected) {
 	// light color next to the left and below the top line.  
 	// Since tabs expand horizontally when selected, we actually draw 
 	// the background color to erase any debris from a selected tab.
-	gc.setForeground(parent.getDisplay().getSystemColor(SWT.COLOR_WIDGET_LIGHT_SHADOW));
+	gc.setForeground(display.getSystemColor(SWT.COLOR_WIDGET_LIGHT_SHADOW));
 	gc.drawLine(x + 1, y + height - 2, x + 1, y + 2);
 	gc.drawLine(x + 2, y + 1, x + width - 3, y + 1);
 
 	// dark colored line at right
-	gc.setForeground(parent.getDisplay().getSystemColor(SWT.COLOR_WIDGET_FOREGROUND));
+	gc.setForeground(display.getSystemColor(SWT.COLOR_WIDGET_FOREGROUND));
 	gc.drawLine(x + width - 1, y + 2, x + width - 1, y + height - 1);
 	// dark pixel on top of shadowed line, inside dark line
 	gc.drawLine(x + width - 2, y + 1, x + width - 2, y + 1);
 
 	// shadowed line on right inside the dark line
-	gc.setForeground(parent.getDisplay().getSystemColor(SWT.COLOR_WIDGET_NORMAL_SHADOW));
+	gc.setForeground(display.getSystemColor(SWT.COLOR_WIDGET_NORMAL_SHADOW));
 	gc.drawLine(x + width - 2, y + 2, x + width - 2, y + height - 1);
 
 	if (parent.isFocusControl() && isSelected) {
