@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2010 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -181,6 +181,7 @@ public class OS extends C {
 	public static final int SunXK_F37 = 0x1005FF11;
 	public static final int UnmapNotify = 18;
 	public static final int Unsorted = 0x0;
+	public static final int X_OK = 0x01;
 	public static final int XA_ATOM = 4;
 	public static final int XA_FONT = 18;
 	public static final int XBufferOverflow = 0xFFFFFFFF;
@@ -242,6 +243,11 @@ public class OS extends C {
 	public static final int XK_F13 = 0xFFCA;
 	public static final int XK_F14 = 0xFFCB;
 	public static final int XK_F15 = 0xFFCC;
+	public static final int XK_F16 = 0xFFCD;
+	public static final int XK_F17 = 0xFFCE;
+	public static final int XK_F18 = 0xFFCF;
+	public static final int XK_F19 = 0xFFD0;
+	public static final int XK_F20 = 0xFFD1;
 	public static final int XK_F2 = 0xFFBF;
 	public static final int XK_F3 = 0xFFC0;
 	public static final int XK_F4 = 0xFFC1;
@@ -485,6 +491,8 @@ public class OS extends C {
 	public static final int XmNlistMarginWidth = malloc ("listMarginWidth", 2);
 	public static final int XmNlistSizePolicy = malloc ("listSizePolicy", 1);
 	public static final int XmNlistSpacing = malloc ("listSpacing", 2);
+	public static final int XmNmainWindowMarginWidth  = malloc ("mainWindowMarginWidth", 2);
+	public static final int XmNmainWindowMarginHeight  = malloc ("mainWindowMarginHeight", 2);
 	public static final int XmNmapCallback = malloc ("mapCallback", 4);
 	public static final int XmNmappedWhenManaged = malloc ("mappedWhenManaged", 4);
 	public static final int XmNmarginBottom = malloc ("marginBottom", 2);
@@ -820,6 +828,18 @@ public static final native void FD_ZERO(byte[] fd_set);
 public static final native int LC_CTYPE();
 /** @method flags=const */
 public static final native int MB_CUR_MAX();
+/**
+ * @param path cast=(const char*)
+ */
+public static final native int _access (byte [] path, int amode);
+public static final int access (byte [] path, int amode) {
+	lock.lock();
+	try {
+		return _access(path, amode);
+	} finally {
+		lock.unlock();
+	}
+}
 /** @method flags=const */
 public static final native int _applicationShellWidgetClass();
 public static final int applicationShellWidgetClass() {

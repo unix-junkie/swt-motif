@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -245,7 +245,7 @@ void writeImageData() throws IOException {
 			os.write(filter);
 			
 			data.getPixels(0, y, width, lineData, 0);
-
+			
 			os.write(lineData);
 		
 		}
@@ -268,23 +268,23 @@ void writeImageData() throws IOException {
 		int blueMask = data.palette.blueMask;
 		
 		byte[] lineBytes = new byte[width * (colorType == 6 ? 4 : 3)];
-
+		
 		for (int y = 0; y < height; y++) {
-
+		
 			int filter = 0;
 			os.write(filter);
-
+			
 			data.getPixels(0, y, width, lineData, 0);
-
+			
 			if (colorType == 6) {
 				data.getAlphas(0, y, width, alphaData, 0);
 			}
-
+			
 			int offset = 0;
 			for (int x = 0; x < lineData.length; x++) {
-
+			
 				int pixel = lineData[x];
-
+				
 				int r = pixel & redMask;
 				lineBytes[offset++] = (byte) ((redShift < 0) ? r >>> -redShift
 						: r << redShift);
@@ -294,17 +294,17 @@ void writeImageData() throws IOException {
 				int b = pixel & blueMask;
 				lineBytes[offset++] = (byte) ((blueShift < 0) ? b >>> -blueShift
 						: b << blueShift);
-
+				
 				if (colorType == 6) {
 					lineBytes[offset++] = alphaData[x];
 				}
-
+			
 			}
 			
 			os.write(lineBytes);
 			
 		}
-		
+	
 	}
 	
 	os.flush();

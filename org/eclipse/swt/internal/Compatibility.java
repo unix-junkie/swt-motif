@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2010 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -280,6 +280,32 @@ public static void exec(String prog) throws java.io.IOException {
  */
 public static void exec(String[] progArray) throws java.io.IOException{
 	Runtime.getRuntime().exec(progArray);
+}
+
+/**
+ * Execute prog[0] in a separate platform process if the
+ * underlying platform supports this.
+ * <p>
+ * The new process inherits the environment of the caller.
+ * <p>
+ *
+ * @param prog array containing the program to execute and its arguments
+ * @param envp
+ *            array of strings, each element of which has environment
+ *            variable settings in the format name=value
+ * @param workingDir
+ *            the working directory of the new process, or null if the new
+ *            process should inherit the working directory of the caller
+ *
+ * @exception IOException
+ *  if the program cannot be executed
+ * @exception	SecurityException
+ *  if the current SecurityManager disallows program execution
+ *
+ * @since 3.6
+ */
+public static void exec(String[] prog, String[] envp, String workingDir) throws java.io.IOException{
+	Runtime.getRuntime().exec(prog, null, workingDir != null ? new File(workingDir) : null);
 }
 
 private static ResourceBundle msgs = null;

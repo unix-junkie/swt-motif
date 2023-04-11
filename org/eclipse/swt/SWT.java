@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2009 IBM Corporation and others.
+ * Copyright (c) 2000, 2010 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -464,6 +464,9 @@ public class SWT {
 	 * @see org.eclipse.swt.widgets.Display#addFilter
 	 * @see org.eclipse.swt.widgets.Event
 	 * 
+	 * @see org.eclipse.swt.widgets.Control#addDragDetectListener
+	 * @see org.eclipse.swt.events.DragDetectListener#dragDetected
+	 * @see org.eclipse.swt.events.DragDetectEvent
 	 * @see org.eclipse.swt.dnd.DragSource
 	 */
 	public static final int DragDetect = 29;
@@ -551,15 +554,40 @@ public class SWT {
 	public static final int SetData = 36;
 
 	/**
-	 * The mouse wheel event type (value is 37).
+	 * The mouse vertical wheel event type (value is 37).
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addMouseWheelListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @since 3.6
+	 */
+	public static final int MouseVerticalWheel = 37;
+	
+	/**
+	 * The mouse horizontal wheel event type (value is 38).
 	 * 
 	 * @see org.eclipse.swt.widgets.Widget#addListener
 	 * @see org.eclipse.swt.widgets.Display#addFilter
 	 * @see org.eclipse.swt.widgets.Event
 	 * 
+	 * @since 3.6
+	 */
+	public static final int MouseHorizontalWheel = 38;
+	
+	/**
+	 * The mouse wheel event type (value is 37).
+	 * This is a synonym for {@link #MouseVerticalWheel} (value is 37).  
+	 * Newer applications should use {@link #MouseVerticalWheel} instead 
+	 * of {@link #MouseWheel} to make code more understandable.
+	 *  
+	 * @see org.eclipse.swt.widgets.Control#addMouseWheelListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
 	 * @since 3.1
 	 */
-	public static final int MouseWheel = 37;
+	public static final int MouseWheel = MouseVerticalWheel;
 
 	/**
 	 * The settings changed event type (value is 39).
@@ -637,6 +665,55 @@ public class SWT {
 	 * @since 3.4
 	 */
 	public static final int ImeComposition = 43;
+
+	/**
+	 * The orientation change event type (value is 44).  
+	 * <p>
+	 * On some platforms the orientation of text widgets
+	 * can be changed by keyboard shortcut.
+	 * The application can use the <code>doit</code> field
+	 * of the event to stop the change from happening.
+	 * </p> 
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @since 3.6
+	 */
+	public static final int OrientationChange = 44;
+
+	/**
+	 * The skin event type (value is 45).
+	 * 
+	 * <p>
+	 * The skin event is sent by the display when a widget needs to
+	 * be skinned. 
+	 * </p>
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * @see org.eclipse.swt.widgets.Widget#reskin(int)
+	 * 
+	 * @since 3.6
+	 */
+	public static final int Skin = 45;
+	
+	/**
+	 * The open document event type (value is 46).
+	 * 
+	 * <p>
+	 * This event is sent when SWT receives notification that a document 
+	 * should be opened.
+	 * </p>
+	 *  
+     * @see org.eclipse.swt.widgets.Display#addListener
+     * @see org.eclipse.swt.widgets.Event
+     * 
+     * @since 3.6
+	 */
+	public static final int OpenDocument = 46;
 	
 	/* Event Details */
 	
@@ -820,6 +897,34 @@ public class SWT {
 	 * (value is 1&lt;&lt;9).
 	 */
 	public static final int TRAVERSE_PAGE_NEXT = 1 << 9;
+	
+	/**
+	 * A constant indicating that widgets have changed.
+	 * (value is 1&lt;&lt;1).
+	 * 
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>Composite</code> layout</li>
+	 * </ul></p>
+	 * 
+	 * @see org.eclipse.swt.widgets.Composite#layout(org.eclipse.swt.widgets.Control[], int)
+	 * 
+	 * @since 3.6
+	 */
+	public static final int CHANGED = 1 << 1;
+
+	/**
+	 * A constant indicating that a given operation should be deferred.
+	 * (value is 1&lt;&lt;2).
+	 * 
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>Composite</code> layout</li>
+	 * </ul></p>
+	 * 
+	 * @see org.eclipse.swt.widgets.Composite#layout(org.eclipse.swt.widgets.Control[], int)
+	 * 
+	 * @since 3.6
+	 */
+	public static final int DEFER = 1 << 2;
 
 	/**
 	 * A constant known to be zero (0), typically used in operations
@@ -1645,6 +1750,7 @@ public class SWT {
 	 * since align DOWN and align BOTTOM are considered the same).
 	 * <p><b>Used By:</b><ul>
 	 * <li><code>FormAttachment</code> in a <code>FormLayout</code></li>
+	 * <li><code>TabFolder</code></li>
 	 * </ul></p>
 	 */
 	public static final int BOTTOM             = DOWN;
@@ -1665,9 +1771,13 @@ public class SWT {
 	
 	/**
 	 * Style constant for align left behavior (value is 1&lt;&lt;14).
-	 * This is a synonym for LEAD (value is 1&lt;&lt;14).  Newer
-	 * applications should use LEAD instead of LEFT to make code more
+	 * This is a synonym for {@link #LEAD} (value is 1&lt;&lt;14).  Newer
+	 * applications should use {@link #LEAD} instead of {@link #LEFT} to make code more
 	 * understandable on right-to-left platforms.
+	 * <p>
+	 * This constant can also be used to representing the left keyboard 
+	 * location during a key event.
+	 * </p>
 	 */
 	public static final int LEFT               = LEAD;
 
@@ -1687,9 +1797,13 @@ public class SWT {
 		
 	/**
 	 * Style constant for align right behavior (value is 1&lt;&lt;17).
-	 * This is a synonym for TRAIL (value is 1&lt;&lt;17).  Newer
-	 * applications should use TRAIL instead of RIGHT to make code more
+	 * This is a synonym for {@link #TRAIL} (value is 1&lt;&lt;17).  Newer
+	 * applications should use {@link #TRAIL} instead of {@link #RIGHT} to make code more
 	 * understandable on right-to-left platforms.
+	 * <p>
+	 * This constant can also be used to representing the right keyboard 
+	 * location during a key event.
+	 * </p>
 	 */
 	public static final int RIGHT              = TRAIL;
 
@@ -2262,6 +2376,57 @@ public class SWT {
 	 * @since 3.0
 	 */
 	public static final int F15 = KEYCODE_BIT + 24;
+	
+	/**
+	 * Keyboard event constant representing the F16 key
+	 * (value is (1&lt;&lt;25)+25).
+	 * 
+	 * @since 3.6
+	 */
+	public static final int F16 = KEYCODE_BIT + 25;
+
+	
+	/**
+	 * Keyboard event constant representing the F17 key
+	 * (value is (1&lt;&lt;26)+26).
+	 * 
+	 * @since 3.6
+	 */
+	public static final int F17 = KEYCODE_BIT + 26;
+
+	
+	/**
+	 * Keyboard event constant representing the F18 key
+	 * (value is (1&lt;&lt;27)+27).
+	 * 
+	 * @since 3.6
+	 */
+	public static final int F18 = KEYCODE_BIT + 27;
+
+	
+	/**
+	 * Keyboard event constant representing the F19 key
+	 * (value is (1&lt;&lt;28)+28).
+	 * 
+	 * @since 3.6
+	 */
+	public static final int F19 = KEYCODE_BIT + 28;
+	
+	/**
+	 * Keyboard event constant representing the F20 key
+	 * (value is (1&lt;&lt;29)+29).
+	 * 
+	 * @since 3.6
+	 */
+	public static final int F20 = KEYCODE_BIT + 29;
+	
+	/**
+	 * Keyboard event constant representing the keypad location.
+	 * (value is 1&lt;&lt;1).
+	 * 
+	 * @since 3.6
+	 */
+	public static final int KEYPAD = 1 << 1;
 	
 	/**
 	 * Keyboard event constant representing the numeric key
@@ -3669,6 +3834,40 @@ public class SWT {
 	 * @since 3.3
 	 */	
 	public static final int MOVEMENT_WORD_START = 1 << 4;
+
+	/**
+	 * A constant indicating that a given operation should be performed on
+	 * all widgets (value is 1&lt;&lt;0).
+	 * 
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>Composite</code> layout</li>
+	 * </ul></p>
+	 * 
+	 * @see org.eclipse.swt.widgets.Composite#layout(org.eclipse.swt.widgets.Control[], int)
+	 * 
+	 * @since 3.6
+	 */
+	public static final int ALL = 1 << 0;
+	
+	/**
+	 * Key value for setting and getting the skin class of a widget. 
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#getData(String)
+	 * @see org.eclipse.swt.widgets.Widget#setData(String, Object)
+	 * 
+	 * @since 3.6
+	 */
+	public static final String SKIN_CLASS = "org.eclipse.swt.skin.class";
+
+	/**
+	 * Key value for setting and getting the skin id of a widget.
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#getData(String)
+	 * @see org.eclipse.swt.widgets.Widget#setData(String, Object)
+	 * 
+	 * @since 3.6
+	 */
+	public static final String SKIN_ID = "org.eclipse.swt.skin.id";
 
 	
 /**

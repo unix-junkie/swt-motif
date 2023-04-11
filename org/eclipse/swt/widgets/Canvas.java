@@ -96,10 +96,7 @@ public Canvas (Composite parent, int style) {
  * @since 3.2
  */
 public void drawBackground (GC gc, int x, int y, int width, int height) {
-	checkWidget ();
-	if (gc == null) error (SWT.ERROR_NULL_ARGUMENT);
-	if (gc.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
-	super.drawBackground (gc, x, y, width, height);
+	drawBackground (gc, x, y, width, height, 0 ,0);
 }
 /**
  * Returns the caret.
@@ -161,12 +158,18 @@ void releaseChildren (boolean destroy) {
 	super.releaseChildren (destroy);
 }
 
+void reskinChildren (int flags) {
+	if (caret != null) caret.reskin (flags);
+	if (ime != null)  ime.reskin (flags);
+	super.reskinChildren (flags);
+}
+
 /**
  * Scrolls a rectangular area of the receiver by first copying 
  * the source area to the destination and then causing the area
  * of the source which is not covered by the destination to
  * be repainted. Children that intersect the rectangle are
- * optionally moved during the operation. In addition, outstanding
+ * optionally moved during the operation. In addition, all outstanding
  * paint events are flushed before the source area is copied to
  * ensure that the contents of the canvas are drawn correctly.
  *

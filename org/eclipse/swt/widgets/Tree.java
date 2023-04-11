@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2009 IBM Corporation and others.
+ * Copyright (c) 2000, 2010 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -81,6 +81,7 @@ public class Tree extends Composite {
 	TreeItem[] selectedItems = NO_ITEMS;
 	TreeItem focusItem, anchorItem, insertMarkItem;
 	TreeItem lastClickedItem;
+	Color cachedBackground, cachedForeground;
 	Event lastSelectionEvent;
 	int availableItemsCount = 0;
 	boolean insertMarkPrecedes = false;
@@ -825,6 +826,11 @@ Image getArrowDownImage () {
 Image getArrowUpImage () {
 	return (Image) display.getData (ID_ARROWUP);
 }
+public Color getBackground () {
+	checkWidget ();
+	if (cachedBackground != null) return cachedBackground;
+	return super.getBackground ();
+}
 int getCellPadding () {
 	return MARGIN_CELL + WIDTH_CELL_HIGHLIGHT; 
 }
@@ -984,6 +990,11 @@ Color getConnectorColor () {
 }
 Image getExpandedImage () {
 	return (Image) display.getData (ID_EXPANDED);
+}
+public Color getForeground () {
+	checkWidget ();
+	if (cachedForeground != null) return cachedForeground;
+	return super.getForeground ();
 }
 Image getGrayUncheckedImage () {
 	return (Image) display.getData (ID_GRAYUNCHECKED);
@@ -2298,6 +2309,7 @@ void onDispose (Event event) {
 	header = null;
 	resizeColumn = sortColumn = null;
 	expanderBounds = null;
+	cachedBackground = cachedForeground = null;
 }
 void onEnd (int stateMask) {
 	int lastAvailableIndex = availableItemsCount - 1;
@@ -2973,18 +2985,19 @@ void onPaint (Event event) {
 	endIndex = Math.min (endIndex, availableItemsCount - 1);
 
 	/* fill background not handled by items */
-	gc.setBackground (getBackground ());
+	cachedBackground = getBackground ();
+	gc.setBackground (cachedBackground);
 	gc.setClipping (clipping);
 	int bottomY = endIndex >= 0 ? getItemY (availableItems [endIndex]) + itemHeight : 0;
 	int fillHeight = Math.max (0, clientArea.height - bottomY);
 	if (fillHeight > 0) {	/* space below bottom item */
-		drawBackground (gc, 0, bottomY, clientArea.width, fillHeight);
+		drawBackground (gc, 0, bottomY, clientArea.width, fillHeight, 0, 0);
 	}
 	if (columns.length > 0) {
 		TreeColumn column = orderedColumns [orderedColumns.length - 1];	/* last column */
 		int rightX = column.getX () + column.width;
 		if (rightX < clientArea.width) {
-			drawBackground (gc, rightX, 0, clientArea.width - rightX, clientArea.height - fillHeight);
+			drawBackground (gc, rightX, 0, clientArea.width - rightX, clientArea.height - fillHeight, 0, 0);
 		}
 	}
 
@@ -2992,6 +3005,7 @@ void onPaint (Event event) {
 	boolean noFocusDraw = false;
 	int[] lineDash = gc.getLineDash ();
 	int lineWidth = gc.getLineWidth ();
+	cachedForeground = getForeground ();
 	for (int i = startIndex; i <= Math.min (endIndex, availableItemsCount - 1); i++) {
 		TreeItem item = availableItems [i];
 		if (!item.isDisposed ()) {	/* ensure that item was not disposed in a callback */
@@ -3006,13 +3020,20 @@ void onPaint (Event event) {
 						if (!item.isDisposed ()) {	/* ensure that item was not disposed in a callback */
 							noFocusDraw = item.paint (gc, orderedColumns [j], false) || noFocusDraw;
 						}
-						if (isDisposed () || gc.isDisposed ()) return;	/* ensure that receiver was not disposed in a callback */
+						if (isDisposed () || gc.isDisposed ()) { /* ensure that receiver was not disposed in a callback */
+							cachedBackground = cachedForeground = null;
+							return;
+						}
 					}
 				}
 			}
 		}
-		if (isDisposed () || gc.isDisposed ()) return;	/* ensure that receiver was not disposed in a callback */
+		if (isDisposed () || gc.isDisposed ()) { /* ensure that receiver was not disposed in a callback */
+			cachedBackground = cachedForeground = null;
+			return;
+		}
 	}
+	cachedBackground = cachedForeground = null;
 
 	/* repaint grid lines */
 	gc.setClipping(clipping);
@@ -3387,6 +3408,21 @@ public void removeTreeListener (TreeListener listener) {
 	removeListener (SWT.Expand, listener);
 	removeListener (SWT.Collapse, listener);
 }
+void reskinChildren (int flags) {
+	if (items != null) {
+		for (int i=0; i<items.length; i++) {
+			TreeItem item = items [i];
+			if (item != null) item.reskinChildren (flags);
+		}
+	}
+	if (columns != null) {
+		for (int i=0; i<columns.length; i++) {
+			TreeColumn column = columns [i];
+			if (column != null) column.reskinChildren (flags);
+		}
+	}
+	super.reskinChildren (flags);
+}
 /**
  * Selects an item in the receiver.  If the item was already
  * selected, it remains selected.
@@ -3449,6 +3485,10 @@ public void setBackground (Color color) {
 	checkWidget ();
 	if (color == null) color = display.getSystemColor (SWT.COLOR_LIST_BACKGROUND); 
 	super.setBackground (color);
+}
+void setBackgroundPixel (int pixel) {
+	super.setBackgroundPixel (pixel);
+	cachedBackground = null;
 }
 /**
  * Sets the order that the items in the receiver should 
@@ -3587,6 +3627,10 @@ public void setForeground (Color color) {
 	checkWidget ();
 	if (color == null) color = display.getSystemColor (SWT.COLOR_LIST_FOREGROUND); 
 	super.setForeground (color);
+}
+void setForegroundPixel (int pixel) {
+	super.setForegroundPixel (pixel);
+	cachedForeground = null;
 }
 void setHeaderImageHeight (int value) {
 	headerImageHeight = value;

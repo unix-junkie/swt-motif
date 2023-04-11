@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -252,9 +252,6 @@ void setPixelData(byte[] data, ImageData imageData) {
 			imageData.alphaData = alphaData;
 			break;
 		}		
-		case PngIhdrChunk.COLOR_TYPE_RGB:
-			imageData.data = data;
-			break;
 		case PngIhdrChunk.COLOR_TYPE_PALETTE:
 			imageData.data = data;
 			if (alphaPalette != null) {
@@ -268,8 +265,23 @@ void setPixelData(byte[] data, ImageData imageData) {
 				imageData.alphaData = alphaData;
 			}
 			break;
+		case PngIhdrChunk.COLOR_TYPE_RGB:
 		default:
-			imageData.data = data;
+			int height = imageData.height;
+			int destBytesPerLine = imageData.bytesPerLine;
+			int srcBytesPerLine = getAlignedBytesPerRow();
+			/*
+			* If the image uses 16-bit depth, it is converted
+			* to an 8-bit depth image.
+			*/
+			if (headerChunk.getBitDepth() > 8) srcBytesPerLine /= 2;
+			if (destBytesPerLine != srcBytesPerLine) {
+				for (int y = 0; y < height; y++) {
+					System.arraycopy(data, y * srcBytesPerLine, imageData.data, y * destBytesPerLine, srcBytesPerLine);
+				}
+			} else {
+				imageData.data = data;
+			}
 			break;
 	}
 }

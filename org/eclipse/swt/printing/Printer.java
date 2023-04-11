@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2009 IBM Corporation and others.
+ * Copyright (c) 2000, 2010 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -368,6 +368,8 @@ protected void destroy() {
  *
  * @param data the platform specific GC data 
  * @return the platform specific GC handle
+ * 
+ * @noreference This method is not intended to be referenced by clients.
  */
 public int internal_new_GC(GCData data) {
 	if (data != null) {
@@ -411,6 +413,8 @@ public int internal_new_GC(GCData data) {
  *
  * @param hDC the platform specific GC handle
  * @param data the platform specific GC data 
+ * 
+ * @noreference This method is not intended to be referenced by clients.
  */
 public void internal_dispose_GC(int xGC, GCData data) {
 	OS.XFreeGC(xDisplay, xGC);

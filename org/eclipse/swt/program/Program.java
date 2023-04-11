@@ -160,6 +160,11 @@ boolean cde_execute(String fileName) {
 	return actionID != 0;
 }
 
+static boolean cde_isExecutable(String fileName) {
+	byte [] fileNameBuffer = Converter.wcsToMbcs(null, fileName, true);
+	return OS.access(fileNameBuffer, OS.X_OK) == 0;
+}
+
 static String cde_getAction(String dataType) {
 	String action  = null;
 	String actions = cde_getAttribute(dataType, CDE.DtDTS_DA_ACTION_LIST);
@@ -569,6 +574,25 @@ static boolean gnome_init() {
 	}
 }
 
+static boolean gnome_isExecutable(String fileName) {
+	/* check if the file is executable */
+	byte [] fileNameBuffer = Converter.wcsToMbcs(null, fileName, true);
+	if (!GNOME.gnome_vfs_is_executable_command_string(fileNameBuffer)) return false;
+	
+	/* check if the mime type is executable */
+	int /*long*/ uri = GNOME.gnome_vfs_make_uri_from_input(fileNameBuffer);
+	int /*long*/ mimeType = GNOME.gnome_vfs_get_mime_type(uri);
+	GNOME.g_free(uri);
+	
+	byte[] exeType = Converter.wcsToMbcs (null, "application/x-executable", true); //$NON-NLS-1$
+	boolean result = GNOME.gnome_vfs_mime_type_get_equivalence(mimeType, exeType) != GNOME.GNOME_VFS_MIME_UNRELATED;
+	if (!result) {
+		byte [] shellType = Converter.wcsToMbcs (null, "application/x-shellscript", true); //$NON-NLS-1$
+		result = GNOME.gnome_vfs_mime_type_get_equivalence(mimeType, shellType) == GNOME.GNOME_VFS_MIME_IDENTICAL;
+	}
+	return result;
+}
+
 /**
  * Finds the program that is associated with an extension.
  * The extension may or may not begin with a '.'.  Note that
@@ -699,6 +723,15 @@ static Program[] getPrograms(Display display) {
 	return programList;
 }
 
+static boolean isExecutable(Display display, String fileName) {
+	switch(getDesktop(display)) {
+		case DESKTOP_GNOME_24:
+		case DESKTOP_GNOME: return gnome_isExecutable(fileName);
+		case DESKTOP_CDE: return false; //cde_isExecutable(fileName);
+	}
+	return false;
+}
+
 /**
  * Launches the operating system executable associated with the file or
  * URL (http:// or https://).  If the file is an executable then the
@@ -713,15 +746,46 @@ static Program[] getPrograms(Display display) {
  * </ul>
  */
 public static boolean launch(String fileName) {
-	return launch(Display.getCurrent(), fileName);
+	return launch(Display.getCurrent(), fileName, null);
 }
 
+/**
+ * Launches the operating system executable associated with the file or
+ * URL (http:// or https://).  If the file is an executable then the
+ * executable is launched. The program is launched with the specified
+ * working directory only when the <code>workingDir</code> exists and
+ * <code>fileName</code> is an executable.
+ * Note that a <code>Display</code> must already exist to guarantee
+ * that this method returns an appropriate result.
+ *
+ * @param fileName the file name or program name or URL (http:// or https://)
+ * @param workingDir the name of the working directory or null
+ * @return <code>true</code> if the file is launched, otherwise <code>false</code>
+ * 
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT when fileName is null</li>
+ * </ul>
+ * 
+ * @since 3.6
+ */
+public static boolean launch (String fileName, String workingDir) {
+	return launch(Display.getCurrent(), fileName, workingDir);
+}
 /*
  *  API: When support for multiple displays is added, this method will
  *       become public and the original method above can be deprecated.
  */
-static boolean launch (Display display, String fileName) {
+static boolean launch (Display display, String fileName, String workingDir) {
 	if (fileName == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
+	
+	if (workingDir != null && isExecutable(display, fileName)) {
+		try {
+			Compatibility.exec (new String [] {fileName}, null, workingDir);
+			return true;
+		} catch (IOException e) {
+			return false;
+		}
+	}
 	switch (getDesktop (display)) {
 		case DESKTOP_GNOME_24:
 			if (gnome_24_launch (fileName)) return true;
@@ -742,8 +806,9 @@ static boolean launch (Display display, String fileName) {
 			}
 			break;
 	}
+	/* If the above launch attempts didn't launch the file, then try with exec().*/
 	try {
-		Compatibility.exec (fileName);
+		Compatibility.exec (new String [] {fileName}, null, workingDir);
 		return true;
 	} catch (IOException e) {
 		return false;

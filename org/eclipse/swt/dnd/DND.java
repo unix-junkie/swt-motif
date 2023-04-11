@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -14,7 +14,6 @@ package org.eclipse.swt.dnd;
 import org.eclipse.swt.*;
 
 /**
- *
  * Class DND contains all the constants used in defining a 
  * DragSource or a DropTarget.
  *
@@ -151,19 +150,19 @@ public class DND {
 	
 	/**
 	 * DropTarget drag under effect: An insertion mark is shown before the item under the cursor; applies to 
-	 * trees (value is 2).
+	 * tables and trees (value is 2).
 	 */
 	public static final int FEEDBACK_INSERT_BEFORE = 2;
 	
 	/**
-	 * DropTarget drag under effect:An insertion mark is shown after the item under the cursor; applies to
-	 * trees (value is 4).
+	 * DropTarget drag under effect: An insertion mark is shown after the item under the cursor; applies to
+	 * tables and trees (value is 4).
 	 */	
 	public static final int FEEDBACK_INSERT_AFTER = 4;
 	
 	/**
 	 * DropTarget drag under effect: The widget is scrolled up or down to allow the user to drop on items that 
-	 * are not currently visible;  applies to tables and trees (value is 8).
+	 * are not currently visible; applies to tables and trees (value is 8).
 	 */	
 	public static final int FEEDBACK_SCROLL = 8;
 	

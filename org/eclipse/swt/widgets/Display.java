@@ -79,7 +79,7 @@ import org.eclipse.swt.graphics.*;
  * <dt><b>Styles:</b></dt>
  * <dd>(none)</dd>
  * <dt><b>Events:</b></dt>
- * <dd>Close, Dispose, Settings</dd>
+ * <dd>Close, Dispose, OpenDocument, Settings, Skin</dd>
  * </dl>
  * <p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
@@ -104,6 +104,7 @@ public class Display extends Device {
 	Callback windowCallback;
 	int windowProc, shellHandle;
 	static String APP_NAME = "SWT"; //$NON-NLS-1$
+	static String APP_VERSION = ""; //$NON-NLS-1$
 	static final String SHELL_HANDLE_KEY = "org.eclipse.swt.internal.motif.shellHandle"; //$NON-NLS-1$
 	byte [] displayName, appName, appClass;
 	Event [] eventQueue;
@@ -170,6 +171,10 @@ public class Display extends Device {
 	/* Display Shutdown */
 	Runnable [] disposeList;
 	
+	/* Deferred Layout list */
+	Composite[] layoutDeferred;
+	int layoutDeferredCount;
+
 	/* System Tray */
 	Tray tray;
 	
@@ -182,6 +187,11 @@ public class Display extends Device {
 	/* Widget Timers */
 	Callback windowTimerCallback;
 	int windowTimerProc;
+	
+	/* Custom Resize */
+	int resizeLocationX, resizeLocationY;
+	int resizeBoundsX, resizeBoundsY, resizeBoundsWidth, resizeBoundsHeight;
+	int resizeMode;
 	
 	/* Key Mappings. */
 	static int [] [] KeyTable = {
@@ -244,6 +254,11 @@ public class Display extends Device {
 		{OS.XK_F13,	SWT.F13},
 		{OS.XK_F14,	SWT.F14},
 		{OS.XK_F15,	SWT.F15},
+		{OS.XK_F16,	SWT.F16},
+		{OS.XK_F17,	SWT.F17},
+		{OS.XK_F18,	SWT.F18},
+		{OS.XK_F19,	SWT.F19},
+		{OS.XK_F20,	SWT.F20},
 		
 		/* Numeric Keypad Keys */
 		{OS.XK_KP_Multiply,	SWT.KEYPAD_MULTIPLY},
@@ -291,6 +306,10 @@ public class Display extends Device {
 	/* Workaround for GP when disposing a display */
 	static boolean DisplayDisposed;
 
+	/* Skinning support */
+	Widget [] skinList = new Widget [GROW_SIZE];
+	int skinCount;
+	
 	/* Package Name */
 	static final String PACKAGE_PREFIX = "org.eclipse.swt.widgets."; //$NON-NLS-1$
 	/*
@@ -492,6 +511,15 @@ public void addFilter (int eventType, Listener listener) {
 	if (filterTable == null) filterTable = new EventTable ();
 	filterTable.hook (eventType, listener);
 }
+void addLayoutDeferred (Composite comp) {
+	if (layoutDeferred == null) layoutDeferred = new Composite [64];
+	if (layoutDeferredCount == layoutDeferred.length) {
+		Composite [] temp = new Composite [layoutDeferred.length + 64];
+		System.arraycopy (layoutDeferred, 0, temp, 0, layoutDeferred.length);
+		layoutDeferred = temp;
+	}
+	layoutDeferred[layoutDeferredCount++] = comp;
+}
 /**
  * Adds the listener to the collection of listeners who will
  * be notified when an event of the given type occurs. The event
@@ -539,6 +567,14 @@ void addPopup (Menu menu) {
 		popups = newPopups;
 	}
 	popups [index] = menu;
+}
+void addSkinnableWidget (Widget widget) {
+	if (skinCount >= skinList.length) {
+		Widget[] newSkinWidgets = new Widget [skinList.length + GROW_SIZE];
+		System.arraycopy (skinList, 0, newSkinWidgets, 0, skinList.length);
+		skinList = newSkinWidgets;
+	}
+	skinList [skinCount++] = widget;
 }
 /**
  * Causes the <code>run()</code> method of the runnable to
@@ -1030,6 +1066,8 @@ boolean filterEvent (int event) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  *    <li>ERROR_DEVICE_DISPOSED - if the receiver has been disposed</li>
  * </ul>
+ * 
+ * @noreference This method is not intended to be referenced by clients.
  */
 public Widget findWidget (int handle) {
 	checkDevice ();
@@ -1054,6 +1092,8 @@ public Widget findWidget (int handle) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  *    <li>ERROR_DEVICE_DISPOSED - if the receiver has been disposed</li>
  * </ul>
+ * 
+ * @noreference This method is not intended to be referenced by clients.
  * 
  * @since 3.1
  */
@@ -1917,6 +1957,22 @@ public Image getSystemImage (int style) {
 	return Image.motif_new (this, SWT.ICON, imagePixmap, maskPixmap);
 }
 /**
+ * Returns the single instance of the system taskBar or null
+ * when there is no system taskBar available for the platform.
+ *
+ * @return the system taskBar or <code>null</code>
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_DEVICE_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ *
+ * @since 3.6
+ */
+public TaskBar getSystemTaskBar () {
+	checkDevice ();
+	return null;
+}
+/**
  * Returns the single instance of the system tray or null
  * when there is no system tray available for the platform.
  *
@@ -2398,6 +2454,8 @@ void initializeWidgetTable () {
  * @exception SWTError <ul>
  *    <li>ERROR_NO_HANDLES if a handle could not be obtained for gc creation</li>
  * </ul>
+ * 
+ * @noreference This method is not intended to be referenced by clients.
  */
 public int internal_new_GC (GCData data) {
 	if (isDisposed()) SWT.error(SWT.ERROR_DEVICE_DISPOSED);
@@ -2432,6 +2490,8 @@ public int internal_new_GC (GCData data) {
  *
  * @param hDC the platform specific GC handle
  * @param data the platform specific GC data 
+ * 
+ * @noreference This method is not intended to be referenced by clients.
  */
 public void internal_dispose_GC (int gc, GCData data) {
 	OS.XFreeGC(xDisplay, gc);
@@ -2811,6 +2871,8 @@ void postEvent (Event event) {
  */
 public boolean readAndDispatch () {
 	checkDevice ();
+	runSkin ();
+	runDeferredLayouts ();
 	boolean events = runPopups ();
 	int xtContext = OS.XtDisplayToApplicationContext (xDisplay);
 	int status = OS.XtAppPending (xtContext);
@@ -3202,6 +3264,20 @@ boolean runFocusOutEvents () {
 	}
 	return true;
 }
+boolean runDeferredLayouts () {
+	if (layoutDeferredCount != 0) {
+		Composite[] temp = layoutDeferred;
+		int count = layoutDeferredCount;
+		layoutDeferred = null;
+		layoutDeferredCount = 0;
+		for (int i = 0; i < count; i++) {
+			Composite comp = temp[i];
+			if (!comp.isDisposed()) comp.setLayoutDeferred (false);
+		}
+		return true;
+	}	
+	return false;
+}
 boolean runPopups () {
 	if (popups == null) return false;
 	boolean result = false;
@@ -3217,6 +3293,28 @@ boolean runPopups () {
 	}
 	popups = null;
 	return result;
+}
+boolean runSkin () {
+	if (skinCount > 0) {
+		Widget [] oldSkinWidgets = skinList;	
+		int count = skinCount;	
+		skinList = new Widget[GROW_SIZE];
+		skinCount = 0;
+		if (eventTable != null && eventTable.hooks(SWT.Skin)) {
+			for (int i = 0; i < count; i++) {
+				Widget widget = oldSkinWidgets[i];
+				if (widget != null && !widget.isDisposed()) {
+					widget.state &= ~Widget.SKIN_NEEDED;
+					oldSkinWidgets[i] = null;
+					Event event = new Event ();
+					event.widget = widget;
+					sendEvent (SWT.Skin, event);
+				}
+			}
+		}
+		return true;
+	}	
+	return false;
 }
 void sendEvent (int eventType, Event event) {
 	if (eventTable == null && filterTable == null) {
@@ -3286,15 +3384,55 @@ public void setCursorLocation (Point point) {
 	setCursorLocation (point.x, point.y);
 }
 /**
- * On platforms which support it, sets the application name
- * to be the argument. On Motif, for example, this can be used
- * to set the name used for resource lookup.  Specifying
- * <code>null</code> for the name clears it.
+ * Returns the application name.
+ *
+ * @return the application name
+ * 
+ * @see #setAppName(String)
+ * 
+ * @since 3.6
+ */
+public static String getAppName () {
+	return APP_NAME;
+}
+/**
+ * Returns the application version.
+ *
+ * @return the application version
+ * 
+ * @see #setAppVersion(String)
+ * 
+ * @since 3.6
+ */
+public static String getAppVersion () {
+	return APP_VERSION;
+}
+/**
+ * Sets the application name to the argument.
+ * <p>
+ * The application name can be used in several ways,
+ * depending on the platform and tools being used.
+ * On Motif, for example, this can be used to set
+ * the name used for resource lookup. Accessibility
+ * tools may also ask for the application name.
+ * </p><p>
+ * Specifying <code>null</code> for the name clears it.
+ * </p>
  *
  * @param name the new app name or <code>null</code>
  */
 public static void setAppName (String name) {
 	APP_NAME = name;
+}
+/**
+ * Sets the application version to the argument.
+ *
+ * @param version the new app version
+ * 
+ * @since 3.6
+ */
+public static void setAppVersion (String version) {
+	APP_VERSION = version;
 }
 void setCurrentCaret (Caret caret) {
 	if (caretID != 0) OS.XtRemoveTimeOut (caretID);

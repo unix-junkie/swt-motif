@@ -294,8 +294,7 @@ public Point getSize () {
 	return new Point (argList [1] + borders, argList [3] + borders);
 }
 /**
- * Returns the size of the receiver's thumb relative to the
- * difference between its maximum and minimum values.
+ * Returns the receiver's thumb value.
  *
  * @return the thumb value
  *
@@ -311,6 +310,117 @@ public int getThumb () {
 	int [] argList = {OS.XmNsliderSize, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	return argList [1];
+}
+/**
+ * Returns a rectangle describing the size and location of the
+ * receiver's thumb relative to its parent.
+ * 
+ * @return the thumb bounds, relative to the {@link #getParent() parent}
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.6
+ */
+public Rectangle getThumbBounds () {
+	checkWidget();
+	int [] argList = {
+			OS.XmNsliderSize, 0, //1
+			OS.XmNwidth, 0, //3
+			OS.XmNheight, 0, //5
+			OS.XmNminimum, 0, //7 
+			OS.XmNmaximum, 0, //9
+			OS.XmNvalue, 0, //11
+		};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	Rectangle rect;
+	if ((style & SWT.VERTICAL) != 0) {
+		int slideSize = argList [5], sliderSize, sliderPos;
+		if (slideSize > 2 * argList [3]) {
+			slideSize -= 2 * argList [3];
+			float factor = (float)slideSize / (argList[9] - argList[7]);
+			sliderSize = (int)(0.5f + argList[1] * factor);
+			sliderPos = (int) (((argList[11] - argList[7]) * factor) + 0.5) + argList [3];
+		} else {
+			sliderPos = slideSize / 2;
+			sliderSize = 0;
+		}
+		rect = new Rectangle(0, sliderPos, argList[3], sliderSize);
+	} else {
+		int slideSize = argList [3], sliderSize, sliderPos;
+		if (slideSize > 2 * argList [5]) {
+			slideSize -= 2 * argList [5];
+			float factor = (float)slideSize / (argList[9] - argList[7]);
+			sliderSize = (int)(0.5f + argList[1] * factor);
+			sliderPos = (int) (((argList[11] - argList[7]) * factor) + 0.5) + argList [5];
+		} else {
+			sliderPos = slideSize / 2;
+			sliderSize = 0;
+		}
+		rect = new Rectangle(sliderPos, 0, sliderSize, argList[5]);
+	}
+	short [] root_x = new short [1], root_y = new short [1];
+	OS.XtTranslateCoords (handle, (short) rect.x, (short) rect.y, root_x, root_y);
+	rect.x = root_x [0];
+	rect.y = root_y [0];
+	OS.XtTranslateCoords (parent.handle, (short) 0, (short) 0, root_x, root_y);
+	rect.x -= root_x [0];
+	rect.y -= root_y [0];
+	return rect;
+}
+/**
+ * Returns a rectangle describing the size and location of the
+ * receiver's thumb track relative to its parent. This rectangle
+ * comprises the areas 2, 3, and 4 as described in {@link ScrollBar}.
+ * 
+ * @return the thumb track bounds, relative to the {@link #getParent() parent}
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.6
+ */
+public Rectangle getThumbTrackBounds () {
+	checkWidget();
+	int [] argList = {
+			OS.XmNwidth, 0, //1
+			OS.XmNheight, 0, //3
+		};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	Rectangle rect;
+	if ((style & SWT.VERTICAL) != 0) {
+		int slideSize = argList [3], slidePos;
+		if (slideSize > 2 * argList [1]) {
+			slidePos = argList [1];
+			slideSize -= 2 * (argList [1]);
+		} else {
+			slidePos = slideSize / 2;
+			slideSize = 0;
+		}
+		rect = new Rectangle(0, slidePos, argList[1], slideSize);
+	} else {
+		int slideSize = argList [1], slidePos;
+		if (slideSize > 2 * argList [3]) {
+			slidePos = argList [3];
+			slideSize -= 2 * (argList [3]);
+		} else {
+			slidePos = slideSize / 2;
+			slideSize = 0;
+		}
+		rect = new Rectangle(slidePos, 0, slideSize, argList[3]);
+	}
+	short [] root_x = new short [1], root_y = new short [1];
+	OS.XtTranslateCoords (handle, (short) rect.x, (short) rect.y, root_x, root_y);
+	rect.x = root_x [0];
+	rect.y = root_y [0];
+	OS.XtTranslateCoords (parent.handle, (short) 0, (short) 0, root_x, root_y);
+	rect.x -= root_x [0];
+	rect.y -= root_y [0];
+	return rect;
 }
 /**
  * Returns <code>true</code> if the receiver is visible, and
@@ -592,10 +702,13 @@ public void setSelection (int selection) {
 	display.setWarnings (warnings);
 }
 /**
- * Sets the size of the receiver's thumb relative to the
- * difference between its maximum and minimum values.  This new
- * value will be ignored if it is less than one, and will be
+ * Sets the thumb value. The thumb value should be used to represent 
+ * the size of the visual portion of the current range. This value is
+ * usually the same as the page increment value.
+ * <p>
+ * This new value will be ignored if it is less than one, and will be 
  * clamped if it exceeds the receiver's current range.
+ * </p>
  *
  * @param value the new thumb value, which must be at least one and not
  * larger than the size of the current range

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2003, 2009 IBM Corporation and others.
+ * Copyright (c) 2003, 2010 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -26,13 +26,15 @@ abstract class WebBrowser {
 	StatusTextListener[] statusTextListeners = new StatusTextListener[0];
 	TitleListener[] titleListeners = new TitleListener[0];
 	VisibilityWindowListener[] visibilityWindowListeners = new VisibilityWindowListener[0];
-	boolean jsEnabled = true;
-	boolean jsEnabledChanged;
+	boolean jsEnabledChanged, jsEnabled = true;
 	int nextFunctionIndex = 1;
 	Object evaluateResult;
 
 	static final String ERROR_ID = "org.eclipse.swt.browser.error"; // $NON-NLS-1$
 	static final String EXECUTE_ID = "SWTExecuteTemporaryFunction"; // $NON-NLS-1$
+
+	static Vector NativePendingCookies = new Vector ();
+	static Vector MozillaPendingCookies = new Vector ();
 	static String CookieName, CookieValue, CookieUrl;
 	static boolean CookieResult;
 	static Runnable MozillaClearSessions, NativeClearSessions;
@@ -169,7 +171,7 @@ abstract class WebBrowser {
 		{19,	SWT.PAUSE},
 		{3,		SWT.BREAK},
 
-		/* Safari-specific */
+		/* WebKit/Safari-specific */
 		{186,	';'},
 		{187,	'='},
 		{189,	'-'},
@@ -261,24 +263,44 @@ public static void clearSessions () {
 }
 
 public static String GetCookie (String name, String url) {
-	CookieName = name; CookieUrl = url;
+	CookieName = name; CookieUrl = url; CookieValue = null;
 	if (NativeGetCookie != null) NativeGetCookie.run ();
-	if (MozillaGetCookie != null) MozillaGetCookie.run ();
+	if (CookieValue == null && MozillaGetCookie != null) MozillaGetCookie.run ();
 	String result = CookieValue;
 	CookieName = CookieValue = CookieUrl = null;
 	return result;
 }
 
-public static boolean SetCookie (String value, String url) {
+public static boolean SetCookie (String value, String url, boolean addToPending) {
 	CookieValue = value; CookieUrl = url;
 	CookieResult = false;
-	if (NativeSetCookie != null) NativeSetCookie.run ();
-	if (MozillaSetCookie != null) MozillaSetCookie.run ();
+	if (NativeSetCookie != null) {
+		NativeSetCookie.run ();
+	} else {
+		if (addToPending && NativePendingCookies != null) {
+			NativePendingCookies.add (new String[] {value, url});
+		}
+	}
+	if (MozillaSetCookie != null) {
+		MozillaSetCookie.run ();
+	} else {
+		if (addToPending && MozillaPendingCookies != null) {
+			MozillaPendingCookies.add (new String[] {value, url});
+		}
+	}
 	CookieValue = CookieUrl = null;
 	return CookieResult;
 }
 
-public abstract void create (Composite parent, int style);
+static void SetPendingCookies (Vector pendingCookies) {
+	Enumeration elements = pendingCookies.elements ();
+	while (elements.hasMoreElements ()) {
+		String[] current = (String[])elements.nextElement ();
+		SetCookie (current[0], current[1], false);
+	}
+}
+
+public abstract boolean create (Composite parent, int style);
 
 static String CreateErrorString (String error) {
 	return ERROR_ID + error;
@@ -286,6 +308,10 @@ static String CreateErrorString (String error) {
 
 static String ExtractError (String error) {
 	return error.substring (ERROR_ID.length ());
+}
+
+public boolean close () {
+	return true;
 }
 
 public void createFunction (BrowserFunction function) {
@@ -579,13 +605,83 @@ public void removeVisibilityWindowListener (VisibilityWindowListener listener) {
 	visibilityWindowListeners = newVisibilityWindowListeners;
 }
 
+boolean sendKeyEvent (Event event) {
+	int traversal = SWT.TRAVERSE_NONE;
+	boolean traverseDoit = true;
+	switch (event.keyCode) {
+		case SWT.ESC: {
+			traversal = SWT.TRAVERSE_ESCAPE;
+			traverseDoit = true;
+			break;
+		}
+		case SWT.CR: {
+			traversal = SWT.TRAVERSE_RETURN;
+			traverseDoit = false;
+			break;
+		}
+		case SWT.ARROW_DOWN:
+		case SWT.ARROW_RIGHT: {
+			traversal = SWT.TRAVERSE_ARROW_NEXT;
+			traverseDoit = false;
+			break;
+		}
+		case SWT.ARROW_UP:
+		case SWT.ARROW_LEFT: {
+			traversal = SWT.TRAVERSE_ARROW_PREVIOUS;
+			traverseDoit = false;
+			break;
+		}
+		case SWT.TAB: {
+			traversal = (event.stateMask & SWT.SHIFT) != 0 ? SWT.TRAVERSE_TAB_PREVIOUS : SWT.TRAVERSE_TAB_NEXT;
+			traverseDoit = (event.stateMask & SWT.CTRL) != 0;
+			break;
+		}
+		case SWT.PAGE_DOWN: {
+			if ((event.stateMask & SWT.CTRL) != 0) {
+				traversal = SWT.TRAVERSE_PAGE_NEXT;
+				traverseDoit = true;
+			}
+			break;
+		}
+		case SWT.PAGE_UP: {
+			if ((event.stateMask & SWT.CTRL) != 0) {
+				traversal = SWT.TRAVERSE_PAGE_PREVIOUS;
+				traverseDoit = true;
+			}
+			break;
+		}
+		default: {
+			if (translateMnemonics ()) {
+				if (event.character != 0 && (event.stateMask & (SWT.ALT | SWT.CTRL)) == SWT.ALT) {
+					traversal = SWT.TRAVERSE_MNEMONIC;
+					traverseDoit = true;
+				}
+			}
+			break;
+		}
+	}
+
+	boolean doit = true;
+	if (traversal != SWT.TRAVERSE_NONE) {
+		boolean oldEventDoit = event.doit;
+		event.doit = traverseDoit;	
+		doit = !browser.traverse (traversal, event);
+		event.doit = oldEventDoit;
+	}
+	if (doit) {
+		browser.notifyListeners (event.type, event);
+		doit = event.doit; 
+	}
+	return doit;
+}
+
 public void setBrowser (Browser browser) {
 	this.browser = browser;
 }
 
-public abstract boolean setText (String html);
+public abstract boolean setText (String html, boolean trusted);
 
-public abstract boolean setUrl (String url);
+public abstract boolean setUrl (String url, String postData, String[] headers);
 
 public abstract void stop ();
 
@@ -595,4 +691,9 @@ int translateKey (int key) {
 	}
 	return 0;
 }
+
+boolean translateMnemonics () {
+	return true;
+}
+
 }

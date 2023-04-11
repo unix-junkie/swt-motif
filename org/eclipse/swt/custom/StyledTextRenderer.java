@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2009 IBM Corporation and others.
+ * Copyright (c) 2000, 2010 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -67,14 +67,20 @@ class StyledTextRenderer {
 	final static int INDENT = 1 << 2;
 	final static int JUSTIFY = 1 << 3;
 	final static int SEGMENTS = 1 << 5;
+	final static int TABSTOPS = 1 << 6;
+	final static int WRAP_INDENT = 1 << 7;
+	final static int SEGMENT_CHARS = 1 << 8;
 	
 	static class LineInfo {
 		int flags;
 		Color background;
 		int alignment;
 		int indent;
+		int wrapIndent;
 		boolean justify;
 		int[] segments;
+		char[] segmentsChars;
+		int[] tabStops;
 
 		public LineInfo() {
 		}
@@ -84,8 +90,11 @@ class StyledTextRenderer {
 				background = info.background;
 				alignment = info.alignment;
 				indent = info.indent;
+				wrapIndent = info.wrapIndent;
 				justify = info.justify;
 				segments = info.segments;
+				segmentsChars = info.segmentsChars;
+				tabStops = info.tabStops;
 			}
 		}
 	}
@@ -267,7 +276,7 @@ void clearLineStyle(int startLine, int count) {
 	for (int i = startLine; i < startLine + count; i++) {
 		LineInfo info = lines[i];
 		if (info != null) {
-			info.flags &= ~(ALIGNMENT | INDENT | JUSTIFY);
+			info.flags &= ~(ALIGNMENT | INDENT | WRAP_INDENT | JUSTIFY | TABSTOPS);
 			if (info.flags == 0) lines[i] = null;
 		}
 	}
@@ -333,7 +342,7 @@ void drawBullet(Bullet bullet, GC gc, int paintX, int paintY, int index, int lin
 	int type = bullet.type & (ST.BULLET_DOT|ST.BULLET_NUMBER|ST.BULLET_LETTER_LOWER|ST.BULLET_LETTER_UPPER);
 	switch (type) {
 		case ST.BULLET_DOT: string = "\u2022"; break;
-		case ST.BULLET_NUMBER: string = String.valueOf(index); break;
+		case ST.BULLET_NUMBER: string = String.valueOf(index + 1); break;
 		case ST.BULLET_LETTER_LOWER: string = String.valueOf((char) (index % 26 + 97)); break;
 		case ST.BULLET_LETTER_UPPER: string = String.valueOf((char) (index % 26 + 65)); break;
 	}
@@ -428,7 +437,7 @@ int drawLine(int lineIndex, int paintX, int paintY, GC gc, Color widgetBackgroun
 		if (styles[i].metrics != null) {
 			if (ranges == null) ranges = layout.getRanges();
 			int start = ranges[i << 1];
-			int length = ranges[(i << 1) + 1] - start;
+			int length = ranges[(i << 1) + 1] - start + 1;
 			Point point = layout.getLocation(start, false);
 			FontMetrics metrics = layout.getLineMetrics(layout.getLineIndex(start));
 			StyleRange style = (StyleRange)((StyleRange)styles[i]).clone();
@@ -568,6 +577,14 @@ int getLineIndent(int index, int defaultIndent) {
 	}
 	return defaultIndent;
 }
+int getLineWrapIndent(int index, int defaultWrapIndent) {
+	if (lines == null) return defaultWrapIndent;
+	LineInfo info = lines[index];
+	if (info != null && (info.flags & WRAP_INDENT) != 0) {
+		return info.wrapIndent;
+	}
+	return defaultWrapIndent;
+}
 boolean getLineJustify(int index, boolean defaultJustify) {
 	if (lines == null) return defaultJustify;
 	LineInfo info = lines[index];
@@ -576,13 +593,13 @@ boolean getLineJustify(int index, boolean defaultJustify) {
 	}
 	return defaultJustify;
 }
-int[] getLineSegments(int index, int[] defaultSegments) {
-	if (lines == null) return defaultSegments;
+int[] getLineTabStops(int index, int[] defaultTabStops) {
+	if (lines == null) return defaultTabStops;
 	LineInfo info = lines[index];
-	if (info != null && (info.flags & SEGMENTS) != 0) {
-		return info.segments;
+	if (info != null && (info.flags & TABSTOPS) != 0) {
+		return info.tabStops;
 	}
-	return defaultSegments;
+	return defaultTabStops;
 }
 int getRangeIndex(int offset, int low, int high) {
 	if (styleCount == 0) return 0;
@@ -756,28 +773,39 @@ TextLayout getTextLayout(int lineIndex, int orientation, int width, int lineSpac
 	String line = content.getLine(lineIndex);
 	int lineOffset = content.getOffsetAtLine(lineIndex);
 	int[] segments = null;
+	char[] segmentChars = null;
 	int indent = 0;
+	int wrapIndent = 0;
 	int alignment = SWT.LEFT;
 	boolean justify = false;
+	int[] tabs = {tabWidth};
 	Bullet bullet = null;
 	int[] ranges = null;
 	StyleRange[] styles = null;
 	int rangeStart = 0, styleCount = 0;
 	StyledTextEvent event = null;
 	if (styledText != null) {
+		event = styledText.getBidiSegments(lineOffset, line);
+		if (event != null) {
+			segments = event.segments;
+			segmentChars = event.segmentsChars;
+		}
 		event = styledText.getLineStyleData(lineOffset, line);
-		segments = styledText.getBidiSegments(lineOffset, line);
 		indent = styledText.indent;
+		wrapIndent = styledText.wrapIndent;
 		alignment = styledText.alignment;
 		justify = styledText.justify;
+		if (styledText.tabs != null) tabs = styledText.tabs;
 	}
 	if (event != null) {
 		indent = event.indent;
+		wrapIndent = event.wrapIndent;
 		alignment = event.alignment;
 		justify = event.justify;
 		bullet = event.bullet;
 		ranges = event.ranges;
 		styles = event.styles;
+		if (event.tabStops != null) tabs = event.tabStops;
 		if (styles != null) {
 			styleCount = styles.length;
 			if (styledText.isFixedLineHeight()) {
@@ -805,9 +833,12 @@ TextLayout getTextLayout(int lineIndex, int orientation, int width, int lineSpac
 			LineInfo info = lines[lineIndex];
 			if (info != null) {
 				if ((info.flags & INDENT) != 0) indent = info.indent;
+				if ((info.flags & WRAP_INDENT) != 0) wrapIndent = info.wrapIndent;
 				if ((info.flags & ALIGNMENT) != 0) alignment = info.alignment;
 				if ((info.flags & JUSTIFY) != 0) justify = info.justify;
 				if ((info.flags & SEGMENTS) != 0) segments = info.segments;
+				if ((info.flags & SEGMENT_CHARS) != 0) segmentChars = info.segmentsChars;
+				if ((info.flags & TABSTOPS) != 0) tabs = info.tabStops;
 			}
 		}
 		if (bulletsIndices != null) {
@@ -842,10 +873,12 @@ TextLayout getTextLayout(int lineIndex, int orientation, int width, int lineSpac
 	layout.setText(line);
 	layout.setOrientation(orientation);
 	layout.setSegments(segments);
+	layout.setSegmentsChars(segmentChars);
 	layout.setWidth(width);
 	layout.setSpacing(lineSpacing);
-	layout.setTabs(new int[]{tabWidth});
+	layout.setTabs(tabs);
 	layout.setIndent(indent);
+	layout.setWrapIndent(wrapIndent);
 	layout.setAlignment(alignment);
 	layout.setJustify(justify);
 	
@@ -1135,6 +1168,16 @@ void setLineIndent(int startLine, int count, int indent) {
 		lines[i].indent = indent;
 	}
 }
+void setLineWrapIndent(int startLine, int count, int wrapIndent) {
+	if (lines == null) lines = new LineInfo[lineCount];
+	for (int i = startLine; i < startLine + count; i++) {
+		if (lines[i] == null) {
+			lines[i] = new LineInfo();
+		}
+		lines[i].flags |= WRAP_INDENT;
+		lines[i].wrapIndent = wrapIndent;
+	}
+}
 void setLineJustify(int startLine, int count, boolean justify) {
 	if (lines == null) lines = new LineInfo[lineCount];
 	for (int i = startLine; i < startLine + count; i++) {
@@ -1153,6 +1196,26 @@ void setLineSegments(int startLine, int count, int[] segments) {
 		}
 		lines[i].flags |= SEGMENTS;
 		lines[i].segments = segments;
+	}
+}
+void setLineSegmentChars(int startLine, int count, char[] segmentChars) {
+	if (lines == null) lines = new LineInfo[lineCount];
+	for (int i = startLine; i < startLine + count; i++) {
+		if (lines[i] == null) {
+			lines[i] = new LineInfo();
+		}
+		lines[i].flags |= SEGMENT_CHARS;
+		lines[i].segmentsChars = segmentChars;
+	}
+}
+void setLineTabStops(int startLine, int count, int[] tabStops) {
+	if (lines == null) lines = new LineInfo[lineCount];
+	for (int i = startLine; i < startLine + count; i++) {
+		if (lines[i] == null) {
+			lines[i] = new LineInfo();
+		}
+		lines[i].flags |= TABSTOPS;
+		lines[i].tabStops = tabStops;
 	}
 }
 void setStyleRanges (int[] newRanges, StyleRange[] newStyles) {

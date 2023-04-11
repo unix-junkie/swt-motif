@@ -428,10 +428,10 @@ public Color getBackground (int columnIndex) {
 	return cellBackgrounds [columnIndex];
 }
 /**
- * Returns a rectangle describing the receiver's size and location
- * relative to its parent.
+ * Returns a rectangle describing the size and location of the receiver's
+ * text relative to its parent.
  *
- * @return the receiver's bounding rectangle
+ * @return the bounding rectangle of the receiver's text
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1146,11 +1146,11 @@ boolean paint (GC gc, TableColumn column, boolean backgroundOnly) {
 
 	/* draw the parent background color/image of this cell */
 	if (column == null) {
-		parent.drawBackground (gc, 0, y, clientArea.width, itemHeight);
+		parent.drawBackground (gc, 0, y, clientArea.width, itemHeight, 0, 0);
 	} else {
 		int fillWidth = cellBounds.width;
 		if (parent.linesVisible) fillWidth--;
-		parent.drawBackground (gc, cellBounds.x, cellBounds.y, fillWidth, cellBounds.height);
+		parent.drawBackground (gc, cellBounds.x, cellBounds.y, fillWidth, cellBounds.height, 0, 0);
 	}
 
 	boolean isSelected = isSelected ();

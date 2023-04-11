@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2003, 2009 IBM Corporation and others.
+ * Copyright (c) 2003, 2010 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -20,7 +20,7 @@ class PromptService2 {
 	XPCOMObject promptService;
 	XPCOMObject promptService2;
 	int refCount = 0;
-
+	
 	static final String[] certErrorCodes = new String[] {
 		"ssl_error_bad_cert_domain",
 		"sec_error_ca_cert_invalid",
@@ -232,7 +232,12 @@ int AsyncPromptAuth(int /*long*/ aParent, int /*long*/ aChannel, int /*long*/ aC
 
 int Confirm (int /*long*/ aParent, int /*long*/ aDialogTitle, int /*long*/ aText, int /*long*/ _retval) {
 	Browser browser = getBrowser (aParent);
-	
+
+	if (browser != null && ((Mozilla)browser.webBrowser).ignoreAllMessages) {
+		XPCOM.memmove (_retval, new int[] {1}, 4); /* PRBool */
+		return XPCOM.NS_OK;
+	}
+
 	int length = XPCOM.strlen_PRUnichar (aDialogTitle);
 	char[] dest = new char[length];
 	XPCOM.memmove (dest, aDialogTitle, length * 2);
@@ -249,7 +254,7 @@ int Confirm (int /*long*/ aParent, int /*long*/ aDialogTitle, int /*long*/ aText
 	messageBox.setMessage (textLabel);
 	int id = messageBox.open ();
 	int[] result = {id == SWT.OK ? 1 : 0};
-	XPCOM.memmove (_retval, result, 4);
+	XPCOM.memmove (_retval, result, 4); /* PRBool */
 	return XPCOM.NS_OK;
 }
 

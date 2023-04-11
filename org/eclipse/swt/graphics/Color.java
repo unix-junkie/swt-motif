@@ -41,6 +41,8 @@ public final class Color extends Resource {
 	 * within the packages provided by SWT. It is not available on all
 	 * platforms and should never be accessed from application code.
 	 * </p>
+	 * 
+	 * @noreference This field is not intended to be referenced by clients.
 	 */
 	public XColor handle;
 
@@ -314,7 +316,7 @@ void init(int red, int green, int blue) {
  * <p>
  * This method gets the dispose state for the color.
  * When a color has been disposed, it is an error to
- * invoke any other method using the color.
+ * invoke any other method (except {@link #dispose()}) using the color.
  *
  * @return <code>true</code> when the color is disposed and <code>false</code> otherwise
  */

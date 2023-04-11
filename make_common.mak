@@ -1,5 +1,5 @@
 #*******************************************************************************
-# Copyright (c) 2000, 2009 IBM Corporation and others.
+# Copyright (c) 2000, 2010 IBM Corporation and others.
 # All rights reserved. This program and the accompanying materials
 # are made available under the terms of the Eclipse Public License v1.0
 # which accompanies this distribution, and is available at
@@ -10,5 +10,5 @@
 #*******************************************************************************
 
 maj_ver=3
-min_ver=557
-comma_ver=3,5,5,7
+min_ver=659
+comma_ver=3,6,5,9

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -61,6 +61,13 @@ public class LineStyleEvent extends TypedEvent {
 	 */
 	public int indent;
 
+	/**
+	 * line wrap indent (input, output)
+	 * 
+	 * @since 3.6
+	 */
+	public int wrapIndent;
+
 	/** 
 	 * line justification (input, output)
 	 * 
@@ -79,6 +86,13 @@ public class LineStyleEvent extends TypedEvent {
 	 * @since 3.2
 	 */
 	public int bulletIndex;
+
+	/**
+	 * line tab stops (output)
+	 * @since 3.6
+	 */
+	public int[] tabStops;
+
 	
 	static final long serialVersionUID = 3906081274027192884L;
 
@@ -97,7 +111,9 @@ public LineStyleEvent(StyledTextEvent e) {
 	alignment = e.alignment;
 	justify = e.justify;
 	indent = e.indent;
+	wrapIndent = e.wrapIndent;
 	bullet = e.bullet;
 	bulletIndex = e.bulletIndex;
+	tabStops = e.tabStops;
 }
 }

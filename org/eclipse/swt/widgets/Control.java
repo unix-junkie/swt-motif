@@ -26,7 +26,8 @@ import org.eclipse.swt.accessibility.*;
  * <dd>LEFT_TO_RIGHT, RIGHT_TO_LEFT</dd>
  * <dt><b>Events:</b>
  * <dd>DragDetect, FocusIn, FocusOut, Help, KeyDown, KeyUp, MenuDetect, MouseDoubleClick, MouseDown, MouseEnter,
- *     MouseExit, MouseHover, MouseUp, MouseMove, Move, Paint, Resize, Traverse</dd>
+ *     MouseExit, MouseHover, MouseUp, MouseMove, MouseWheel, MouseHorizontalWheel, MouseVerticalWheel, Move,
+ *     Paint, Resize, Traverse</dd>
  * </dl>
  * </p><p>
  * Only one of LEFT_TO_RIGHT or RIGHT_TO_LEFT may be specified.
@@ -650,7 +651,7 @@ int defaultForeground () {
  * @return <code>true</code> if the gesture occurred, and <code>false</code> otherwise.
  *
  * @exception IllegalArgumentException <ul>
- *   <li>ERROR_NULL_ARGUMENT when the event is null</li>
+ *   <li>ERROR_NULL_ARGUMENT if the event is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -691,7 +692,7 @@ public boolean dragDetect (Event event) {
  * @return <code>true</code> if the gesture occurred, and <code>false</code> otherwise.
  *
  * @exception IllegalArgumentException <ul>
- *   <li>ERROR_NULL_ARGUMENT when the event is null</li>
+ *   <li>ERROR_NULL_ARGUMENT if the event is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1170,6 +1171,11 @@ int getMinimumHeight () {
  * 
  * @return the receiver's monitor
  * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
  * @since 3.0
  */
 public Monitor getMonitor () {
@@ -1396,6 +1402,8 @@ int hoverProc (int id, boolean showTip) {
  *
  * @param data the platform specific GC data 
  * @return the platform specific GC handle
+ * 
+ * @noreference This method is not intended to be referenced by clients.
  */
 public int internal_new_GC (GCData data) {
 	checkWidget();
@@ -1446,6 +1454,8 @@ public int internal_new_GC (GCData data) {
  *
  * @param hDC the platform specific GC handle
  * @param data the platform specific GC data 
+ * 
+ * @noreference This method is not intended to be referenced by clients.
  */
 public void internal_dispose_GC (int xGC, GCData data) {
 	checkWidget ();
@@ -2196,18 +2206,20 @@ boolean sendMouseEvent (int type, XButtonEvent xEvent) {
 	switch (button) {
 		case 4:
 		case 5:
-			/* Use MouseDown button 4 and 5 to emulated MouseWheel */
+		case 6:
+		case 7:
 			if (type != SWT.MouseDown) return true;
-			type = SWT.MouseWheel;
+			type = button == 4 || button == 5 ? SWT.MouseWheel : SWT.MouseHorizontalWheel;
 			if (!hooks (type) && !filters (type)) return true;
+			int count = button == 4 || button == 6 ? 3 : -3;
+			int detail = button == 4 || button == 5 ? SWT.SCROLL_LINE : SWT.NONE;
 			short [] x_root = new short [1], y_root = new short [1];
 			OS.XtTranslateCoords (handle, (short) 0, (short) 0, x_root, y_root);
 			int x = xEvent.x_root - x_root [0], y = xEvent.y_root - y_root [0];
-			int count = button == 4 ? 3 : -3;
 			Control control = this;
 			Shell shell = getShell ();
 			do {
-				if (!control.sendMouseEvent (type, 0, count, SWT.SCROLL_LINE, true, xEvent.time, x, y, xEvent.state)) {
+				if (!control.sendMouseEvent (type, 0, count, detail, true, xEvent.time, x, y, xEvent.state)) {
 					return false;
 				}
 				if (control == shell) break;
@@ -2217,12 +2229,6 @@ boolean sendMouseEvent (int type, XButtonEvent xEvent) {
 				y = xEvent.y_root - y_root [0];			
 			} while (control != null);
 			return true;
-		case 6:
-			button = 4;
-			break;
-		case 7:
-			button = 5;
-			break;
 	}
 	if (!hooks (type) && !filters (type)) return true;
 	short [] x_root = new short [1], y_root = new short [1];
@@ -2786,6 +2792,7 @@ public void setMenu (Menu menu) {
 public boolean setParent (Composite parent) {
 	checkWidget();
 	if (parent.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+	reskin (SWT.ALL);
 	return false;
 }
 void setParentBackground () {
@@ -3295,6 +3302,177 @@ int traversalCode (int key, XKeyEvent xEvent) {
 	}
 	return code;
 }
+/**
+ * Performs a platform traversal action corresponding to a <code>KeyDown</code> event.
+ * 
+ * <p>Valid traversal values are
+ * <code>SWT.TRAVERSE_NONE</code>, <code>SWT.TRAVERSE_MNEMONIC</code>,
+ * <code>SWT.TRAVERSE_ESCAPE</code>, <code>SWT.TRAVERSE_RETURN</code>,
+ * <code>SWT.TRAVERSE_TAB_NEXT</code>, <code>SWT.TRAVERSE_TAB_PREVIOUS</code>, 
+ * <code>SWT.TRAVERSE_ARROW_NEXT</code>, <code>SWT.TRAVERSE_ARROW_PREVIOUS</code>,
+ * <code>SWT.TRAVERSE_PAGE_NEXT</code> and <code>SWT.TRAVERSE_PAGE_PREVIOUS</code>.
+ * If <code>traversal</code> is <code>SWT.TRAVERSE_NONE</code> then the Traverse
+ * event is created with standard values based on the KeyDown event.  If
+ * <code>traversal</code> is one of the other traversal constants then the Traverse
+ * event is created with this detail, and its <code>doit</code> is taken from the
+ * KeyDown event. 
+ * </p>
+ *
+ * @param traversal the type of traversal, or <code>SWT.TRAVERSE_NONE</code> to compute
+ * this from <code>event</code>
+ * @param event the KeyDown event
+ * 
+ * @return <code>true</code> if the traversal succeeded
+ *
+ * @exception IllegalArgumentException <ul>
+ *   <li>ERROR_NULL_ARGUMENT if the event is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.6
+ */
+public boolean traverse (int traversal, Event event) {
+	checkWidget ();
+	if (event == null) error (SWT.ERROR_NULL_ARGUMENT);
+	return traverse (traversal, event.character, event.keyCode, event.keyLocation, event.stateMask, event.doit);
+}
+/**
+ * Performs a platform traversal action corresponding to a <code>KeyDown</code> event.
+ * 
+ * <p>Valid traversal values are
+ * <code>SWT.TRAVERSE_NONE</code>, <code>SWT.TRAVERSE_MNEMONIC</code>,
+ * <code>SWT.TRAVERSE_ESCAPE</code>, <code>SWT.TRAVERSE_RETURN</code>,
+ * <code>SWT.TRAVERSE_TAB_NEXT</code>, <code>SWT.TRAVERSE_TAB_PREVIOUS</code>, 
+ * <code>SWT.TRAVERSE_ARROW_NEXT</code>, <code>SWT.TRAVERSE_ARROW_PREVIOUS</code>,
+ * <code>SWT.TRAVERSE_PAGE_NEXT</code> and <code>SWT.TRAVERSE_PAGE_PREVIOUS</code>.
+ * If <code>traversal</code> is <code>SWT.TRAVERSE_NONE</code> then the Traverse
+ * event is created with standard values based on the KeyDown event.  If
+ * <code>traversal</code> is one of the other traversal constants then the Traverse
+ * event is created with this detail, and its <code>doit</code> is taken from the
+ * KeyDown event. 
+ * </p>
+ *
+ * @param traversal the type of traversal, or <code>SWT.TRAVERSE_NONE</code> to compute
+ * this from <code>event</code>
+ * @param event the KeyDown event
+ * 
+ * @return <code>true</code> if the traversal succeeded
+ *
+ * @exception IllegalArgumentException <ul>
+ *   <li>ERROR_NULL_ARGUMENT if the event is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.6
+ */
+public boolean traverse (int traversal, KeyEvent event) {
+	checkWidget ();
+	if (event == null) error (SWT.ERROR_NULL_ARGUMENT);
+	return traverse (traversal, event.character, event.keyCode, event.keyLocation, event.stateMask, event.doit);
+}
+boolean traverse (int traversal, char character, int keyCode, int keyLocation, int stateMask, boolean doit) {
+	if (traversal == SWT.TRAVERSE_NONE) {
+		switch (keyCode) {
+			case SWT.ESC: {
+				traversal = SWT.TRAVERSE_ESCAPE;
+				doit = true;
+				break;
+			}
+			case SWT.CR: {
+				traversal = SWT.TRAVERSE_RETURN;
+				doit = true;
+				break;
+			}
+			case SWT.ARROW_DOWN:
+			case SWT.ARROW_RIGHT: {
+				traversal = SWT.TRAVERSE_ARROW_NEXT;
+				doit = false;
+				break;
+			}
+			case SWT.ARROW_UP:
+			case SWT.ARROW_LEFT: {
+				traversal = SWT.TRAVERSE_ARROW_PREVIOUS;
+				doit = false;
+				break;
+			}
+			case SWT.TAB: {
+				traversal = (stateMask & SWT.SHIFT) != 0 ? SWT.TRAVERSE_TAB_PREVIOUS : SWT.TRAVERSE_TAB_NEXT;
+				doit = true;
+				break;
+			}
+			case SWT.PAGE_DOWN: {
+				if ((stateMask & SWT.CTRL) != 0) {
+					traversal = SWT.TRAVERSE_PAGE_NEXT;
+					doit = true;
+				}
+				break;
+			}
+			case SWT.PAGE_UP: {
+				if ((stateMask & SWT.CTRL) != 0) {
+					traversal = SWT.TRAVERSE_PAGE_PREVIOUS;
+					doit = true;
+				}
+				break;
+			}
+			default: {
+				if (character != 0 && (stateMask & (SWT.ALT | SWT.CTRL)) == SWT.ALT) {
+					traversal = SWT.TRAVERSE_MNEMONIC;
+					doit = true;
+				}
+				break;
+			}
+		}
+	}
+
+	Event event = new Event ();
+	event.character = character;
+	event.detail = traversal;
+	event.doit = doit;
+	event.keyCode = keyCode;
+	event.keyLocation = keyLocation;
+	event.stateMask = stateMask;
+	Shell shell = getShell ();
+
+	boolean all = false;
+	switch (traversal) {
+		case SWT.TRAVERSE_ESCAPE:
+		case SWT.TRAVERSE_RETURN:
+		case SWT.TRAVERSE_PAGE_NEXT:
+		case SWT.TRAVERSE_PAGE_PREVIOUS: {
+			all = true;
+			// FALL THROUGH
+		}
+		case SWT.TRAVERSE_ARROW_NEXT:
+		case SWT.TRAVERSE_ARROW_PREVIOUS:
+		case SWT.TRAVERSE_TAB_NEXT:
+		case SWT.TRAVERSE_TAB_PREVIOUS: {
+			/* traversal is a valid traversal action */
+			break;
+		}
+		case SWT.TRAVERSE_MNEMONIC: {
+			return translateMnemonic (event, null) || shell.translateMnemonic (event, this);
+		}
+		default: {
+			/* traversal is not a valid traversal action */
+			return false;
+		}
+	}
+
+	Control control = this;
+	do {
+		if (control.traverse (event)) return true;
+		if (!event.doit && control.hooks (SWT.Traverse)) return false;
+		if (control == shell) return false;
+		control = control.parent;
+	} while (all && control != null);
+	return false;
+}
 boolean traverse (Event event) {
 	sendEvent (SWT.Traverse, event);
 	if (isDisposed ()) return true;
@@ -3318,7 +3496,8 @@ boolean traverse (Event event) {
  * traversal action. The argument should be one of the constants:
  * <code>SWT.TRAVERSE_ESCAPE</code>, <code>SWT.TRAVERSE_RETURN</code>, 
  * <code>SWT.TRAVERSE_TAB_NEXT</code>, <code>SWT.TRAVERSE_TAB_PREVIOUS</code>, 
- * <code>SWT.TRAVERSE_ARROW_NEXT</code> and <code>SWT.TRAVERSE_ARROW_PREVIOUS</code>.
+ * <code>SWT.TRAVERSE_ARROW_NEXT</code>, <code>SWT.TRAVERSE_ARROW_PREVIOUS</code>,
+ * <code>SWT.TRAVERSE_PAGE_NEXT</code> and <code>SWT.TRAVERSE_PAGE_PREVIOUS</code>.
  *
  * @param traversal the type of traversal
  * @return true if the traversal succeeded

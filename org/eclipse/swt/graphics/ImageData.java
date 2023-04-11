@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2009 IBM Corporation and others.
+ * Copyright (c) 2000, 2010 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -505,6 +505,8 @@ void setAllFields(int width, int height, int depth, int scanlinePad,
  * <p>
  * This method is for internal use, and is not described further.
  * </p>
+ * 
+ * @noreference This method is not intended to be referenced by clients.
  */
 public static ImageData internal_new(
 	int width, int height, int depth, PaletteData palette,
@@ -1778,7 +1780,7 @@ static void blit(int op,
 	if ((destWidth <= 0) || (destHeight <= 0) || (alphaMode == ALPHA_TRANSPARENT)) return;
 
 	// these should be supplied as params later
-	final int srcAlphaMask = 0, destAlphaMask = 0;
+	int srcAlphaMask = 0, destAlphaMask = 0;
 
 	/*** Prepare scaling data ***/
 	final int dwm1 = destWidth - 1;

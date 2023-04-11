@@ -697,11 +697,11 @@ public void setIncrement (int value) {
 }
 /**
  * Sets the maximum value that the receiver will allow.  This new
- * value will be ignored if it is not greater than the receiver's current
+ * value will be ignored if it is less than the receiver's current
  * minimum value.  If the new maximum is applied then the receiver's
  * selection value will be adjusted if necessary to fall within its new range.
  *
- * @param value the new maximum, which must be greater than the current minimum
+ * @param value the new maximum, which must be greater than or equal to the current minimum
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -712,7 +712,7 @@ public void setMaximum (int value) {
 	checkWidget ();
 	int [] argList1 = {OS.XmNminimumValue, 0, OS.XmNposition, 0};
 	OS.XtGetValues (handle, argList1, argList1.length / 2);	
-	if (value <= argList1 [1]) return;
+	if (value < argList1 [1]) return;
 	int position = argList1 [3];
 	if (value < position) position = value;
 	int [] argList2 = {OS.XmNposition, position, OS.XmNmaximumValue, value};
@@ -720,11 +720,11 @@ public void setMaximum (int value) {
 }
 /**
  * Sets the minimum value that the receiver will allow.  This new
- * value will be ignored if it is not less than the receiver's
+ * value will be ignored if it is greater than the receiver's
  * current maximum value.  If the new minimum is applied then the receiver's
  * selection value will be adjusted if necessary to fall within its new range.
  *
- * @param value the new minimum, which must be less than the current maximum
+ * @param value the new minimum, which must be less than or equal to the current maximum
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -735,7 +735,7 @@ public void setMinimum (int value) {
 	checkWidget ();
 	int [] argList1 = {OS.XmNmaximumValue, 0, OS.XmNposition, 0};
 	OS.XtGetValues (handle, argList1, argList1.length / 2);
-	if (value >= argList1 [1]) return;
+	if (value > argList1 [1]) return;
 	int position = argList1 [3];
 	if (value > position) position = value;
 	int [] argList2 = {OS.XmNposition, position, OS.XmNminimumValue, value};
@@ -832,7 +832,7 @@ public void setTextLimit (int limit) {
  */
 public void setValues (int selection, int minimum, int maximum, int digits, int increment, int pageIncrement) {
 	checkWidget ();
-	if (maximum <= minimum) return;
+	if (maximum < minimum) return;
 	if (digits < 0) return;
 	if (increment < 1) return;
 	if (pageIncrement < 1) return;

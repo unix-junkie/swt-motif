@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2003, 2009 IBM Corporation and others.
+ * Copyright (c) 2003, 2010 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -42,9 +42,11 @@ import org.eclipse.swt.widgets.*;
 public class Browser extends Composite {
 	WebBrowser webBrowser;
 	int userStyle;
+	boolean isClosing;
 
-	static final String PACKAGE_PREFIX = "org.eclipse.swt.browser."; //$NON-NLS-1$
 	static final String NO_INPUT_METHOD = "org.eclipse.swt.internal.gtk.noInputMethod"; //$NON-NLS-1$
+	static final String PACKAGE_PREFIX = "org.eclipse.swt.browser."; //$NON-NLS-1$
+	static final String PROPERTY_USEWEBKITGTK = "org.eclipse.swt.browser.UseWebKitGTK"; //$NON-NLS-1$
 
 /**
  * Constructs a new instance of this class given its parent
@@ -83,40 +85,46 @@ public Browser (Composite parent, int style) {
 	String platform = SWT.getPlatform ();
 	Display display = parent.getDisplay ();
 	if ("gtk".equals (platform)) display.setData (NO_INPUT_METHOD, null); //$NON-NLS-1$
-	String className = null;
+	String classNames[] = null;
 	if ((style & SWT.MOZILLA) != 0) {
-		className = "org.eclipse.swt.browser.Mozilla"; //$NON-NLS-1$
+		classNames = new String[] {"org.eclipse.swt.browser.Mozilla"}; //$NON-NLS-1$
 	} else {
 		if ("win32".equals (platform) || "wpf".equals (platform)) { //$NON-NLS-1$ $NON-NLS-2$
-			className = "org.eclipse.swt.browser.IE"; //$NON-NLS-1$
+			classNames = new String[] {"org.eclipse.swt.browser.IE"}; //$NON-NLS-1$
 		} else if ("motif".equals (platform)) { //$NON-NLS-1$
-			className = "org.eclipse.swt.browser.Mozilla"; //$NON-NLS-1$
+			classNames = new String[] {"org.eclipse.swt.browser.Mozilla"}; //$NON-NLS-1$
 		} else if ("gtk".equals (platform)) { //$NON-NLS-1$
-			className = "org.eclipse.swt.browser.Mozilla"; //$NON-NLS-1$
+			String property = System.getProperty (PROPERTY_USEWEBKITGTK);
+			if (property != null && property.equalsIgnoreCase ("true")) { //$NON-NLS-1$
+				classNames = new String[] {"org.eclipse.swt.browser.WebKit", "org.eclipse.swt.browser.Mozilla"}; //$NON-NLS-1$ //$NON-NLS-2$
+			} else {
+				classNames = new String[] {"org.eclipse.swt.browser.Mozilla"}; //$NON-NLS-1$
+			}
 		} else if ("carbon".equals (platform) || "cocoa".equals (platform)) { //$NON-NLS-1$
-			className = "org.eclipse.swt.browser.Safari"; //$NON-NLS-1$
+			classNames = new String[] {"org.eclipse.swt.browser.Safari"}; //$NON-NLS-1$
 		} else if ("photon".equals (platform)) { //$NON-NLS-1$
-			className = "org.eclipse.swt.browser.Voyager"; //$NON-NLS-1$
+			classNames = new String[] {"org.eclipse.swt.browser.Voyager"}; //$NON-NLS-1$
 		} else {
 			dispose ();
 			SWT.error (SWT.ERROR_NO_HANDLES);
 		}
 	}
 
-	try {
-		Class clazz = Class.forName (className);
-		webBrowser = (WebBrowser)clazz.newInstance ();
-	} catch (ClassNotFoundException e) {
-	} catch (IllegalAccessException e) {
-	} catch (InstantiationException e) {
+	for (int i = 0; i < classNames.length; i++) {
+		try {
+			Class clazz = Class.forName (classNames[i]);
+			webBrowser = (WebBrowser)clazz.newInstance ();
+			if (webBrowser != null) {
+				webBrowser.setBrowser (this);
+				if (webBrowser.create (parent, style)) return;
+			}
+		} catch (ClassNotFoundException e) {
+		} catch (IllegalAccessException e) {
+		} catch (InstantiationException e) {
+		}
 	}
-	if (webBrowser == null) {
-		dispose ();
-		SWT.error (SWT.ERROR_NO_HANDLES);
-	}
-
-	webBrowser.setBrowser (this);
-	webBrowser.create (parent, style);
+	dispose ();
+	SWT.error (SWT.ERROR_NO_HANDLES);
 }
 
 static Composite checkParent (Composite parent) {
@@ -198,7 +206,7 @@ public static String getCookie (String name, String url) {
  * Sets a cookie on a URL.  Note that cookies are shared amongst all Browser instances.
  * 
  * The <code>value</code> parameter must be a cookie header string that
- * complies with <a href="http://www.ietf.org/rfc/rfc2109.txt">RFC 2109</code>.
+ * complies with <a href="http://www.ietf.org/rfc/rfc2109.txt">RFC 2109</a>.
  * The value is passed through to the native browser unchanged.
  * <p>
  * Example value strings:
@@ -221,7 +229,7 @@ public static String getCookie (String name, String url) {
 public static boolean setCookie (String value, String url) {
 	if (value == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
 	if (url == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
-	return WebBrowser.SetCookie (value, url);
+	return WebBrowser.SetCookie (value, url, true);
 }
 
 /**	 
@@ -491,6 +499,33 @@ public boolean execute (String script) {
 }
 
 /**
+ * Attempts to dispose the receiver, but allows the dispose to be vetoed
+ * by the user in response to an <code>onbeforeunload</code> listener
+ * in the Browser's current page.
+ *
+ * @return <code>true</code> if the receiver was disposed, and <code>false</code> otherwise
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @see #dispose()
+ * 
+ * @since 3.6
+ */
+public boolean close () {
+	checkWidget();
+	if (webBrowser.close ()) {
+		isClosing = true;
+		dispose ();
+		isClosing = false;
+		return true;
+	}
+	return false;
+}
+
+/**
  * Returns the result, if any, of executing the specified script.
  * <p>
  * Evaluates a script containing javascript commands in the context of
@@ -560,7 +595,7 @@ public boolean forward () {
 
 /**
  * Returns the type of native browser being used by this instance.
- * Examples: "mozilla", "ie", "safari", "voyager"
+ * Examples: "ie", "mozilla", "voyager", "webkit"
  *
  * @return the type of the native browser
  * 
@@ -920,9 +955,10 @@ public void setJavascriptEnabled (boolean enabled) {
 
 /**
  * Renders a string containing HTML.  The rendering of the content occurs asynchronously.
- * 
+ * The rendered page will be given trusted permissions; to render the page with untrusted
+ * permissions use <code>setText(String html, boolean trusted)</code> instead.   
  * <p>
- * The html parameter is Unicode encoded since it is a java <code>String</code>.
+ * The html parameter is Unicode-encoded since it is a java <code>String</code>.
  * As a result, the HTML meta tag charset should not be set. The charset is implied
  * by the <code>String</code> itself.
  * 
@@ -939,14 +975,56 @@ public void setJavascriptEnabled (boolean enabled) {
  *    <li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
  * </ul>
  *  
+ * @see #setText(String,boolean)
  * @see #setUrl
  * 
  * @since 3.0
  */
 public boolean setText (String html) {
 	checkWidget();
+	return setText (html, true);
+}
+
+/**
+ * Renders a string containing HTML.  The rendering of the content occurs asynchronously.
+ * The rendered page can be given either trusted or untrusted permissions. 
+ * <p>
+ * The <code>html</code> parameter is Unicode-encoded since it is a java <code>String</code>.
+ * As a result, the HTML meta tag charset should not be set. The charset is implied
+ * by the <code>String</code> itself.
+ * <p>
+ * The <code>trusted</code> parameter affects the permissions that will be granted to the rendered
+ * page.  Specifying <code>true</code> for trusted gives the page permissions equivalent
+ * to a page on the local file system, while specifying <code>false</code> for trusted
+ * gives the page permissions equivalent to a page from the internet.  Page content should
+ * be specified as trusted if the invoker created it or trusts its source, since this would
+ * allow (for instance) style sheets on the local file system to be referenced.  Page 
+ * content should be specified as untrusted if its source is not trusted or is not known.
+ * 
+ * @param html the HTML content to be rendered
+ * @param trusted <code>false</code> if the rendered page should be granted restricted
+ * permissions and <code>true</code> otherwise
+ *
+ * @return <code>true</code> if the operation was successful and <code>false</code> otherwise.
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the html is null</li>
+ * </ul>
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
+ *    <li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
+ * </ul>
+ *
+ * @see #setText(String)
+ * @see #setUrl
+ * 
+ * @since 3.6
+ */
+public boolean setText (String html, boolean trusted) {
+	checkWidget();
 	if (html == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
-	return webBrowser.setText (html);
+	return webBrowser.setText (html, trusted);
 }
 
 /**
@@ -966,13 +1044,45 @@ public boolean setText (String html) {
  * </ul>
  *  
  * @see #getUrl
+ * @see #setUrl(String,String,String[])
  * 
  * @since 3.0
  */
 public boolean setUrl (String url) {
 	checkWidget();
+	return setUrl (url, null, null);
+}
+
+/**
+ * Begins loading a URL.  The loading of its content occurs asynchronously.
+ * <p>
+ * If the URL causes an HTTP request to be initiated then the provided
+ * <code>postData</code> and <code>header</code> arguments, if any, are
+ * sent with the request.  A value in the <code>headers</code> argument
+ * must be a name-value pair with a colon separator in order to be sent
+ * (for example: "<code>user-agent: custom</code>").
+ * 
+ * @param url the URL to be loaded
+ * @param postData post data to be sent with the request, or <code>null</code>
+ * @param headers header lines to be sent with the request, or <code>null</code> 
+ *
+ * @return <code>true</code> if the operation was successful and <code>false</code> otherwise.
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the url is null</li>
+ * </ul>
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
+ *    <li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
+ * </ul>
+ * 
+ * @since 3.6
+ */
+public boolean setUrl (String url, String postData, String[] headers) {
+	checkWidget();
 	if (url == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
-	return webBrowser.setUrl (url);
+	return webBrowser.setUrl (url, postData, headers);
 }
 
 /**

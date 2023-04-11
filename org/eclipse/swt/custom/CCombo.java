@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2010 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -136,6 +136,12 @@ public CCombo (Composite parent, int style) {
 	filter = new Listener() {
 		public void handleEvent(Event event) {
 			if (isDisposed ()) return;
+			if (event.type == SWT.Selection) {
+				if (event.widget instanceof ScrollBar) {
+					handleScroll(event);
+				}
+				return;
+			}
 			Shell shell = ((Control)event.widget).getShell ();
 			if (shell == CCombo.this.getShell ()) {
 				handleFocus (SWT.FocusOut);
@@ -146,10 +152,13 @@ public CCombo (Composite parent, int style) {
 	int [] comboEvents = {SWT.Dispose, SWT.FocusIn, SWT.Move, SWT.Resize};
 	for (int i=0; i<comboEvents.length; i++) this.addListener (comboEvents [i], listener);
 	
-	int [] textEvents = {SWT.DefaultSelection, SWT.KeyDown, SWT.KeyUp, SWT.MenuDetect, SWT.Modify, SWT.MouseDown, SWT.MouseUp, SWT.MouseDoubleClick, SWT.MouseWheel, SWT.Traverse, SWT.FocusIn, SWT.Verify};
+	int [] textEvents = {SWT.DefaultSelection, SWT.DragDetect, SWT.KeyDown, SWT.KeyUp, SWT.MenuDetect, SWT.Modify,
+		SWT.MouseDown, SWT.MouseUp, SWT.MouseDoubleClick, SWT.MouseEnter, SWT.MouseExit, SWT.MouseHover,
+		SWT.MouseMove, SWT.MouseWheel, SWT.Traverse, SWT.FocusIn, SWT.Verify};
 	for (int i=0; i<textEvents.length; i++) text.addListener (textEvents [i], listener);
 	
-	int [] arrowEvents = {SWT.MouseDown, SWT.MouseUp, SWT.Selection, SWT.FocusIn};
+	int [] arrowEvents = {SWT.DragDetect, SWT.MouseDown, SWT.MouseEnter, SWT.MouseExit, SWT.MouseHover,
+		SWT.MouseMove, SWT.MouseUp, SWT.MouseWheel, SWT.Selection, SWT.FocusIn};
 	for (int i=0; i<arrowEvents.length; i++) arrow.addListener (arrowEvents [i], listener);
 	
 	createPopup(null, -1);
@@ -296,26 +305,42 @@ void arrowEvent (Event event) {
 			handleFocus (SWT.FocusIn);
 			break;
 		}
-		case SWT.MouseDown: {
-			Event mouseEvent = new Event ();
-			mouseEvent.button = event.button;
-			mouseEvent.count = event.count;
-			mouseEvent.stateMask = event.stateMask;
-			mouseEvent.time = event.time;
-			mouseEvent.x = event.x; mouseEvent.y = event.y;
-			notifyListeners (SWT.MouseDown, mouseEvent);
-			event.doit = mouseEvent.doit;
+		case SWT.DragDetect:
+		case SWT.MouseDown:
+		case SWT.MouseUp:
+		case SWT.MouseMove:
+		case SWT.MouseEnter:
+		case SWT.MouseExit:
+		case SWT.MouseHover: {
+			Point pt = getDisplay ().map (arrow, this, event.x, event.y);
+			event.x = pt.x; event.y = pt.y;
+			notifyListeners (event.type, event);
+			event.type = SWT.None;
 			break;
 		}
-		case SWT.MouseUp: {
-			Event mouseEvent = new Event ();
-			mouseEvent.button = event.button;
-			mouseEvent.count = event.count;
-			mouseEvent.stateMask = event.stateMask;
-			mouseEvent.time = event.time;
-			mouseEvent.x = event.x; mouseEvent.y = event.y;
-			notifyListeners (SWT.MouseUp, mouseEvent);
-			event.doit = mouseEvent.doit;
+		case SWT.MouseWheel: {
+			Point pt = getDisplay ().map (arrow, this, event.x, event.y);
+			event.x = pt.x; event.y = pt.y;
+			notifyListeners (SWT.MouseWheel, event);
+			event.type = SWT.None;
+			if (isDisposed ()) break;
+			if (!event.doit) break;
+			if (event.count != 0) {
+				event.doit = false;
+				int oldIndex = getSelectionIndex ();
+				if (event.count > 0) {
+					select (Math.max (oldIndex - 1, 0));
+				} else {
+					select (Math.min (oldIndex + 1, getItemCount () - 1));
+				}
+				if (oldIndex != getSelectionIndex ()) {
+					Event e = new Event();
+					e.time = event.time;
+					e.stateMask = event.stateMask;
+					notifyListeners (SWT.Selection, e);
+				}
+				if (isDisposed ()) break;
+			}
 			break;
 		}
 		case SWT.Selection: {
@@ -513,7 +538,9 @@ public void deselectAll () {
 }
 void dropDown (boolean drop) {
 	if (drop == isDropped ()) return;
+	Display display = getDisplay ();
 	if (!drop) {
+		display.removeFilter (SWT.Selection, filter);
 		popup.setVisible (false);
 		if (!isDisposed () && isFocusControl()) {
 			text.setFocus();
@@ -540,7 +567,6 @@ void dropDown (boolean drop) {
 	
 	int index = list.getSelectionIndex ();
 	if (index != -1) list.setTopIndex (index);
-	Display display = getDisplay ();
 	Rectangle listRect = list.getBounds ();
 	Rectangle parentRect = display.map (getParent (), null, getBounds ());
 	Point comboSize = getSize ();
@@ -554,6 +580,14 @@ void dropDown (boolean drop) {
 	popup.setBounds (x, y, width, height);
 	popup.setVisible (true);
 	if (isFocusControl()) list.setFocus ();
+	
+	/*
+	 * Add a filter to listen to scrolling of the parent composite, when the
+	 * drop-down is visible. Remove the filter when drop-down is not
+	 * visible.
+	 */
+	display.removeFilter (SWT.Selection, filter);
+	display.addFilter (SWT.Selection, filter);
 }
 /*
  * Return the lowercase of the first non-'&' character following
@@ -576,13 +610,16 @@ char _findMnemonic (String string) {
  * Return the Label immediately preceding the receiver in the z-order, 
  * or null if none. 
  */
-Label getAssociatedLabel () {
+String getAssociatedLabel () {
 	Control[] siblings = getParent ().getChildren ();
 	for (int i = 0; i < siblings.length; i++) {
 		if (siblings [i] == this) {
-			if (i > 0 && siblings [i-1] instanceof Label) {
-				return (Label) siblings [i-1];
+			if (i > 0) {
+				Control sibling = siblings [i-1];
+				if (sibling instanceof Label) return ((Label) sibling).getText();
+				if (sibling instanceof CLabel) return ((CLabel) sibling).getText();
 			}
+			break;
 		}
 	}
 	return null;
@@ -846,6 +883,12 @@ void handleFocus (int type) {
 		}
 	}
 }
+void handleScroll(Event event) {
+	ScrollBar scrollBar = (ScrollBar)event.widget;
+	Control scrollableParent = scrollBar.getParent();
+	if (scrollableParent.equals(list)) return;
+	if (isParentScrolling(scrollableParent)) dropDown(false);
+}
 /**
  * Searches the receiver's list starting at the first item
  * (index 0) until an item is found that is equal to the 
@@ -897,22 +940,19 @@ void initAccessible() {
 	AccessibleAdapter accessibleAdapter = new AccessibleAdapter () {
 		public void getName (AccessibleEvent e) {
 			String name = null;
-			Label label = getAssociatedLabel ();
-			if (label != null) {
-				name = stripMnemonic (label.getText());
+			String text = getAssociatedLabel ();
+			if (text != null) {
+				name = stripMnemonic (text);
 			}
 			e.result = name;
 		}
 		public void getKeyboardShortcut(AccessibleEvent e) {
 			String shortcut = null;
-			Label label = getAssociatedLabel ();
-			if (label != null) {
-				String text = label.getText ();
-				if (text != null) {
-					char mnemonic = _findMnemonic (text);
-					if (mnemonic != '\0') {
-						shortcut = "Alt+"+mnemonic; //$NON-NLS-1$
-					}
+			String text = getAssociatedLabel ();
+			if (text != null) {
+				char mnemonic = _findMnemonic (text);
+				if (mnemonic != '\0') {
+					shortcut = "Alt+"+mnemonic; //$NON-NLS-1$
 				}
 			}
 			e.result = shortcut;
@@ -1004,6 +1044,15 @@ public boolean isFocusControl () {
 	} 
 	return super.isFocusControl ();
 }
+boolean isParentScrolling(Control scrollableParent) {
+	Control parent = this.getParent();
+	while (parent != null) {
+		if (parent.equals(scrollableParent))
+			return true;
+		parent = parent.getParent();
+	}
+	return false;
+}
 void internalLayout (boolean changed) {
 	if (isDropped ()) dropDown (false);
 	Rectangle rect = getClientArea ();
@@ -1068,6 +1117,7 @@ void listEvent (Event event) {
 			e.doit = event.doit;
 			e.character = event.character;
 			e.keyCode = event.keyCode;
+			e.keyLocation = event.keyLocation;
 			notifyListeners (SWT.Traverse, e);
 			event.doit = e.doit;
 			event.detail = e.detail;
@@ -1078,8 +1128,10 @@ void listEvent (Event event) {
 			e.time = event.time;
 			e.character = event.character;
 			e.keyCode = event.keyCode;
+			e.keyLocation = event.keyLocation;
 			e.stateMask = event.stateMask;
 			notifyListeners (SWT.KeyUp, e);
+			event.doit = e.doit;
 			break;
 		}
 		case SWT.KeyDown: {
@@ -1105,8 +1157,10 @@ void listEvent (Event event) {
 			e.time = event.time;
 			e.character = event.character;
 			e.keyCode = event.keyCode;
+			e.keyLocation = event.keyLocation;
 			e.stateMask = event.stateMask;
 			notifyListeners(SWT.KeyDown, e);
+			event.doit = e.doit;
 			break;
 			
 		}
@@ -1617,11 +1671,24 @@ void textEvent (Event event) {
 			notifyListeners (SWT.DefaultSelection, e);
 			break;
 		}
+		case SWT.DragDetect:
+		case SWT.MouseDoubleClick:
+		case SWT.MouseMove:
+		case SWT.MouseEnter:
+		case SWT.MouseExit:
+		case SWT.MouseHover: {
+			Point pt = getDisplay ().map (text, this, event.x, event.y);
+			event.x = pt.x; event.y = pt.y;
+			notifyListeners (event.type, event);
+			event.type = SWT.None;
+			break;
+		}
 		case SWT.KeyDown: {
 			Event keyEvent = new Event ();
 			keyEvent.time = event.time;
 			keyEvent.character = event.character;
 			keyEvent.keyCode = event.keyCode;
+			keyEvent.keyLocation = event.keyLocation;
 			keyEvent.stateMask = event.stateMask;
 			notifyListeners (SWT.KeyDown, keyEvent);
 			if (isDisposed ()) break;
@@ -1661,6 +1728,7 @@ void textEvent (Event event) {
 			e.time = event.time;
 			e.character = event.character;
 			e.keyCode = event.keyCode;
+			e.keyLocation = event.keyLocation;
 			e.stateMask = event.stateMask;
 			notifyListeners (SWT.KeyUp, e);
 			event.doit = e.doit;
@@ -1680,12 +1748,13 @@ void textEvent (Event event) {
 			break;
 		}
 		case SWT.MouseDown: {
+			Point pt = getDisplay ().map (text, this, event.x, event.y);
 			Event mouseEvent = new Event ();
 			mouseEvent.button = event.button;
 			mouseEvent.count = event.count;
 			mouseEvent.stateMask = event.stateMask;
 			mouseEvent.time = event.time;
-			mouseEvent.x = event.x; mouseEvent.y = event.y;
+			mouseEvent.x = pt.x; mouseEvent.y = pt.y;
 			notifyListeners (SWT.MouseDown, mouseEvent);
 			if (isDisposed ()) break;
 			event.doit = mouseEvent.doit;
@@ -1699,12 +1768,13 @@ void textEvent (Event event) {
 			break;
 		}
 		case SWT.MouseUp: {
+			Point pt = getDisplay ().map (text, this, event.x, event.y);
 			Event mouseEvent = new Event ();
 			mouseEvent.button = event.button;
 			mouseEvent.count = event.count;
 			mouseEvent.stateMask = event.stateMask;
 			mouseEvent.time = event.time;
-			mouseEvent.x = event.x; mouseEvent.y = event.y;
+			mouseEvent.x = pt.x; mouseEvent.y = pt.y;
 			notifyListeners (SWT.MouseUp, mouseEvent);
 			if (isDisposed ()) break;
 			event.doit = mouseEvent.doit;
@@ -1714,24 +1784,10 @@ void textEvent (Event event) {
 			text.selectAll ();
 			break;
 		}
-		case SWT.MouseDoubleClick: {
-			Event mouseEvent = new Event ();
-			mouseEvent.button = event.button;
-			mouseEvent.count = event.count;
-			mouseEvent.stateMask = event.stateMask;
-			mouseEvent.time = event.time;
-			mouseEvent.x = event.x; mouseEvent.y = event.y;
-			notifyListeners (SWT.MouseDoubleClick, mouseEvent);
-			break;
-		}
 		case SWT.MouseWheel: {
-			Event keyEvent = new Event ();
-			keyEvent.time = event.time;
-			keyEvent.keyCode = event.count > 0 ? SWT.ARROW_UP : SWT.ARROW_DOWN;
-			keyEvent.stateMask = event.stateMask;
-			notifyListeners (SWT.KeyDown, keyEvent);
+			notifyListeners (SWT.MouseWheel, event);
+			event.type = SWT.None;
 			if (isDisposed ()) break;
-			event.doit = keyEvent.doit;
 			if (!event.doit) break;
 			if (event.count != 0) {
 				event.doit = false;
@@ -1771,6 +1827,7 @@ void textEvent (Event event) {
 			e.doit = event.doit;
 			e.character = event.character;
 			e.keyCode = event.keyCode;
+			e.keyLocation = event.keyLocation;
 			notifyListeners (SWT.Traverse, e);
 			event.doit = e.doit;
 			event.detail = e.detail;
@@ -1783,11 +1840,25 @@ void textEvent (Event event) {
 			e.end = event.end;
 			e.character = event.character;
 			e.keyCode = event.keyCode;
+			e.keyLocation = event.keyLocation;
 			e.stateMask = event.stateMask;
 			notifyListeners (SWT.Verify, e);
+			event.text = e.text;
 			event.doit = e.doit;
 			break;
 		}
 	}
+}
+public boolean traverse(int event){
+    /*
+     * When the traverse event is sent to the CCombo, it will create a list of
+     * controls to tab to next. Since the CCombo is a composite, the next control is
+     * the Text field which is a child of the CCombo. It will set focus to the text
+     * field which really is itself. So, call the traverse next events directly on the text.
+     */
+    if (event == SWT.TRAVERSE_ARROW_NEXT || event == SWT.TRAVERSE_TAB_NEXT) {
+    	return text.traverse(event);
+    }
+    return super.traverse(event);
 }
 }

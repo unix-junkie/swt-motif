@@ -53,6 +53,8 @@ public abstract class Widget {
 	 * within the packages provided by SWT. It is not available on all
 	 * platforms and should never be accessed from application code.
 	 * </p>
+	 * 
+	 * @noreference This field is not intended to be referenced by clients.
 	 */
 	public int handle;
 	int style, state;
@@ -85,6 +87,9 @@ public abstract class Widget {
 	static final int FOREIGN_HANDLE = 1<<13;
 	static final int DRAG_DETECT = 1<<14;
 
+	/* Notify of the opportunity to skin this widget */
+	static final int SKIN_NEEDED = 1<<15;
+	
 	/* Default size for widgets */
 	static final int DEFAULT_WIDTH	= 64;
 	static final int DEFAULT_HEIGHT	= 64;
@@ -161,6 +166,7 @@ public Widget (Widget parent, int style) {
 	checkParent (parent);
 	this.style = style;
 	display = parent.display;
+	reskinWidget ();
 }
 /**
  * Adds the listener to the collection of listeners who will
@@ -334,6 +340,7 @@ void destroyWidget () {
  * <code>true</code> when sent the message <code>isDisposed()</code>.
  * Any internal connections between the widgets in the tree will
  * have been removed to facilitate garbage collection.
+ * This method does nothing if the widget is already disposed.
  * <p>
  * NOTE: This method is not called recursively on the descendants
  * of the receiver. This means that, widget implementers can not
@@ -544,7 +551,7 @@ boolean hooks (int eventType) {
  * <p>
  * This method gets the dispose state for the widget.
  * When a widget has been disposed, it is an error to
- * invoke any other method using the widget.
+ * invoke any other method (except {@link #dispose()}) using the widget.
  * </p>
  *
  * @return <code>true</code> when the widget is disposed and <code>false</code> otherwise
@@ -753,12 +760,55 @@ public void removeListener (int eventType, Listener handler) {
  *
  * @see Listener
  * @see #addListener
+ * 
+ * @noreference This method is not intended to be referenced by clients.
  */
 protected void removeListener (int eventType, SWTEventListener handler) {
 	checkWidget();
 	if (handler == null) error (SWT.ERROR_NULL_ARGUMENT);
 	if (eventTable == null) return;
 	eventTable.unhook (eventType, handler);
+}
+/**
+ * Marks the widget to be skinned. 
+ * <p>
+ * The skin event is sent to the receiver's display when appropriate (usually before the next event
+ * is handled). Widgets are automatically marked for skinning upon creation as well as when its skin
+ * id or class changes. The skin id and/or class can be changed by calling <code>Display.setData(String, Object)</code> 
+ * with the keys SWT.SKIN_ID and/or SWT.SKIN_CLASS. Once the skin event is sent to a widget, it 
+ * will not be sent again unless <code>reskin(int)</code> is called on the widget or on an ancestor 
+ * while specifying the <code>SWT.ALL</code> flag.  
+ * </p>
+ * <p>
+ * The parameter <code>flags</code> may be either:
+ * <dl>
+ * <dt><b>SWT.ALL</b></dt>
+ * <dd>all children in the receiver's widget tree should be skinned</dd>
+ * <dt><b>SWT.NONE</b></dt>
+ * <dd>only the receiver should be skinned</dd>
+ * </dl>
+ * </p>
+ * @param flags the flags specifying how to reskin
+ * 
+ * @exception SWTException 
+ * <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * @since 3.6
+ */
+public void reskin (int flags) {
+	checkWidget ();
+	reskinWidget ();
+	if ((flags & SWT.ALL) != 0) reskinChildren (flags);
+}
+void reskinChildren (int flags) {	
+}
+void reskinWidget() {
+	if ((state & SKIN_NEEDED) != SKIN_NEEDED) {
+		this.state |= SKIN_NEEDED;
+		display.addSkinnableWidget(this);
+	}
 }
 /**
  * Removes the listener from the collection of listeners who will
@@ -798,6 +848,7 @@ boolean setKeyState (Event event, XKeyEvent xEvent) {
 	int [] keysym = new int [1];
 	OS.XLookupString (xEvent, buffer, buffer.length, keysym, null);
 	boolean isNull = display.fixKey (keysym, buffer, xEvent.state);
+	setLocationState (event, keysym [0]);
 	if (keysym [0] != 0) {
 		event.keyCode = Display.translateKey (keysym [0]);
 	}
@@ -821,6 +872,56 @@ boolean setKeyState (Event event, XKeyEvent xEvent) {
 		if (!isNull) return false;
 	}
 	return setInputState (event, xEvent.state);
+}
+void setLocationState (Event event, int keysym) {
+	switch (keysym) {
+		case OS.XK_Alt_L:
+		case OS.XK_Meta_L:
+		case OS.XK_Control_L:
+		case OS.XK_Shift_L:
+			event.keyLocation = SWT.LEFT;
+			break;
+		case OS.XK_Alt_R:
+		case OS.XK_Meta_R:
+		case OS.XK_Control_R:
+		case OS.XK_Shift_R:
+			event.keyLocation = SWT.RIGHT;
+			break;
+		case OS.XK_KP_Enter:
+		case OS.XK_KP_F1:
+		case OS.XK_KP_F2:
+		case OS.XK_KP_F3:
+		case OS.XK_KP_F4:
+		case OS.XK_KP_Home:
+		case OS.XK_KP_Left:
+		case OS.XK_KP_Up:
+		case OS.XK_KP_Right:
+		case OS.XK_KP_Down:
+		case OS.XK_KP_Page_Up:
+		case OS.XK_KP_Page_Down:
+		case OS.XK_KP_End:
+		case OS.XK_KP_Insert:
+		case OS.XK_KP_Delete:
+		case OS.XK_KP_Equal:
+		case OS.XK_KP_Multiply:
+		case OS.XK_KP_Add:
+		case OS.XK_KP_Subtract:
+		case OS.XK_KP_Decimal:
+		case OS.XK_KP_Divide:
+		case OS.XK_KP_0:
+		case OS.XK_KP_1:
+		case OS.XK_KP_2:
+		case OS.XK_KP_3:
+		case OS.XK_KP_4:
+		case OS.XK_KP_5:
+		case OS.XK_KP_6:
+		case OS.XK_KP_7:
+		case OS.XK_KP_8:
+		case OS.XK_KP_9:
+		case OS.XK_Num_Lock:
+			event.keyLocation = SWT.KEYPAD;
+			break;
+	}
 }
 void sendEvent (Event event) {
 	Display display = event.display;
@@ -951,6 +1052,17 @@ boolean sendKeyEvent (int type, XKeyEvent xEvent) {
 	}
 	return event.doit;
 }
+void sendSelectionEvent (int eventType) {
+	sendSelectionEvent (eventType, null, false);
+}
+void sendSelectionEvent (int eventType, Event event, boolean send) {
+	if (eventTable == null && !display.filters (eventType)) {
+		return;
+	}
+	if (event == null) event = new Event ();
+//	setInputState (event, state);
+	sendEvent (eventType, event, send);
+}
 /**
  * Sets the application defined widget data associated
  * with the receiver to be the argument. The <em>widget
@@ -1049,6 +1161,7 @@ public void setData (String key, Object value) {
 			}
 		}
 	}
+	if (key.equals(SWT.SKIN_CLASS) || key.equals(SWT.SKIN_ID)) this.reskin(SWT.ALL);
 }
 
 /**

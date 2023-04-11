@@ -145,6 +145,7 @@ Control [] _getTabList () {
 }
 public Point computeSize (int wHint, int hHint, boolean changed) {
 	checkWidget();
+	display.runSkin();
 	Point size;
 	if (layout != null) {
 		if ((wHint == SWT.DEFAULT) || (hHint == SWT.DEFAULT)) {
@@ -300,6 +301,39 @@ void deregister () {
 	if (focusHandle != 0) display.removeWidget (focusHandle);
 }
 void drawBackground (GC gc, int x, int y, int width, int height) {
+	drawBackground(gc, x, y, width, height, 0, 0);
+}
+/** 
+ * Fills the interior of the rectangle specified by the arguments,
+ * with the receiver's background. 
+ *
+ * <p>The <code>offsetX</code> and <code>offsetY</code> are used to map from
+ * the <code>gc</code> origin to the origin of the parent image background. This is useful
+ * to ensure proper alignment of the image background.</p>
+ * 
+ * @param gc the gc where the rectangle is to be filled
+ * @param x the x coordinate of the rectangle to be filled
+ * @param y the y coordinate of the rectangle to be filled
+ * @param width the width of the rectangle to be filled
+ * @param height the height of the rectangle to be filled
+ * @param offsetX the image background x offset 
+ * @param offsetY the image background y offset
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the gc is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the gc has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.6
+ */
+public void drawBackground (GC gc, int x, int y, int width, int height, int offsetX, int offsetY) {
+	checkWidget ();
+	if (gc == null) error (SWT.ERROR_NULL_ARGUMENT);
+	if (gc.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
 	Control control = findBackgroundControl ();
 	if (control != null) {
 		GCData data = gc.getGCData ();
@@ -312,9 +346,9 @@ void drawBackground (GC gc, int x, int y, int width, int height) {
 				short [] control_x = new short [1], control_y = new short [1];
 				OS.XtTranslateCoords (control.handle, (short) 0, (short) 0, control_x, control_y);
 				int tileX = root_x[0] - control_x[0], tileY = root_y[0] - control_y[0];
-				Cairo.cairo_translate (cairo, -tileX, -tileY);
-				x += tileX;
-				y += tileY;
+				Cairo.cairo_translate (cairo, -tileX - offsetX, -tileY - offsetY);
+				x += tileX + offsetX;
+				y += tileY + offsetY;
 				int xDisplay = OS.XtDisplay (handle);
 				int xVisual = OS.XDefaultVisual(xDisplay, OS.XDefaultScreen(xDisplay));
 				int xDrawable = control.backgroundImage.pixmap;				
@@ -348,7 +382,7 @@ void drawBackground (GC gc, int x, int y, int width, int height) {
 				OS.XtTranslateCoords (control.handle, (short) 0, (short) 0, control_x, control_y);
 				int tileX = root_x[0] - control_x[0], tileY = root_y[0] - control_y[0];
 				OS.XSetFillStyle (xDisplay, xGC, OS.FillTiled);
-				OS.XSetTSOrigin (xDisplay, xGC, -tileX, -tileY);
+				OS.XSetTSOrigin (xDisplay, xGC, -tileX - offsetX, -tileY - offsetY);
 				OS.XSetTile (xDisplay, xGC, control.backgroundImage.pixmap);
 				OS.XFillRectangle (data.display, data.drawable, xGC, x, y, width, height);
 				OS.XSetFillStyle (xDisplay, xGC, values.fill_style);
@@ -480,6 +514,10 @@ public Control [] getChildren () {
 }
 public Rectangle getClientArea () {
 	checkWidget();
+	return _getClientArea();
+}
+
+Rectangle _getClientArea() {
 	/*
 	* Bug in Motif. For some reason, if a form has not been realized,
 	* calling XtResizeWidget () on the form does not lay out properly.
@@ -746,42 +784,119 @@ public void layout (boolean changed, boolean all) {
 public void layout (Control [] changed) {
 	checkWidget ();
 	if (changed == null) error (SWT.ERROR_INVALID_ARGUMENT);
-	for (int i=0; i<changed.length; i++) {
-		Control control = changed [i];
-		if (control == null) error (SWT.ERROR_INVALID_ARGUMENT);
-		if (control.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
-		boolean ancestor = false;
-		Composite composite = control.parent;
-		while (composite != null) {
-			ancestor = composite == this;
-			if (ancestor) break;
-			composite = composite.parent;
+	layout (changed, SWT.NONE);
+}
+
+/**
+ * Forces a lay out (that is, sets the size and location) of all widgets that 
+ * are in the parent hierarchy of the changed control up to and including the 
+ * receiver. 
+ * <p>
+ * The parameter <code>flags</code> may be a combination of:
+ * <dl>
+ * <dt><b>SWT.ALL</b></dt>
+ * <dd>all children in the receiver's widget tree should be laid out</dd>
+ * <dt><b>SWT.CHANGED</b></dt>
+ * <dd>the layout must flush its caches</dd>
+ * <dt><b>SWT.DEFER</b></dt>
+ * <dd>layout will be deferred</dd>
+ * </dl>
+ * </p>
+ * <p>
+ * When the <code>changed</code> array is specified, the flags <code>SWT.ALL</code>
+ * and <code>SWT.CHANGED</code> have no effect. In this case, the layouts in the 
+ * hierarchy must not rely on any information cached about the changed control or
+ * any of its ancestors.  The layout may (potentially) optimize the
+ * work it is doing by assuming that none of the peers of the changed
+ * control have changed state since the last layout.
+ * If an ancestor does not have a layout, skip it.
+ * </p>
+ * <p>
+ * When the <code>changed</code> array is not specified, the flag <code>SWT.ALL</code>
+ * indicates that the whole widget tree should be laid out. And the flag
+ * <code>SWT.CHANGED</code> indicates that the layouts should flush any cached
+ * information for all controls that are laid out. 
+ * </p>
+ * <p>
+ * The <code>SWT.DEFER</code> flag always causes the layout to be deferred by
+ * calling <code>Composite.setLayoutDeferred(true)</code> and scheduling a call
+ * to <code>Composite.setLayoutDeferred(false)</code>, which will happen when
+ * appropriate (usually before the next event is handled). When this flag is set,
+ * the application should not call <code>Composite.setLayoutDeferred(boolean)</code>.
+ * </p>
+ * <p>
+ * Note: Layout is different from painting. If a child is
+ * moved or resized such that an area in the parent is
+ * exposed, then the parent will paint. If no child is
+ * affected, the parent will not paint.
+ * </p>
+ * 
+ * @param changed a control that has had a state change which requires a recalculation of its size
+ * @param flags the flags specifying how the layout should happen
+ * 
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if any of the controls in changed is null or has been disposed</li> 
+ *    <li>ERROR_INVALID_PARENT - if any control in changed is not in the widget tree of the receiver</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.6
+ */
+public void layout (Control [] changed, int flags) {
+	checkWidget ();
+	if (changed != null) {
+		for (int i=0; i<changed.length; i++) {
+			Control control = changed [i];
+			if (control == null) error (SWT.ERROR_INVALID_ARGUMENT);
+			if (control.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
+			boolean ancestor = false;
+			Composite composite = control.parent;
+			while (composite != null) {
+				ancestor = composite == this;
+				if (ancestor) break;
+				composite = composite.parent;
+			}
+			if (!ancestor) error (SWT.ERROR_INVALID_PARENT);
 		}
-		if (!ancestor) error (SWT.ERROR_INVALID_PARENT);
-	}
-	int updateCount = 0;
-	Composite [] update = new Composite [16];
-	for (int i=0; i<changed.length; i++) {
-		Control child = changed [i];
-		Composite composite = child.parent;
-		while (child != this) {
-			if (composite.layout != null) {
-				composite.state |= LAYOUT_NEEDED;
-				if (!composite.layout.flushCache (child)) {
-					composite.state |= LAYOUT_CHANGED;
+		int updateCount = 0;
+		Composite [] update = new Composite [16];
+		for (int i=0; i<changed.length; i++) {
+			Control child = changed [i];
+			Composite composite = child.parent;
+			while (child != this) {
+				if (composite.layout != null) {
+					composite.state |= LAYOUT_NEEDED;
+					if (!composite.layout.flushCache (child)) {
+						composite.state |= LAYOUT_CHANGED;
+					}
 				}
+				if (updateCount == update.length) {
+					Composite [] newUpdate = new Composite [update.length + 16];
+					System.arraycopy (update, 0, newUpdate, 0, update.length);
+					update = newUpdate;
+				}
+				child = update [updateCount++] = composite;
+				composite = child.parent;
 			}
-			if (updateCount == update.length) {
-				Composite [] newUpdate = new Composite [update.length + 16];
-				System.arraycopy (update, 0, newUpdate, 0, update.length);
-				update = newUpdate;
-			}
-			child = update [updateCount++] = composite;
-			composite = child.parent;
 		}
-	}
-	for (int i=updateCount-1; i>=0; i--) {
-		update [i].updateLayout (false);
+		if ((flags & SWT.DEFER) != 0) {
+			setLayoutDeferred (true);
+			display.addLayoutDeferred (this);
+		}
+		for (int i=updateCount-1; i>=0; i--) {
+			update [i].updateLayout (false);
+		}
+	} else {
+		if (layout == null && (flags & SWT.ALL) == 0) return;
+		markLayout ((flags & SWT.CHANGED) != 0, (flags & SWT.ALL) != 0);
+		if ((flags & SWT.DEFER) != 0) {
+			setLayoutDeferred (true);
+			display.addLayoutDeferred (this);
+		}
+		updateLayout ((flags & SWT.ALL) != 0);
 	}
 }
 void manageChildren () {
@@ -994,6 +1109,14 @@ void releaseWidget () {
 }
 void removeControl (Control control) {
 	fixTabList (control);
+}
+void reskinChildren (int flags) {
+	super.reskinChildren (flags);
+	Control [] children = _getChildren ();
+	for (int i=0; i<children.length; i++) {
+		Control child = children [i];
+		if (child != null) child.reskin (flags);
+	}
 }
 void resizeClientWindow	() {
 	if (clientWindow == 0) return;
@@ -1298,6 +1421,7 @@ void updateLayout (boolean all) {
 	if ((state & LAYOUT_NEEDED) != 0) {
 		boolean changed = (state & LAYOUT_CHANGED) != 0;
 		state &= ~(LAYOUT_NEEDED | LAYOUT_CHANGED);
+		display.runSkin();
 		layout.layout (this, changed);
 	}
 	if (all) {
@@ -1377,7 +1501,7 @@ int XExposure (int w, int client_data, int call_data, int continue_to_dispatch) 
 	GC paintGC = null;
 	Image image = null;
 	if ((style & SWT.DOUBLE_BUFFERED) != 0) {
-		Rectangle client = getClientArea ();
+		Rectangle client = _getClientArea ();
 		int width = Math.max (1, Math.min (client.width, rect.x + rect.width));
 		int height = Math.max (1, Math.min (client.height, rect.y + rect.height));
 		image = new Image (display, width, height);
@@ -1392,7 +1516,7 @@ int XExposure (int w, int client_data, int call_data, int continue_to_dispatch) 
 			/* This code is intentionaly commented because it is too slow to copy bits from the screen */
 //			paintGC.copyArea(image, 0, 0);
 		} else {
-			drawBackground (gc, 0, 0, width, height);
+			drawBackground (gc, 0, 0, width, height, 0, 0);
 		}
 	}
 	Event event = new Event ();

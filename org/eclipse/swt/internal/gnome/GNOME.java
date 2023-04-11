@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others. All rights reserved.
+ * Copyright (c) 2000, 2010 IBM Corporation and others. All rights reserved.
  * The contents of this file are made available under the terms
  * of the GNU Lesser General Public License (LGPL) Version 2.1 that
  * accompanies this distribution (lgpl-v21.txt).  The LGPL is also
@@ -25,6 +25,9 @@ public static final int GNOME_FILE_DOMAIN_PIXMAP = 4;
 public static final int GNOME_ICON_LOOKUP_FLAGS_NONE = 0;
 public static final int GNOME_PARAM_NONE = 0;
 public static final int GNOME_VFS_MIME_APPLICATION_ARGUMENT_TYPE_URIS = 0;
+public static final int GNOME_VFS_MIME_IDENTICAL = 1;
+public static final int GNOME_VFS_MIME_PARENT = 2;
+public static final int GNOME_VFS_MIME_UNRELATED = 0;
 public static final int GNOME_VFS_OK = 0;
 public static final int GNOME_VFS_MAKE_URI_DIR_NONE = 0;
 public static final int GNOME_VFS_MAKE_URI_DIR_HOMEDIR = 1<<0;
@@ -138,6 +141,17 @@ public static final int /*long*/ gnome_vfs_get_registered_mime_types() {
 		lock.unlock();
 	}
 }
+/** @param uri cast=(const char *) */
+public static final native int /*long*/ _gnome_vfs_get_mime_type(int /*long*/ uri);
+public static final int /*long*/ gnome_vfs_get_mime_type(int /*long*/ uri) {
+	lock.lock();
+	try {
+		return _gnome_vfs_get_mime_type(uri);
+	} finally {
+		lock.unlock();
+	}
+}
+
 public static final native boolean _gnome_vfs_init();
 public static final boolean gnome_vfs_init() {
 	lock.lock();
@@ -176,6 +190,16 @@ public static final void gnome_vfs_mime_application_free(int /*long*/ applicatio
 	lock.lock();
 	try {
 		_gnome_vfs_mime_application_free(application);
+	} finally {
+		lock.unlock();
+	}
+}
+/** @param command_string cast=(const char *) */
+public static final native boolean _gnome_vfs_is_executable_command_string(byte[] command_string);
+public static final boolean gnome_vfs_is_executable_command_string(byte[] command_string) {
+	lock.lock();
+	try {
+		return _gnome_vfs_is_executable_command_string(command_string);
 	} finally {
 		lock.unlock();
 	}
@@ -240,6 +264,19 @@ public static final int /*long*/ gnome_vfs_mime_type_from_name(byte[] file) {
 	lock.lock();
 	try {
 		return _gnome_vfs_mime_type_from_name(file);
+	} finally {
+		lock.unlock();
+	}
+}
+/** 
+ * @param mime_type cast=(const char *)
+ * @param base_mime_type cast=(const char *) 
+ */
+public static final native int /*long*/ _gnome_vfs_mime_type_get_equivalence(int /*long*/ mime_type, byte [] base_mime_type);
+public static final int /*long*/ gnome_vfs_mime_type_get_equivalence(int /*long*/ mime_type, byte [] base_mime_type) {
+	lock.lock();
+	try {
+		return _gnome_vfs_mime_type_get_equivalence(mime_type, base_mime_type);
 	} finally {
 		lock.unlock();
 	}

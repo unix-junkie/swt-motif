@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2003, 2007 IBM Corporation and others.
+ * Copyright (c) 2003, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -108,7 +108,10 @@ int Read(int /*long*/ aBuf, int aCount, int /*long*/ _retval) {
 }
 
 int ReadSegments (int /*long*/ aWriter, int /*long*/ aClosure, int aCount, int /*long*/ _retval) {
-	int max = Math.min (aCount, buffer == null ? 0 : buffer.length - index);
+	int max = buffer == null ? 0 : buffer.length - index;
+	if (aCount != -1) {
+		max = Math.min (max, aCount);
+	}
 	int cnt = max;
 	while (cnt > 0) {
 		int[] aWriteCount = new int[1];

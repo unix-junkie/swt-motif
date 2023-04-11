@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2010 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -58,6 +58,7 @@ void destroy() {
  * Disposes of the operating system resources associated with
  * this resource. Applications must dispose of all resources
  * which they allocate.
+ * This method does nothing if the resource is already disposed.
  */
 public void dispose() {
 	if (device == null) return;
@@ -91,7 +92,7 @@ void init() {
  * <p>
  * This method gets the dispose state for the resource.
  * When a resource has been disposed, it is an error to
- * invoke any other method using the resource.
+ * invoke any other method (except {@link #dispose()}) using the resource.
  *
  * @return <code>true</code> when the resource is disposed and <code>false</code> otherwise
  */

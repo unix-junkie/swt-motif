@@ -42,6 +42,8 @@ public class Transform extends Resource {
 	 * within the packages provided by SWT. It is not available on all
 	 * platforms and should never be accessed from application code.
 	 * </p>
+	 * 
+	 * @noreference This field is not intended to be referenced by clients.
 	 */
 	public double[] handle;
 	
@@ -211,7 +213,7 @@ public void invert() {
  * <p>
  * This method gets the dispose state for the Transform.
  * When a Transform has been disposed, it is an error to
- * invoke any other method using the Transform.
+ * invoke any other method (except {@link #dispose()}) using the Transform.
  *
  * @return <code>true</code> when the Transform is disposed, and <code>false</code> otherwise
  */

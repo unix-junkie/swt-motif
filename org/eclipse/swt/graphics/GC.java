@@ -66,6 +66,8 @@ public final class GC extends Resource {
 	 * within the packages provided by SWT. It is not available on all
 	 * platforms and should never be accessed from application code.
 	 * </p>
+	 * 
+	 * @noreference This field is not intended to be referenced by clients.
 	 */
 	public int handle;
 	
@@ -3101,8 +3103,9 @@ public Pattern getForegroundPattern() {
  * 
  * @see GCData
  * 
- * @since 3.2
  * @noreference This method is not intended to be referenced by clients.
+ * 
+ * @since 3.2
  */
 public GCData getGCData() {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
@@ -3411,7 +3414,7 @@ public boolean isClipped() {
  * <p>
  * This method gets the dispose state for the GC.
  * When a GC has been disposed, it is an error to
- * invoke any other method using the GC.
+ * invoke any other method (except {@link #dispose()}) using the GC.
  *
  * @return <code>true</code> when the GC is disposed and <code>false</code> otherwise
  */
@@ -3566,6 +3569,8 @@ public void setAntialias(int antialias) {
  * @param data the data for the receiver.
  *
  * @return a new <code>GC</code>
+ * 
+ * @noreference This method is not intended to be referenced by clients.
  */
 public static GC motif_new(Drawable drawable, GCData data) {
 	GC gc = new GC();
@@ -3588,6 +3593,8 @@ public static GC motif_new(Drawable drawable, GCData data) {
  * @param data the data for the receiver.
  *
  * @return a new <code>GC</code>
+ * 
+ * @noreference This method is not intended to be referenced by clients.
  */
 public static GC motif_new(int xGC, GCData data) {
 	GC gc = new GC();
@@ -4058,9 +4065,9 @@ public void setLineAttributes(LineAttributes attributes) {
 	if (join != data.lineJoin) {
 		mask |= LINE_JOIN;
 		switch (join) {
-			case SWT.CAP_ROUND:
-			case SWT.CAP_FLAT:
-			case SWT.CAP_SQUARE:
+			case SWT.JOIN_MITER:
+			case SWT.JOIN_ROUND:
+			case SWT.JOIN_BEVEL:
 				break;
 			default:
 				SWT.error(SWT.ERROR_INVALID_ARGUMENT);
@@ -4070,9 +4077,9 @@ public void setLineAttributes(LineAttributes attributes) {
 	if (cap != data.lineCap) {
 		mask |= LINE_CAP;
 		switch (cap) {
-			case SWT.JOIN_MITER:
-			case SWT.JOIN_ROUND:
-			case SWT.JOIN_BEVEL:
+			case SWT.CAP_FLAT:
+			case SWT.CAP_ROUND:
+			case SWT.CAP_SQUARE:
 				break;
 			default:
 				SWT.error(SWT.ERROR_INVALID_ARGUMENT);

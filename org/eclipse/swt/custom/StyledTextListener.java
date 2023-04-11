@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -41,6 +41,7 @@ public void handleEvent(Event e) {
 			BidiSegmentEvent segmentEvent = new BidiSegmentEvent((StyledTextEvent) e);
 			((BidiSegmentListener) eventListener).lineGetSegments(segmentEvent);
 			((StyledTextEvent) e).segments = segmentEvent.segments;
+			((StyledTextEvent) e).segmentsChars = segmentEvent.segmentsChars;
 			break;		
 		case StyledText.LineGetStyle:
 			LineStyleEvent lineStyleEvent = new LineStyleEvent((StyledTextEvent) e);
@@ -49,9 +50,11 @@ public void handleEvent(Event e) {
 			((StyledTextEvent) e).styles = lineStyleEvent.styles;
 			((StyledTextEvent) e).alignment = lineStyleEvent.alignment;
 			((StyledTextEvent) e).indent = lineStyleEvent.indent;
+			((StyledTextEvent) e).wrapIndent = lineStyleEvent.wrapIndent;
 			((StyledTextEvent) e).justify = lineStyleEvent.justify;
 			((StyledTextEvent) e).bullet = lineStyleEvent.bullet;
 			((StyledTextEvent) e).bulletIndex = lineStyleEvent.bulletIndex;
+			((StyledTextEvent) e).tabStops = lineStyleEvent.tabStops;
 			break;
 		case StyledText.PaintObject:
 			PaintObjectEvent paintObjectEvent = new PaintObjectEvent((StyledTextEvent) e);

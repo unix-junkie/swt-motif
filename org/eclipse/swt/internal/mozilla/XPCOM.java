@@ -44,9 +44,9 @@ public class XPCOM extends C {
 	public static final String DOMEVENT_MOUSEWHEEL = "DOMMouseScroll"; //$NON-NLS-1$
 	public static final String DOMEVENT_MOUSEOVER = "mouseover"; //$NON-NLS-1$
 	public static final String DOMEVENT_MOUSEOUT = "mouseout"; //$NON-NLS-1$
-	public static final String DOMEVENT_KEYUP = "keyup"; //$NON-NLS-1$
 	public static final String DOMEVENT_KEYDOWN = "keydown"; //$NON-NLS-1$
 	public static final String DOMEVENT_KEYPRESS = "keypress"; //$NON-NLS-1$
+	public static final String DOMEVENT_KEYUP = "keyup"; //$NON-NLS-1$
 	
 	/* CID constants */
 	public static final nsID EXTERNAL_CID = new nsID ("f2c59ad0-bd76-11dd-ad8b-0800200c9a66"); //$NON-NLS-1$
@@ -72,6 +72,7 @@ public class XPCOM extends C {
 	public static final String NS_FILEPICKER_CONTRACTID = "@mozilla.org/filepicker;1"; //$NON-NLS-1$
 	public static final String NS_HELPERAPPLAUNCHERDIALOG_CONTRACTID = "@mozilla.org/helperapplauncherdialog;1"; //$NON-NLS-1$
 	public static final String NS_MEMORY_CONTRACTID = "@mozilla.org/xpcom/memory-service;1"; //$NON-NLS-1$
+	public static final String NS_MIMEINPUTSTREAM_CONTRACTID = "@mozilla.org/network/mime-input-stream;1"; //$NON-NLS-1$
 	public static final String NS_SCRIPTSECURITYMANAGER_CONTRACTID = "@mozilla.org/scriptsecuritymanager;1"; //$NON-NLS-1$
 	public static final String NS_OBSERVER_CONTRACTID = "@mozilla.org/observer-service;1"; //$NON-NLS-1$
 	public static final String NS_PREFLOCALIZEDSTRING_CONTRACTID = "@mozilla.org/pref-localizedstring;1"; //$NON-NLS-1$
@@ -165,7 +166,16 @@ public static final int JS_EvaluateUCScriptForPrincipals(byte[] mozillaPath, int
 		lock.unlock();
 	}
 }
-
+/** @method flags=no_gen */
+public static final native boolean _NS_Free(byte[] mozillaPath, int /*long*/ aPtr);
+public static final boolean NS_Free(byte[] mozillaPath, int /*long*/ aPtr) {
+	lock.lock();
+	try {
+		return _NS_Free(mozillaPath, aPtr);
+	} finally {
+		lock.unlock();
+	}
+}
 /** @param result cast=(nsIComponentManager**) */
 public static final native int _NS_GetComponentManager(int /*long*/[] result);
 public static final int NS_GetComponentManager(int /*long*/[] result) {
@@ -2258,10 +2268,5 @@ static final int VtblCall(int fnNumber, int /*long*/ ppVtbl, long arg0, int arg1
 		lock.unlock();
 	}
 }
-
-/**
- * @method flags=no_gen
- */
-public static final native int GetAddress(int ptr, int index);
 
 }
