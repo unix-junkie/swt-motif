@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -296,9 +296,11 @@ void drawRectangles (Rectangle [] rects, boolean stippled) {
 	if (parent != null) {
 		xWindow = OS.XtWindow (parent.handle);
 		if (xWindow == 0) return;
-		int [] argList = {OS.XmNforeground, 0, OS.XmNbackground, 0};
-		OS.XtGetValues (parent.handle, argList, argList.length / 2);
-		color = argList [1] ^ argList [3];
+		int foreground = parent.getForegroundPixel ();
+		Control control = parent.findBackgroundControl ();
+		if (control == null) control = parent;
+		int background = control.getBackgroundPixel ();
+		color = foreground ^ background;
 	}
 	int gc = OS.XCreateGC (xDisplay, xWindow, 0, null);
 	OS.XSetForeground (xDisplay, gc, color);

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -17,13 +17,11 @@ import org.eclipse.swt.*;
 /**
  * <code>TextLayout</code> is a graphic object that represents
  * styled text.
- *<p>
+ * <p>
  * Instances of this class provide support for drawing, cursor
  * navigation, hit testing, text wrapping, alignment, tab expansion
  * line breaking, etc.  These are aspects required for rendering internationalized text.
- * </p>
- * 
- * <p>
+ * </p><p>
  * Application code must explicitly invoke the <code>TextLayout#dispose()</code> 
  * method to release the operating system resources managed by each instance
  * when those instances are no longer required.
@@ -39,6 +37,8 @@ public final class TextLayout extends Resource {
 	int alignment;
 	int wrapWidth;
 	int orientation;
+	int indent;
+	boolean justify; 
 	int[] tabs;
 	int[] segments;
 	StyleItem[] styles;
@@ -51,6 +51,10 @@ public final class TextLayout extends Resource {
 		TextStyle style;
 		int start, length, width, height, baseline;
 		boolean lineBreak, softBreak, tab;
+
+		public String toString () {
+			return "StyleItem {" + start + ", " + style + "}";
+		}
 	}
 	
 /**	 
@@ -151,15 +155,17 @@ void computeRuns () {
 			int start = 0;
 			char[] chars = new char[run.length];
 			text.getChars(run.start, run.start + run.length, chars, 0);
-			int width = 0, maxWidth = wrapWidth - lineWidth;
-			char[] buffer = new char[1];
-			buffer[0] = chars[start];
-			int charWidth = stringWidth(run, buffer);
-			while (width + charWidth < maxWidth) {
-				width += charWidth;
-				start++;
+			if (!(run.style != null && run.style.metrics != null)) {
+				int width = 0, maxWidth = wrapWidth - lineWidth;
+				char[] buffer = new char[1];
 				buffer[0] = chars[start];
-				charWidth =	stringWidth(run, buffer);
+				int charWidth = stringWidth(run, buffer);
+				while (width + charWidth < maxWidth) {
+					width += charWidth;
+					start++;
+					buffer[0] = chars[start];
+					charWidth =	stringWidth(run, buffer);
+				}
 			}
 			int firstStart = start;
 			int firstIndice = i;			
@@ -226,10 +232,23 @@ void computeRuns () {
 		StyleItem run = allRuns[i];
 		lineRuns[lineRunCount++] = run;
 		lineWidth += run.width;
-		if (run.style != null && run.style.font != null) {
-			fontStruct = getFontHeigth(run.style.font);
-			ascent = Math.max(ascent, fontStruct.ascent);
-			descent = Math.max(descent, fontStruct.descent);
+		if (run.style != null ) {
+			int runAscent = defaultAscent;
+			int runDescent = defaultDescent;
+			if (run.style.metrics != null) {
+				GlyphMetrics metrics = run.style.metrics;
+				runAscent = metrics.ascent;
+				runDescent = metrics.descent;
+			} else if (run.style.font != null) {
+				fontStruct = getFontHeigth(run.style.font);
+				runAscent = fontStruct.ascent;
+				runDescent = fontStruct.descent;
+			}
+			ascent = Math.max(ascent, runAscent + run.style.rise);
+			descent = Math.max(descent, runDescent - run.style.rise);
+			if (run.style.rise != 0) {
+				run.baseline += run.style.rise;
+			}
 		}
 		if (run.lineBreak || i == allRuns.length - 1) {
 			runs[line] = new StyleItem[lineRunCount];
@@ -323,14 +342,9 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 	final Font gcFont = gc.getFont();
 	Rectangle clip = gc.getClipping();
 	for (int line=0; line<runs.length; line++) {
-		int drawX = x, drawY = y + lineY[line];
+		int drawX = x + getLineIndent(line);
+		int drawY = y + lineY[line];
 		StyleItem[] lineRuns = runs[line];
-		if (wrapWidth != -1) {
-			switch (alignment) {
-				case SWT.CENTER: drawX += (wrapWidth - lineWidth[line]) / 2; break;
-				case SWT.RIGHT: drawX += wrapWidth - lineWidth[line]; break;
-			}
-		}
 		if (drawX > clip.x + clip.width) continue;
 		if (drawX + lineWidth[line] < clip.x) continue;
 		int baseline = Math.max(0, this.ascent);
@@ -352,11 +366,11 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 					if (fullSelection) {
 						gc.setBackground(selectionBackground);
 						gc.fillRectangle(drawX, drawY, run.width, lineHeight);
-						if (!run.tab) {
+						if (!run.tab && !(run.style != null && run.style.metrics != null)) {
 							gc.setForeground(selectionForeground);
 							gc.drawString(string, drawX, drawRunY, true);
 							if (run.style != null && run.style.underline) {
-								int underlineY = drawRunY + run.baseline + 1;
+								int underlineY = drawRunY + run.baseline + 1 - run.style.rise;
 								gc.drawLine (drawX, underlineY, drawX + run.width, underlineY);								
 							}
 							if (run.style != null && run.style.strikeout) {
@@ -374,14 +388,16 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 							Color fg = foreground;
 							if (run.style != null && run.style.foreground != null) fg = run.style.foreground;
 							gc.setForeground(fg);
-							gc.drawString(string, drawX, drawRunY, true);
-							if (run.style != null && run.style.underline) {
-								int underlineY = drawRunY + run.baseline + 1;
-								gc.drawLine (drawX, underlineY, drawX + run.width, underlineY);								
-							}
-							if (run.style != null && run.style.strikeout) {
-								int strikeoutY = drawRunY + run.height - run.height/2 - 1;
-								gc.drawLine (drawX, strikeoutY, drawX + run.width, strikeoutY);
+							if (!(run.style != null && run.style.metrics != null)) {
+								gc.drawString(string, drawX, drawRunY, true);
+								if (run.style != null && run.style.underline) {
+									int underlineY = drawRunY + run.baseline + 1 - run.style.rise;
+									gc.drawLine (drawX, underlineY, drawX + run.width, underlineY);
+								}
+								if (run.style != null && run.style.strikeout) {
+									int strikeoutY = drawRunY + run.height - run.height/2 - 1;
+									gc.drawLine (drawX, strikeoutY, drawX + run.width, strikeoutY);
+								}
 							}
 							boolean partialSelection = hasSelection && !(selectionStart > end || run.start > selectionEnd);
 							if (partialSelection) {
@@ -393,11 +409,11 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 								int selWidth = gc.stringExtent(string).x;
 								gc.setBackground(selectionBackground);
 								gc.fillRectangle(selX, drawY, selWidth, lineHeight);
-								if (fg != selectionForeground) {
+								if (fg != selectionForeground && !(run.style != null && run.style.metrics != null)) {
 									gc.setForeground(selectionForeground);
 									gc.drawString(string, selX, drawRunY, true);
 									if (run.style != null && run.style.underline) {
-										int underlineY = drawRunY + run.baseline + 1;
+										int underlineY = drawRunY + run.baseline + 1 - run.style.rise;
 										gc.drawLine (selX, underlineY, selX + selWidth, underlineY);
 									}
 									if (run.style != null && run.style.strikeout) {
@@ -474,7 +490,7 @@ public Rectangle getBounds () {
 		width = wrapWidth;
 	} else {
 		for (int line=0; line<runs.length; line++) {
-			width = Math.max(width, lineWidth[line]);
+			width = Math.max(width, lineWidth[line] + getLineIndent(line));
 		}
 	}
 	return new Rectangle (0, 0, width, lineY[lineY.length - 1]);
@@ -507,7 +523,7 @@ public Rectangle getBounds (int start, int end) {
 
 	Rectangle rect = new Rectangle(0, 0, 0, 0);
 	rect.y = lineY[startLine];
-	rect.height = lineY[endLine + 1] - rect.y;
+	rect.height = lineY[endLine + 1] - rect.y - lineSpacing;
 	if (startLine == endLine) {
 		rect.x = getLocation(start, false).x;
 		rect.width = getLocation(end, true).x - rect.x;
@@ -589,6 +605,38 @@ XFontStruct getFontHeigth(Font font) {
 }
 
 /**
+* Returns the receiver's indent.
+*
+* @return the receiver's indent
+* 
+* @exception SWTException <ul>
+*    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+* </ul>
+* 
+* @since 3.2
+*/
+public int getIndent () {
+	checkLayout();
+	return indent;
+}
+
+/**
+* Returns the receiver's justification.
+*
+* @return the receiver's justification
+* 
+* @exception SWTException <ul>
+*    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+* </ul>
+* 
+* @since 3.2
+*/
+public boolean getJustify () {
+	checkLayout();
+	return justify;
+}
+
+/**
  * Returns the embedding level for the specified character offset. The
  * embedding level is usually used to determine the directionality of a
  * character in bidirectional text.
@@ -645,14 +693,10 @@ public Rectangle getLineBounds(int lineIndex) {
 	checkLayout();
 	computeRuns();
 	if (!(0 <= lineIndex && lineIndex < runs.length)) SWT.error(SWT.ERROR_INVALID_RANGE);
-	int x = 0, y = lineY[lineIndex];
-	int width = lineWidth[lineIndex], height = lineY[lineIndex + 1] - y;
-	if (wrapWidth != -1) {
-		switch (alignment) {
-			case SWT.CENTER: x = (wrapWidth - width) / 2; break;
-			case SWT.RIGHT: x = wrapWidth - width; break;
-		}
-	}
+	int x = getLineIndent(lineIndex);
+	int y = lineY[lineIndex];
+	int width = lineWidth[lineIndex];
+	int height = lineY[lineIndex + 1] - y - lineSpacing;
 	return new Rectangle (x, y, width, height);
 }
 
@@ -670,6 +714,36 @@ public int getLineCount () {
 	checkLayout();
 	computeRuns();
 	return runs.length;
+}
+
+int getLineIndent (int lineIndex) {
+	int lineIndent = 0;
+	if (lineIndex == 0) {
+		lineIndent = indent;
+	} else {
+		StyleItem[] previousLine = runs[lineIndex - 1];
+		StyleItem previousRun = previousLine[previousLine.length - 1];
+		if (previousRun.lineBreak && !previousRun.softBreak) {
+			lineIndent = indent;
+		}
+	}
+	if (wrapWidth != -1) {
+		boolean partialLine = true;
+//		if (justify) {
+//			StyleItem[] lineRun = runs[lineIndex];
+//			if (lineRun[lineRun.length - 1].softBreak) {
+//				partialLine = false;
+//			}
+//		}
+		if (partialLine) {
+			int lineWidth = this.lineWidth[lineIndex] + lineIndent;
+			switch (alignment) {
+				case SWT.CENTER: lineIndent += (wrapWidth - lineWidth) / 2; break;
+				case SWT.RIGHT: lineIndent += wrapWidth - lineWidth; break;
+			}
+		}
+	}
+	return lineIndent;
 }
 
 /**
@@ -716,33 +790,33 @@ public FontMetrics getLineMetrics (int lineIndex) {
 	checkLayout();
 	computeRuns();
 	if (!(0 <= lineIndex && lineIndex < runs.length)) SWT.error(SWT.ERROR_INVALID_RANGE);
-	GC gc = new GC(device);
-	Font font = this.font != null ? this.font : device.systemFont;
-	FontMetrics metrics = null;
-	if (text.length() == 0) {
-		gc.setFont(font);
-		metrics = gc.getFontMetrics();
-		metrics.ascent = Math.max(metrics.ascent, this.ascent);
-		metrics.descent = Math.max(metrics.descent, this.descent);		
-	} else {
-		int ascent = this.ascent, descent = this.descent, leading = 0, aveCharWidth = 0, height = 0;
+	int ascent = Math.max(defaultAscent, this.ascent);
+	int descent = Math.max(defaultDescent, this.descent);
+	if (text.length() != 0) {
+		GC gc = new GC(device);
 		StyleItem[] lineRuns = runs[lineIndex];
 		for (int i = 0; i < lineRuns.length; i++) {
 			StyleItem run = lineRuns[i];
-			Font runFont = run.style != null ? run.style.font : null;
-			if (runFont == null) runFont = font;
-			gc.setFont(font);
-			metrics = gc.getFontMetrics();
-			ascent = Math.max (ascent, metrics.getAscent());
-			descent = Math.max (descent, metrics.getDescent());
-			height = Math.max (height, metrics.getHeight());
-			leading = Math.max (leading, metrics.getLeading());
-			aveCharWidth += metrics.getAverageCharWidth();
+			if (run.style != null) {
+				int runAscent = 0;
+				int runDescent = 0;
+				if (run.style.metrics != null) {
+					GlyphMetrics glyphMetrics = run.style.metrics;
+					runAscent = glyphMetrics.ascent;
+					runDescent = glyphMetrics.descent;
+				} else if (run.style.font != null) {
+					gc.setFont(run.style.font);
+					FontMetrics metrics = gc.getFontMetrics();
+					runAscent = metrics.getAscent();
+					runDescent = metrics.getDescent();
+				}
+				ascent = Math.max(ascent, runAscent + run.style.rise);
+				descent = Math.max(descent, runDescent - run.style.rise);
+			}
 		}
-		metrics = FontMetrics.motif_new(ascent, descent, aveCharWidth / lineRuns.length, leading, height);
+		gc.dispose();
 	}
-	gc.dispose();
-	return metrics;
+	return FontMetrics.motif_new(ascent, descent, 0, 0, ascent + descent);
 }
 
 /**
@@ -785,9 +859,14 @@ public Point getLocation (int offset, boolean trailing) {
 					if (trailing || offset == length) width += run.width;
 				} else {
 					if (trailing) offset++;
-					char[] chars = new char[offset - run.start];
-					text.getChars(run.start, offset, chars, 0);
-					width += stringWidth(run, chars);
+					if (run.style != null && run.style.metrics != null) {
+						GlyphMetrics metrics = run.style.metrics;
+						width += metrics.width * (offset - run.start);
+					} else {
+						char[] chars = new char[offset - run.start];
+						text.getChars(run.start, offset, chars, 0);
+						width += stringWidth(run, chars);
+					}
 				}
 				result = new Point(width, lineY[line]);
 				break;
@@ -796,12 +875,7 @@ public Point getLocation (int offset, boolean trailing) {
 		}
 	}
 	if (result == null) result = new Point(0, 0);
-	if (wrapWidth != -1) {
-		switch (alignment) {
-			case SWT.CENTER: result.x += (wrapWidth - lineWidth[line]) / 2; break;
-			case SWT.RIGHT: result.x += wrapWidth - lineWidth[line]; break;
-		}
-	}
+	result.x += getLineIndent(line);
 	return result;
 }
 
@@ -921,12 +995,7 @@ public int getOffset (int x, int y, int[] trailing) {
 		if (lineY[line + 1] > y) break;
 	}
 	line = Math.min(line, runs.length - 1);
-	if (wrapWidth != -1) {
-		switch (alignment) {
-			case SWT.CENTER: x -= (wrapWidth - lineWidth[line]) / 2; break;
-			case SWT.RIGHT: x -= wrapWidth - lineWidth[line]; break;
-		}
-	}
+	x -= getLineIndent(line);
 	if (x >= lineWidth[line]) x = lineWidth[line] - 1;
 	if (x < 0) x = 0;
 	StyleItem[] lineRuns = runs[line];
@@ -935,6 +1004,16 @@ public int getOffset (int x, int y, int[] trailing) {
 		StyleItem run = lineRuns[i];
 		if (run.lineBreak && !run.softBreak) return run.start;
 		if (width + run.width > x) {
+			if (run.style != null && run.style.metrics != null) {
+				int xRun = x - width;
+				GlyphMetrics metrics = run.style.metrics;
+				if (metrics.width > 0) {
+					if (trailing != null) {
+						trailing[0] = (xRun % metrics.width < metrics.width / 2) ? 0 : 1;
+					}
+					return run.start + xRun / metrics.width;
+				}
+			}
 			if (run.tab) {
 				if (trailing != null) {
 					trailing[0] = x < (width + run.width / 2) ? 0 : 1; 
@@ -1024,6 +1103,38 @@ public int getPreviousOffset (int offset, int movement) {
 }
 
 /**
+ * Gets the ranges of text that are associated with a <code>TextStyle</code>.
+ *
+ * @return the ranges, an array of offsets representing the start and end of each
+ * text style. 
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ * 
+ * @see #getStyles()
+ * 
+ * @since 3.2
+ */
+public int[] getRanges () {
+	checkLayout();
+	int[] result = new int[styles.length * 2];
+	int count = 0;
+	for (int i=0; i<styles.length - 1; i++) {
+		if (styles[i].style != null) {
+			result[count++] = styles[i].start;
+			result[count++] = styles[i + 1].start - 1;
+		}
+	}
+	if (count != result.length) {
+		int[] newResult = new int[count];
+		System.arraycopy(result, 0, newResult, 0, count);
+		result = newResult;
+	}
+	return result;
+}
+
+/**
  * Returns the text segments offsets of the receiver.
  *
  * @return the text segments offsets
@@ -1078,6 +1189,36 @@ public TextStyle getStyle (int offset) {
 }
 
 /**
+ * Gets all styles of the receiver.
+ *
+ * @return the styles
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ * 
+ * @see #getRanges()
+ * 
+ * @since 3.2
+ */
+public TextStyle[] getStyles () {
+	checkLayout();
+	TextStyle[] result = new TextStyle[styles.length];
+	int count = 0;
+	for (int i=0; i<styles.length; i++) {
+		if (styles[i].style != null) {
+			result[count++] = styles[i].style;
+		}
+	}
+	if (count != result.length) {
+		TextStyle[] newResult = new TextStyle[count];
+		System.arraycopy(result, 0, newResult, 0, count);
+		result = newResult;
+	}
+	return result;
+}
+
+/**
  * Returns the tab list of the receiver.
  *
  * @return the tab list
@@ -1127,6 +1268,7 @@ public int getWidth () {
  * This method gets the dispose state for the text layout.
  * When a text layout has been disposed, it is an error to
  * invoke any other method using the text layout.
+ * </p>
  *
  * @return <code>true</code> when the text layout is disposed and <code>false</code> otherwise
  */
@@ -1211,17 +1353,24 @@ StyleItem[] merge (StyleItem[] items, int itemCount) {
 
 void place (StyleItem run) {
 	if (run.length == 0) return;
-	char[] chars = new char[run.length];
-	text.getChars(run.start, run.start + run.length, chars, 0);
-	int fontList = getItemFont(run).handle;
-	byte[] buffer = Converter.wcsToMbcs(null, chars, true);
-	short[] width = new short[1], height = new short[1];
-	int xmString = OS.XmStringCreateLocalized(buffer);
-	OS.XmStringExtent(fontList, xmString, width, height);
-	run.width = width[0] & 0xFFFF;
-	run.height = height[0] & 0xFFFF;
-	run.baseline = OS.XmStringBaseline(fontList, xmString);
-	OS.XmStringFree(xmString);
+	if (run.style != null && run.style.metrics != null) {
+		GlyphMetrics glyphMetrics = run.style.metrics;
+		run.width = glyphMetrics.width * run.length;
+		run.baseline = glyphMetrics.ascent;
+		run.height = glyphMetrics.ascent + glyphMetrics.descent;
+	} else {
+		char[] chars = new char[run.length];
+		text.getChars(run.start, run.start + run.length, chars, 0);
+		int fontList = getItemFont(run).handle;
+		byte[] buffer = Converter.wcsToMbcs(null, chars, true);
+		short[] width = new short[1], height = new short[1];
+		int xmString = OS.XmStringCreateLocalized(buffer);
+		OS.XmStringExtent(fontList, xmString, width, height);
+		run.width = width[0] & 0xFFFF;
+		run.height = height[0] & 0xFFFF;
+		run.baseline = OS.XmStringBaseline(fontList, xmString);
+		OS.XmStringFree(xmString);
+	}
 }
 
 /**
@@ -1232,7 +1381,7 @@ void place (StyleItem run) {
  * The default alignment is <code>SWT.LEFT</code>.  Note that the receiver's
  * width must be set in order to use <code>SWT.RIGHT</code> or <code>SWT.CENTER</code>
  * alignment.
- *</p>
+ * </p>
  *
  * @param alignment the new alignment 
  *
@@ -1249,6 +1398,7 @@ public void setAlignment (int alignment) {
 	if (alignment == 0) return;
 	if ((alignment & SWT.LEFT) != 0) alignment = SWT.LEFT;
 	if ((alignment & SWT.RIGHT) != 0) alignment = SWT.RIGHT;
+	freeRuns();
 	this.alignment = alignment;
 }
 
@@ -1333,9 +1483,47 @@ public void setFont (Font font) {
 }
 
 /**
+ * Sets the indent of the receiver. This indent it applied of the first line of 
+ * each paragraph.  
+ *
+ * @param indent new indent
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public void setIndent (int indent) {
+	checkLayout();
+	if (indent < 0) return;
+	if (this.indent == indent) return;
+	freeRuns();
+	this.indent = indent;
+}
+
+/**
+ * Sets the justification of the receiver. Note that the receiver's
+ * width must be set in order to use justification. 
+ *
+ * @param justify new justify
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public void setJustify (boolean justify) {
+	checkLayout();
+	if (this.justify == justify) return;
+	freeRuns();
+	this.justify = justify;
+}
+
+/**
  * Sets the orientation of the receiver, which must be one
  * of <code>SWT.LEFT_TO_RIGHT</code> or <code>SWT.RIGHT_TO_LEFT</code>.
- * <p>
  *
  * @param orientation new orientation style
  * 
@@ -1378,11 +1566,12 @@ public void setSpacing (int spacing) {
  * override the default behaviour of the bidirectional algorithm.
  * Bidirectional reordering can happen within a text segment but not 
  * between two adjacent segments.
+ * <p>
  * Each text segment is determined by two consecutive offsets in the 
  * <code>segments</code> arrays. The first element of the array should 
  * always be zero and the last one should always be equals to length of
  * the text.
- * <p>
+ * </p>
  * 
  * @param segments the text segments offset
  * 
@@ -1430,7 +1619,7 @@ public void setStyle (TextStyle style, int start, int end) {
 	int high = styles.length;
 	while (high - low > 1) {
 		int index = (high + low) / 2;
-		if (start <= styles[index].start) {
+		if (styles[index + 1].start > start) {
 			high = index;
 		} else {
 			low = index;
@@ -1447,42 +1636,47 @@ public void setStyle (TextStyle style, int start, int end) {
 		}
 	}
 	freeRuns();
-	int count = 0, i;
-	StyleItem[] newStyles = new StyleItem[styles.length + 2];
-	for (i = 0; i < styles.length; i++) {
-		StyleItem item = styles[i];
-		if (item.start >= start) break;
-		newStyles[count++] = item;
+	int modifyStart = high;
+	int modifyEnd = modifyStart;
+	while (modifyEnd < styles.length) {
+		if (styles[modifyEnd + 1].start > end) break;
+		modifyEnd++;
 	}
-	StyleItem newItem = new StyleItem();
-	newItem.start = start;
-	newItem.style = style;
-	newStyles[count++] = newItem;
-	if (styles[i].start > end) {
-		newItem = new StyleItem();
-		newItem.start = end + 1;
-		newItem.style = styles[i -1].style;
-		newStyles[count++] = newItem;
-	} else {
-		for (; i<styles.length; i++) {
-			StyleItem item = styles[i];
-			if (item.start > end) break;
+	if (modifyStart == modifyEnd) {
+		int styleStart = styles[modifyStart].start; 
+		int styleEnd = styles[modifyEnd + 1].start - 1;
+		if (styleStart == start && styleEnd == end) {
+			styles[modifyStart].style = style;
+			return;
 		}
-		if (end != styles[i].start - 1) {
-			i--;
-			styles[i].start = end + 1;
+		if (styleStart != start && styleEnd != end) {
+			StyleItem[] newStyles = new StyleItem[styles.length + 2];
+			System.arraycopy(styles, 0, newStyles, 0, modifyStart + 1);
+			StyleItem item = new StyleItem();
+			item.start = start;
+			item.style = style;
+			newStyles[modifyStart + 1] = item;	
+			item = new StyleItem();
+			item.start = end + 1;
+			item.style = styles[modifyStart].style;
+			newStyles[modifyStart + 2] = item;
+			System.arraycopy(styles, modifyEnd + 1, newStyles, modifyEnd + 3, styles.length - modifyEnd - 1);
+			styles = newStyles;
+			return;
 		}
 	}
-	for (; i<styles.length; i++) {
-		StyleItem item = styles[i];
-		if (item.start > end) newStyles[count++] = item;
-	}
-	if (newStyles.length != count) {
-		styles = new StyleItem[count];
-		System.arraycopy(newStyles, 0, styles, 0, count);
-	} else {
-		styles = newStyles;
-	}
+	if (start == styles[modifyStart].start) modifyStart--;
+	if (end == styles[modifyEnd + 1].start - 1) modifyEnd++;
+	int newLength = styles.length + 1 - (modifyEnd - modifyStart - 1);
+	StyleItem[] newStyles = new StyleItem[newLength];
+	System.arraycopy(styles, 0, newStyles, 0, modifyStart + 1);	
+	StyleItem item = new StyleItem();
+	item.start = start;
+	item.style = style;
+	newStyles[modifyStart + 1] = item;
+	styles[modifyEnd].start = end + 1;
+	System.arraycopy(styles, modifyEnd, newStyles, modifyStart + 2, styles.length - modifyEnd);
+	styles = newStyles;
 }
 
 /**

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -24,7 +24,7 @@ import java.util.*;
 
 /**
  * Instances of this class represent programs and
- * their assoicated file extensions in the operating
+ * their associated file extensions in the operating
  * system.
  */
 public final class Program {
@@ -106,15 +106,15 @@ static int getDesktop(final Display display) {
 				}
 			});
 			/* Check for libgnomevfs-2 version 2.4 */
-			byte[] libgnomevfs = Converter.wcsToMbcs(null, "libgnomevfs-2.so.0", true);
-			int /*long*/ libgnomevfs_handle = GNOME.dlopen(libgnomevfs, 1);
-			if (libgnomevfs_handle != 0) {
-				byte[] gnome_vfs_url_show = Converter.wcsToMbcs(null, "gnome_vfs_url_show", true);
-				int /*long*/ gnome_vfs_url_show_handle = GNOME.dlsym(libgnomevfs_handle, gnome_vfs_url_show);
-				if (gnome_vfs_url_show_handle != 0) {
+			byte[] buffer = Converter.wcsToMbcs(null, "libgnomevfs-2.so.0", true);
+			int /*long*/ libgnomevfs = OS.dlopen(buffer, OS.RTLD_LAZY);
+			if (libgnomevfs != 0) {
+				buffer = Converter.wcsToMbcs(null, "gnome_vfs_url_show", true);
+				int /*long*/ gnome_vfs_url_show = OS.dlsym(libgnomevfs, buffer);
+				if (gnome_vfs_url_show != 0) {
 					desktop = DESKTOP_GNOME_24;
 				}
-				GNOME.dlclose(libgnomevfs_handle);
+				OS.dlclose(libgnomevfs);
 			}
 		}
 	}
@@ -788,7 +788,7 @@ public boolean execute(String fileName) {
 
 /**
  * Returns the receiver's image data.  This is the icon
- * that is associated with the reciever in the operating
+ * that is associated with the receiver in the operating
  * system.
  *
  * @return the image data for the program, may be null
@@ -832,7 +832,7 @@ public int hashCode() {
  * Returns a string containing a concise, human-readable
  * description of the receiver.
  *
- * @return a string representation of the event
+ * @return a string representation of the program
  */
 public String toString() {
 	return "Program {" + name + "}";

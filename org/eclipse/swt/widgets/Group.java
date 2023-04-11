@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -136,8 +136,7 @@ public Rectangle computeTrim (int x, int y, int width, int height) {
 	return new Rectangle (trimX, trimY, trimWidth, trimHeight);
 }
 void createHandle (int index) {
-	state |= HANDLE;
-	
+	state |= THEME_BACKGROUND;
 	/*
 	* Feature in Motif.  When a widget is managed or unmanaged,
 	* it may request and be granted, a new size in the OS.  This
@@ -168,6 +167,10 @@ void createHandle (int index) {
 	int [] argList4 = {OS.XmNforeground, 0, OS.XmNbackground, 0};
 	OS.XtGetValues (handle, argList4, argList4.length / 2);
 	OS.XtSetValues (labelHandle, argList4, argList4.length / 2);
+}
+void deregister () {
+	super.deregister ();
+	display.removeWidget (labelHandle);
 }
 void enableWidget (boolean enabled) {
 	super.enableWidget (enabled);
@@ -224,6 +227,13 @@ public String getText () {
 	checkWidget();
 	return text;
 }
+void hookEvents () {
+	super.hookEvents ();
+	int windowProc = display.windowProc;
+	OS.XtAddEventHandler (labelHandle, OS.ButtonPressMask, false, windowProc, BUTTON_PRESS);
+	OS.XtAddEventHandler (labelHandle, OS.ButtonReleaseMask, false, windowProc, BUTTON_RELEASE);
+	OS.XtAddEventHandler (labelHandle, OS.PointerMotionMask, false, windowProc, POINTER_MOTION);
+}
 boolean mnemonicHit (char key) {
 	return setFocus ();
 }
@@ -236,13 +246,17 @@ void propagateWidget (boolean enabled) {
 	super.propagateWidget (enabled);
 	propagateHandle (enabled, labelHandle, OS.None);
 }
-void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren) {
-	super.redrawWidget (x, y, width, height, redrawAll, allChildren);
+void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren, boolean trim) {
+	super.redrawWidget (x, y, width, height, redrawAll, allChildren, trim);
 	short [] root_x = new short [1], root_y = new short [1];
 	OS.XtTranslateCoords (handle, (short) x, (short) y, root_x, root_y);
 	short [] label_x = new short [1], label_y = new short [1];
 	OS.XtTranslateCoords (labelHandle, (short) 0, (short) 0, label_x, label_y);
 	redrawHandle (root_x [0] - label_x [0], root_y [0] - label_y [0], width, height, redrawAll, labelHandle);
+}
+void register () {
+	super.register ();
+	display.addWidget (labelHandle, this);
 }
 void releaseHandle () {
 	super.releaseHandle ();
@@ -260,19 +274,23 @@ void setForegroundPixel (int pixel) {
 	OS.XtSetValues (labelHandle, argList, argList.length / 2);
 	super.setForegroundPixel (pixel);
 }
+void setParentBackground () {
+	super.setParentBackground ();
+	if (labelHandle != 0) setParentBackground (labelHandle);
+}
 /**
  * Sets the receiver's text, which is the string that will
  * be displayed as the receiver's <em>title</em>, to the argument,
  * which may not be null. The string may include the mnemonic character.
  * </p>
- * Mnemonics are indicated by an '&amp' that causes the next
+ * Mnemonics are indicated by an '&amp;' that causes the next
  * character to be the mnemonic.  When the user presses a
- * key sequence that matches the mnemonic, focus is assgned
+ * key sequence that matches the mnemonic, focus is assigned
  * to the first child of the group. On most platforms, the
  * mnemonic appears underlined but may be emphasised in a
  * platform specific manner.  The mnemonic indicator character
- *'&amp' can be escaped by doubling it in the string, causing
- * a single '&amp' to be displayed.
+ * '&amp;' can be escaped by doubling it in the string, causing
+ * a single '&amp;' to be displayed.
  * </p>
  * @param string the new text
  *

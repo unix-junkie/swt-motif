@@ -1,13 +1,13 @@
 /*******************************************************************************
-* Copyright (c) 2000, 2005 IBM Corporation and others.
-* All rights reserved. This program and the accompanying materials
-* are made available under the terms of the Eclipse Public License v1.0
-* which accompanies this distribution, and is available at
-* http://www.eclipse.org/legal/epl-v10.html
-*
-* Contributors:
-*     IBM Corporation - initial API and implementation
-*******************************************************************************/
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *    IBM Corporation - initial API and implementation
+ *******************************************************************************/
 
 #include "os.h"
 
@@ -273,6 +273,18 @@ void setXRectangleFields(JNIEnv *env, jobject lpObject, XRectangle *lpStruct);
 #define getXRectangleFields(a,b,c) NULL
 #define setXRectangleFields(a,b,c)
 #define XRectangle_sizeof() 0
+#endif
+
+#ifndef NO_XRenderPictureAttributes
+void cacheXRenderPictureAttributesFields(JNIEnv *env, jobject lpObject);
+XRenderPictureAttributes *getXRenderPictureAttributesFields(JNIEnv *env, jobject lpObject, XRenderPictureAttributes *lpStruct);
+void setXRenderPictureAttributesFields(JNIEnv *env, jobject lpObject, XRenderPictureAttributes *lpStruct);
+#define XRenderPictureAttributes_sizeof() sizeof(XRenderPictureAttributes)
+#else
+#define cacheXRenderPictureAttributesFields(a,b)
+#define getXRenderPictureAttributesFields(a,b,c) NULL
+#define setXRenderPictureAttributesFields(a,b,c)
+#define XRenderPictureAttributes_sizeof() 0
 #endif
 
 #ifndef NO_XReparentEvent

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -67,6 +67,12 @@ public final class Image extends Resource implements Drawable {
 	/**
 	 * specifies whether the receiver is a bitmap or an icon
 	 * (one of <code>SWT.BITMAP</code>, <code>SWT.ICON</code>)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public int type;
 	
@@ -115,6 +121,16 @@ public final class Image extends Resource implements Drawable {
 	 * The global alpha value to be used for every pixel.
 	 */
 	int alpha = -1;
+	
+	/**
+	 * The width of the image.
+	 */
+	int width = -1;
+	
+	/**
+	 * The height of the image.
+	 */
+	int height = -1;
 	
 	/**
 	 * Specifies the default scanline padding.
@@ -183,9 +199,8 @@ public Image(Device device, int width, int height) {
  *    <li>ERROR_INVALID_ARGUMENT - if the image has been disposed</li>
  * </ul>
  * @exception SWTException <ul>
- *    <li>ERROR_INVALID_IMAGE - if the image is not a bitmap or an icon, or
- *          is otherwise in an invalid state</li>
- *    <li>ERROR_UNSUPPORTED_DEPTH - if the depth of the Image is not supported</li>
+ *    <li>ERROR_INVALID_IMAGE - if the image is not a bitmap or an icon, or is otherwise in an invalid state</li>
+ *    <li>ERROR_UNSUPPORTED_DEPTH - if the depth of the image is not supported</li>
  * </ul>
  * @exception SWTError <ul>
  *    <li>ERROR_NO_HANDLES if a handle could not be obtained for image creation</li>
@@ -208,7 +223,7 @@ public Image(Device device, Image srcImage, int flag) {
  	int height = h[0];
 	int drawable = OS.XDefaultRootWindow(xDisplay);
 	/* Don't create the mask here if flag is SWT.IMAGE_GRAY. See below.*/
-	if (flag != SWT.IMAGE_GRAY && (srcImage.mask != 0 || srcImage.transparentPixel != -1)) {
+	if (flag != SWT.IMAGE_GRAY && ((srcImage.type == SWT.ICON && srcImage.mask != 0) || srcImage.transparentPixel != -1)) {
 		/* Generate the mask if necessary. */
 		if (srcImage.transparentPixel != -1) srcImage.createMask();
 		int mask = OS.XCreatePixmap(xDisplay, drawable, width, height, 1);
@@ -405,6 +420,11 @@ public Image(Device device, Image srcImage, int flag) {
 			OS.XDestroyImage(destXImagePtr);
 			OS.XDestroyImage(srcXImagePtr);
 			OS.XFreeGC(xDisplay, gc);
+			alpha = srcImage.alpha;
+			if (srcImage.alphaData != null) {
+				alphaData = new byte[srcImage.alphaData.length];
+				System.arraycopy(srcImage.alphaData, 0, alphaData, 0, alphaData.length);
+			}
 			this.pixmap = destPixmap;
 			if (device.tracking) device.new_Object(this);
 			return;
@@ -433,6 +453,8 @@ public Image(Device device, Image srcImage, int flag) {
 					rgbs[i] = new RGB(i, i, i);
 				}
 				newData = new ImageData(width, height, 8, new PaletteData(rgbs));
+				newData.alpha = data.alpha;
+				newData.alphaData = data.alphaData;
 				newData.maskData = data.maskData;
 				newData.maskPad = data.maskPad;
 				if (data.transparentPixel != -1) newData.transparentPixel = 254; 
@@ -614,11 +636,11 @@ public Image(Device device, ImageData source, ImageData mask) {
  *    <li>ERROR_NULL_ARGUMENT - if the stream is null</li>
  * </ul>
  * @exception SWTException <ul>
- *    <li>ERROR_INVALID_IMAGE - if the image file contains invalid data </li>
- *    <li>ERROR_IO - if an IO error occurs while reading data</li>
- *    <li>ERROR_UNSUPPORTED_DEPTH - if the InputStream describes an image with an unsupported depth</li>
- *    <li>ERROR_UNSUPPORTED_FORMAT - if the image file contains an unrecognized format</li>
- *  * </ul>
+ *    <li>ERROR_IO - if an IO error occurs while reading from the stream</li>
+ *    <li>ERROR_INVALID_IMAGE - if the image stream contains invalid data </li>
+ *    <li>ERROR_UNSUPPORTED_DEPTH - if the image stream describes an image with an unsupported depth</li>
+ *    <li>ERROR_UNSUPPORTED_FORMAT - if the image stream contains an unrecognized format</li>
+ * </ul>
  * @exception SWTError <ul>
  *    <li>ERROR_NO_HANDLES if a handle could not be obtained for image creation</li>
  * </ul>
@@ -647,9 +669,9 @@ public Image(Device device, InputStream stream) {
  *    <li>ERROR_NULL_ARGUMENT - if the file name is null</li>
  * </ul>
  * @exception SWTException <ul>
+ *    <li>ERROR_IO - if an IO error occurs while reading from the file</li>
  *    <li>ERROR_INVALID_IMAGE - if the image file contains invalid data </li>
- *    <li>ERROR_IO - if an IO error occurs while reading data</li>
- *    <li>ERROR_UNSUPPORTED_DEPTH - if the image file has an unsupported depth</li>
+ *    <li>ERROR_UNSUPPORTED_DEPTH - if the image file describes an image with an unsupported depth</li>
  *    <li>ERROR_UNSUPPORTED_FORMAT - if the image file contains an unrecognized format</li>
  * </ul>
  * @exception SWTError <ul>
@@ -681,11 +703,12 @@ void createMask() {
 }
 void createSurface() {
 	if (surface != 0) return;
+	int [] unused = new int [1];  int [] width = new int [1];  int [] height = new int [1];
+ 	OS.XGetGeometry (device.xDisplay, pixmap, unused, unused, unused, width, height, unused, unused);
 	int xDisplay = device.xDisplay;
 	int xDrawable = pixmap;
 	int xVisual = OS.XDefaultVisual(xDisplay, OS.XDefaultScreen(xDisplay));
-	int xColormap = OS.XDefaultColormap(xDisplay, OS.XDefaultScreen (xDisplay));
-	surface = Cairo.cairo_xlib_surface_create(xDisplay, xDrawable, xVisual, 0, xColormap);
+	surface = Cairo.cairo_xlib_surface_create(xDisplay, xDrawable, xVisual, width[0], height[0]);
 }
 /**
  * Disposes of the operating system resources associated with
@@ -771,9 +794,12 @@ public Color getBackground() {
  */
 public Rectangle getBounds () {
 	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
-	int [] unused = new int [1];  int [] width = new int [1];  int [] height = new int [1];
- 	OS.XGetGeometry (device.xDisplay, pixmap, unused, unused, unused, width, height, unused, unused);
-	return new Rectangle(0, 0, width [0], height [0]);
+	if (width != -1 && height != -1) {
+		return new Rectangle(0, 0, width, height);
+	}
+	int [] unused = new int [1];  int [] w = new int [1];  int [] h = new int [1];
+ 	OS.XGetGeometry (device.xDisplay, pixmap, unused, unused, unused, w, h, unused, unused);
+	return new Rectangle(0, 0, width = w [0], height = h [0]);
 }
 /**
  * Returns an <code>ImageData</code> based on the receiver
@@ -1070,6 +1096,31 @@ void init(Device device, ImageData image) {
 		if (image.alpha == -1 && image.alphaData != null) {
 			this.alphaData = new byte[image.alphaData.length];
 			System.arraycopy(image.alphaData, 0, this.alphaData, 0, alphaData.length);
+		}
+		if (device.useXRender && (alpha != -1 || alphaData != null)) {
+			mask = OS.XCreatePixmap(xDisplay, drawable, alpha != -1 ? 1 : image.width, alpha != -1 ? 1 : image.height, 8);
+			if (mask == 0) SWT.error(SWT.ERROR_NO_HANDLES);
+			gc = OS.XCreateGC(xDisplay, mask, 0, null);
+			if (alpha != -1) {
+				OS.XSetForeground(xDisplay, gc, (alpha & 0xFF) << 8 | (alpha & 0xFF));
+				OS.XFillRectangle(xDisplay, mask, gc, 0, 0, 1, 1);
+			} else {
+				int imagePtr = OS.XGetImage(xDisplay, mask, 0, 0, image.width, image.height, OS.AllPlanes, OS.ZPixmap);
+				XImage xImage = new XImage();
+				OS.memmove(xImage, imagePtr, XImage.sizeof);
+				if (xImage.bytes_per_line == image.width) {
+					OS.memmove(xImage.data, alphaData, alphaData.length);
+				} else {
+					byte[] line = new byte[xImage.bytes_per_line];
+					for (int y = 0; y < image.height; y++) {
+						System.arraycopy(alphaData, image.width * y, line, 0, image.width);
+						OS.memmove(xImage.data + (xImage.bytes_per_line * y), line, xImage.bytes_per_line);
+					}
+				}
+				OS.XPutImage(xDisplay, mask, gc, imagePtr, 0, 0, 0, 0, image.width, image.height);
+				OS.XDestroyImage(imagePtr);
+			}			
+			OS.XFreeGC(xDisplay, gc);
 		}
 	}
 	this.pixmap = pixmap;

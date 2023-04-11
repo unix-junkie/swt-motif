@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -18,14 +18,14 @@ import org.eclipse.swt.graphics.*;
 /**
  * Instances of this class represent icons that can be placed on the
  * system tray or task bar status area.
- *
+ * <p>
  * <dl>
  * <dt><b>Styles:</b></dt>
  * <dd>(none)</dd>
  * <dt><b>Events:</b></dt>
  * <dd>DefaultSelection, MenuDetect, Selection</dd>
  * </dl>
- * <p>
+ * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
  * 
@@ -33,6 +33,7 @@ import org.eclipse.swt.graphics.*;
  */
 public class TrayItem extends Item {
 	Tray parent;
+	ToolTip toolTip;
 	String toolTipText;
 	boolean visible = true;
 	
@@ -105,6 +106,46 @@ protected void checkSubclass () {
 	if (!isValidSubclass ()) error (SWT.ERROR_INVALID_SUBCLASS);
 }
 
+void destroyWidget () {
+	parent.destroyItem (this);
+	releaseHandle ();
+}
+
+/**
+ * Returns the receiver's parent, which must be a <code>Tray</code>.
+ *
+ * @return the receiver's parent
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public Tray getParent () {
+	checkWidget ();
+	return parent;
+}
+
+/**
+ * Returns the receiver's tool tip, or null if it has
+ * not been set.
+ *
+ * @return the receiver's tool tip text
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public ToolTip getToolTip () {
+	checkWidget ();
+	return toolTip;
+}
+
 /**
  * Returns the receiver's tool tip text, or null if it has
  * not been set.
@@ -137,9 +178,9 @@ public boolean getVisible () {
 	return visible;
 }
 
-void releaseChild () {
-	super.releaseChild ();
-	parent.destroyItem (this);
+void releaseHandle () {
+	super.releaseHandle ();
+	parent = null;
 }
 
 /**
@@ -181,6 +222,24 @@ public void setImage (Image image) {
 	checkWidget ();
 	if (image != null && image.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
 	super.setImage (image);
+}
+
+/**
+ * Sets the receiver's tool tip to the argument, which
+ * may be null indicating that no tool tip should be shown.
+ *
+ * @param toolTip the new tool tip (or null)
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public void setToolTip (ToolTip toolTip) {
+	checkWidget ();
+	this.toolTip = toolTip;
 }
 
 /**

@@ -1,38 +1,21 @@
-/* ***** BEGIN LICENSE BLOCK *****
-* Version: MPL 1.1
-*
-* The contents of this file are subject to the Mozilla Public License Version
-* 1.1 (the "License"); you may not use this file except in compliance with
-* the License. You may obtain a copy of the License at
-* http://www.mozilla.org/MPL/
-*
-* Software distributed under the License is distributed on an "AS IS" basis,
-* WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-* for the specific language governing rights and limitations under the
-* License.
-*
-* The Original Code is Mozilla Communicator client code, released March 31, 1998.
-*
-* The Initial Developer of the Original Code is
-* Netscape Communications Corporation.
-* Portions created by Netscape are Copyright (C) 1998-1999
-* Netscape Communications Corporation.  All Rights Reserved.
-*
-* Contributor(s):
-*
-* IBM
-* -  Binding to permit interfacing between Mozilla and SWT
-* -  Copyright (C) 2003, 2004 IBM Corp.  All Rights Reserved.
-*
-* ***** END LICENSE BLOCK ***** */
+/*******************************************************************************
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *    IBM Corporation - initial API and implementation
+ *******************************************************************************/
 
 #include "swt.h"
 #include "xpcom_stats.h"
 
 #ifdef NATIVE_STATS
 
-int XPCOM_nativeFunctionCount = 120;
-int XPCOM_nativeFunctionCallCount[120];
+int XPCOM_nativeFunctionCount = 132;
+int XPCOM_nativeFunctionCallCount[132];
 char * XPCOM_nativeFunctionNames[] = {
 	"Call",
 	"NS_1GetComponentManager",
@@ -45,6 +28,7 @@ char * XPCOM_nativeFunctionNames[] = {
 	"VtblCall__II",
 	"VtblCall__IIF",
 	"VtblCall__III",
+	"VtblCall__IIII",
 	"VtblCall__IIIII",
 	"VtblCall__IIIIII",
 	"VtblCall__IIIIIII",
@@ -54,6 +38,7 @@ char * XPCOM_nativeFunctionNames[] = {
 	"VtblCall__IIIIIZ_3CIIIIZ_3I_3I",
 	"VtblCall__IIIII_3C",
 	"VtblCall__IIIII_3I",
+	"VtblCall__IIIIJZ",
 	"VtblCall__IIIIZ",
 	"VtblCall__IIII_3C",
 	"VtblCall__IIII_3CIJI",
@@ -71,6 +56,7 @@ char * XPCOM_nativeFunctionNames[] = {
 	"VtblCall__III_3B_3B_3BI_3I",
 	"VtblCall__III_3B_3Z",
 	"VtblCall__III_3C",
+	"VtblCall__III_3CI",
 	"VtblCall__III_3C_3C",
 	"VtblCall__III_3C_3CI_3C_3C_3C_3C_3Z_3I",
 	"VtblCall__III_3C_3CI_3I_3I_3Z",
@@ -99,18 +85,26 @@ char * XPCOM_nativeFunctionNames[] = {
 	"VtblCall__IIZ",
 	"VtblCall__IIZI",
 	"VtblCall__IIZ_3Z",
+	"VtblCall__II_3B",
 	"VtblCall__II_3BI",
 	"VtblCall__II_3BILorg_eclipse_swt_internal_mozilla_nsID_2_3I",
 	"VtblCall__II_3BI_3I",
 	"VtblCall__II_3BJ",
+	"VtblCall__II_3BLorg_eclipse_swt_internal_mozilla_nsID_2I",
 	"VtblCall__II_3BLorg_eclipse_swt_internal_mozilla_nsID_2_3I",
 	"VtblCall__II_3BLorg_eclipse_swt_internal_mozilla_nsID_2_3Z",
 	"VtblCall__II_3BZI_3I_3Z",
 	"VtblCall__II_3BZ_3I_3Z",
+	"VtblCall__II_3B_3B",
+	"VtblCall__II_3B_3BZ",
+	"VtblCall__II_3B_3B_3BZZ_3I",
+	"VtblCall__II_3B_3B_3I",
 	"VtblCall__II_3B_3I",
+	"VtblCall__II_3B_3I_3I",
 	"VtblCall__II_3B_3I_3Z",
 	"VtblCall__II_3B_3J",
 	"VtblCall__II_3B_3Z",
+	"VtblCall__II_3B_3Z_3I",
 	"VtblCall__II_3C",
 	"VtblCall__II_3CIIII",
 	"VtblCall__II_3CI_3I",
@@ -123,6 +117,7 @@ char * XPCOM_nativeFunctionNames[] = {
 	"VtblCall__II_3I_3I",
 	"VtblCall__II_3I_3I_3I",
 	"VtblCall__II_3I_3I_3I_3I",
+	"VtblCall__II_3I_3J",
 	"VtblCall__II_3I_3J_3I",
 	"VtblCall__II_3J",
 	"VtblCall__II_3S",

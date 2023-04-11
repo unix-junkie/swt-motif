@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -73,6 +73,10 @@ public abstract class Device implements Drawable {
 	Font systemFont;
 	
 	int shellHandle;
+
+	boolean useXRender;
+
+	static boolean CAIRO_LOADED;
 
 	/* Parsing Tables */
 	int tabPointer, crPointer;
@@ -191,8 +195,22 @@ public Device(DeviceData data) {
 }
 
 void checkCairo() {
+	if (CAIRO_LOADED) return;
 	try {
+		/* Check if cairo is available on the system */
+		byte[] buffer = Converter.wcsToMbcs(null, "libcairo.so.2", true);
+		int /*long*/ libcairo = OS.dlopen(buffer, OS.RTLD_LAZY);
+		if (libcairo != 0) {
+			OS.dlclose(libcairo);
+		} else {
+			try {
+				System.loadLibrary("cairo-swt");
+			} catch (UnsatisfiedLinkError e) {
+				/* Ignore problems loading the fallback library */
+			}
+		}
 		Class.forName("org.eclipse.swt.internal.cairo.Cairo");
+		CAIRO_LOADED = true;
 	} catch (Throwable t) {
 		SWT.error(SWT.ERROR_NO_GRAPHICS_LIBRARY, t, " [Cairo required]");
 	}
@@ -581,6 +599,13 @@ boolean _getWarnings () {
  */
 protected void init () {
 	if (debug) OS.XSynchronize (xDisplay, true);
+
+	int[] event_basep = new int[1], error_basep = new int [1];
+	if (OS.XRenderQueryExtension (xDisplay, event_basep, error_basep)) {
+		int[] major_versionp = new int[1], minor_versionp = new int [1];
+		OS.XRenderQueryVersion (xDisplay, major_versionp, minor_versionp);
+		useXRender = major_versionp[0] > 0 || (major_versionp[0] == 0 && minor_versionp[0] >= 8);
+	}
 		
 	/* Create the warning and error callbacks */
 	Class clazz = getClass ();

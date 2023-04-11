@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2003, 2005 IBM Corporation and others.
+ * Copyright (c) 2003, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -11,6 +11,7 @@
 package org.eclipse.swt.browser;
 
 import java.io.*;
+import java.util.*;
 import org.eclipse.swt.*;
 import org.eclipse.swt.widgets.*;
 import org.eclipse.swt.graphics.*;
@@ -70,11 +71,18 @@ public class Browser extends Composite {
 	static nsIAppShell AppShell;
 	static WindowCreator WindowCreator;
 	static int BrowserCount;
-	static boolean mozilla;
+	static boolean mozilla, ignoreDispose, usingProfile;
 	static boolean IsLinux;
 
 	/* Package Name */
 	static final String PACKAGE_PREFIX = "org.eclipse.swt.browser."; //$NON-NLS-1$
+	static final String URI_FROMMEMORY = "file:///"; //$NON-NLS-1$
+	static final String ABOUT_BLANK = "about:blank"; //$NON-NLS-1$
+	static final String PREFERENCE_LANGUAGES = "intl.accept_languages"; //$NON-NLS-1$
+	static final String PREFERENCE_CHARSET = "intl.charset.default"; //$NON-NLS-1$
+	static final String SEPARATOR_LOCALE = "-"; //$NON-NLS-1$
+	static final String TOKENIZER_LOCALE = ","; //$NON-NLS-1$
+	static final String PROFILE_DIR = "/eclipse"; //$NON-NLS-1$
 	
 	static {
 		String osName = System.getProperty("os.name").toLowerCase(); //$NON-NLS-1$
@@ -144,23 +152,73 @@ public Browser(Composite parent, int style) {
 			dispose();
 			SWT.error(SWT.ERROR_NO_HANDLES, null, " [Mozilla GTK2 required (GTK1.2 detected)]"); //$NON-NLS-1$							
 		}
-		if (System.getProperty("java.io.tmpdir") == null) { //$NON-NLS-1$
-			dispose();
-			SWT.error(SWT.ERROR_NO_HANDLES, null, " [Missing system property java.io.tmpdir is required to create Mozilla profile]"); //$NON-NLS-1$
-		}
 
 		try {
-			Library.loadLibrary("swt-gtk"); //$NON-NLS-1$
+			Library.loadLibrary ("swt-gtk"); //$NON-NLS-1$
 			Library.loadLibrary ("swt-mozilla"); //$NON-NLS-1$
 		} catch (UnsatisfiedLinkError e) {
-			dispose();
-			SWT.error(SWT.ERROR_NO_HANDLES, e);
+			try {
+				/* 
+				 * The initial loadLibrary attempt may have failed as a result of the user's
+				 * system not having libstdc++.so.6 installed, so try to load the alternate
+				 * swt mozilla library that depends on libswtc++.so.5 instead.
+				 */
+				Library.loadLibrary ("swt-mozilla-gcc3"); //$NON-NLS-1$
+			} catch (UnsatisfiedLinkError ex) {
+				dispose ();
+				/*
+				 * Print the error from the first failed attempt since at this point it's
+				 * known that the failure was not due to the libstdc++.so.6 dependency.
+				 */
+				SWT.error (SWT.ERROR_NO_HANDLES, e);
+			}
 		}
-		
+
+		/*
+		 * Try to load the various profile libraries until one is found that loads successfully:
+		 * - mozilla14profile/mozilla14profile-gcc should succeed for mozilla 1.4 - 1.6
+		 * - mozilla17profile/mozilla17profile-gcc should succeed for mozilla 1.7.x and firefox
+		 * - mozilla18profile/mozilla18profile-gcc should succeed for mozilla 1.8.x (seamonkey)
+		 */
+		try {
+			Library.loadLibrary ("swt-mozilla14-profile"); //$NON-NLS-1$
+			usingProfile = true;
+		} catch (UnsatisfiedLinkError e1) {
+			try {
+				Library.loadLibrary ("swt-mozilla17-profile"); //$NON-NLS-1$
+				usingProfile = true;
+			} catch (UnsatisfiedLinkError e2) {
+				try {
+					Library.loadLibrary ("swt-mozilla14-profile-gcc3"); //$NON-NLS-1$
+					usingProfile = true;
+				} catch (UnsatisfiedLinkError e3) {
+					try {
+						Library.loadLibrary ("swt-mozilla17-profile-gcc3"); //$NON-NLS-1$
+						usingProfile = true;
+					} catch (UnsatisfiedLinkError e4) {
+						try {
+							Library.loadLibrary ("swt-mozilla18-profile"); //$NON-NLS-1$
+							usingProfile = true;
+						} catch (UnsatisfiedLinkError e5) {
+							try {
+								Library.loadLibrary ("swt-mozilla18-profile-gcc3"); //$NON-NLS-1$
+								usingProfile = true;
+							} catch (UnsatisfiedLinkError e6) {
+								/* 
+								* fail silently, the Browser will still work without profile support
+								* but will abort any attempts to navigate to HTTPS pages
+								*/
+							}
+						}
+					}
+				}
+			}
+		}
+
 		int /*long*/[] retVal = new int /*long*/[1];
-		nsEmbedString path = new nsEmbedString(mozillaPath);
-		int rc = XPCOM.NS_NewLocalFile(path.getAddress(), true, retVal);
-		path.dispose();
+		nsEmbedString pathString = new nsEmbedString(mozillaPath);
+		int rc = XPCOM.NS_NewLocalFile(pathString.getAddress(), true, retVal);
+		pathString.dispose();
 		if (rc != XPCOM.NS_OK) error(rc);
 		if (retVal[0] == 0) error(XPCOM.NS_ERROR_NULL_POINTER);
 		
@@ -211,6 +269,210 @@ public Browser(Composite parent, int style) {
 		if (rc != XPCOM.NS_OK) error(rc);
 		windowWatcher.Release();
 		
+		/* specify the user profile directory */
+		if (usingProfile) {
+			buffer = Converter.wcsToMbcs(null, XPCOM.NS_DIRECTORYSERVICE_CONTRACTID, true);
+			rc = serviceManager.GetServiceByContractID(buffer, nsIDirectoryService.NS_IDIRECTORYSERVICE_IID, result);
+			if (rc != XPCOM.NS_OK) error(rc);
+			if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+
+			nsIDirectoryService directoryService = new nsIDirectoryService(result[0]);
+			result[0] = 0;
+			rc = directoryService.QueryInterface(nsIProperties.NS_IPROPERTIES_IID, result);
+			if (rc != XPCOM.NS_OK) error(rc);
+			if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+			directoryService.Release();
+
+			nsIProperties properties = new nsIProperties(result[0]);
+			result[0] = 0;
+			buffer = Converter.wcsToMbcs(null, XPCOM.NS_APP_APPLICATION_REGISTRY_DIR, true);
+			rc = properties.Get(buffer, nsIFile.NS_IFILE_IID, result);
+			if (rc != XPCOM.NS_OK) error(rc);
+			if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+			properties.Release();
+
+			nsIFile profileDir = new nsIFile(result[0]);
+			result[0] = 0;
+			int /*long*/ path = XPCOM.nsEmbedCString_new();
+			rc = profileDir.GetNativePath(path);
+			if (rc != XPCOM.NS_OK) error(rc);
+			profileDir.Release(); //
+
+			int length = XPCOM.nsEmbedCString_Length(path);
+			ptr = XPCOM.nsEmbedCString_get(path);
+			buffer = new byte [length];
+			XPCOM.memmove(buffer, ptr, length);
+			XPCOM.nsEmbedCString_delete(path);
+			String string = new String(Converter.mbcsToWcs(null, buffer)) + PROFILE_DIR; 
+			pathString = new nsEmbedString(string);
+			rc = XPCOM.NS_NewLocalFile(pathString.getAddress(), true, result);
+			if (rc != XPCOM.NS_OK) error(rc);
+			if (result[0] == 0) error(XPCOM.NS_ERROR_NULL_POINTER);
+			pathString.dispose(); //
+
+			profileDir = new nsIFile(result[0]);
+			result[0] = 0;
+
+			rc = XPCOM_PROFILE.NS_NewProfileDirServiceProvider(true, result);
+			if (rc != XPCOM.NS_OK) error(rc);
+			if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+
+			final int /*long*/ dirServiceProvider = result[0];
+			result[0] = 0;
+			rc = XPCOM_PROFILE.ProfileDirServiceProvider_Register(dirServiceProvider);
+			if (rc != XPCOM.NS_OK) error(rc);
+			rc = XPCOM_PROFILE.ProfileDirServiceProvider_SetProfileDir(dirServiceProvider, profileDir.getAddress());
+			if (rc != XPCOM.NS_OK) error(rc);
+
+			getDisplay().addListener(SWT.Dispose, new Listener() {
+				public void handleEvent(Event e) {
+					XPCOM_PROFILE.ProfileDirServiceProvider_Shutdown(dirServiceProvider);
+				}
+			});
+		}
+
+		/*
+		 * As a result of using a common profile (or none at all), the user cannot specify
+		 * their locale and charset.  The fix for this is to set mozilla's locale and charset
+		 * preference values according to the user's current locale and charset.
+		 */
+		buffer = XPCOM.NS_PREFSERVICE_CONTRACTID.getBytes();
+		aContractID = new byte[buffer.length + 1];
+		System.arraycopy(buffer, 0, aContractID, 0, buffer.length);
+		rc = serviceManager.GetServiceByContractID(aContractID, nsIPrefService.NS_IPREFSERVICE_IID, result);
+		serviceManager.Release();
+		if (rc != XPCOM.NS_OK) error(rc);
+		if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+
+		nsIPrefService prefService = new nsIPrefService(result[0]);
+		result[0] = 0;
+		buffer = new byte[1];
+		rc = prefService.GetBranch(buffer, result);	/* empty buffer denotes root preference level */
+		prefService.Release();
+		if (rc != XPCOM.NS_OK) error(rc);
+		if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+
+		nsIPrefBranch prefBranch = new nsIPrefBranch(result[0]);
+		result[0] = 0;
+
+		/* get Mozilla's current locale preference value */
+		String prefLocales = null;
+		nsIPrefLocalizedString localizedString = null;
+		buffer = Converter.wcsToMbcs(null, PREFERENCE_LANGUAGES, true);
+		rc = prefBranch.GetComplexValue(buffer, nsIPrefLocalizedString.NS_IPREFLOCALIZEDSTRING_IID, result);
+		/* 
+		 * Feature of Debian.  For some reason attempting to query for the current locale
+		 * preference fails on Debian.  The workaround for this is to assume a value of
+		 * "en-us,en" since this is typically the default value when mozilla is used without
+		 * a profile.
+		 */
+		if (rc != XPCOM.NS_OK) {
+			prefLocales = "en-us,en" + TOKENIZER_LOCALE;	//$NON-NLS-1$
+		} else {
+			if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+			localizedString = new nsIPrefLocalizedString(result[0]);
+			result[0] = 0;
+			rc = localizedString.ToString(result);
+			if (rc != XPCOM.NS_OK) error(rc);
+			if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+			int length = XPCOM.strlen_PRUnichar(result[0]);
+			char[] dest = new char[length];
+			XPCOM.memmove(dest, result[0], length * 2);
+			prefLocales = new String(dest) + TOKENIZER_LOCALE;
+		}
+		result[0] = 0;
+
+		/*
+		 * construct the new locale preference value by prepending the
+		 * user's current locale and language to the original value 
+		 */
+		Locale locale = Locale.getDefault();
+		String language = locale.getLanguage();
+		String country = locale.getCountry();
+		StringBuffer stringBuffer = new StringBuffer (language);
+		stringBuffer.append(SEPARATOR_LOCALE);
+		stringBuffer.append(country.toLowerCase());
+		stringBuffer.append(TOKENIZER_LOCALE);
+		stringBuffer.append(language);
+		stringBuffer.append(TOKENIZER_LOCALE);
+		String newLocales = stringBuffer.toString();
+		StringTokenizer tokenzier = new StringTokenizer(prefLocales, TOKENIZER_LOCALE);
+		while (tokenzier.hasMoreTokens()) {
+			String token = (tokenzier.nextToken() + TOKENIZER_LOCALE).trim();
+			/* ensure that duplicate locale values are not added */
+			if (newLocales.indexOf(token) == -1) {
+				stringBuffer.append(token);
+			}
+		}
+		newLocales = stringBuffer.toString();
+		if (!newLocales.equals(prefLocales)) {
+			/* write the new locale value */
+			newLocales = newLocales.substring(0, newLocales.length() - TOKENIZER_LOCALE.length ()); /* remove trailing tokenizer */
+			int length = newLocales.length();
+			char[] charBuffer = new char[length + 1];
+			newLocales.getChars(0, length, charBuffer, 0);
+			if (localizedString == null) {
+				byte[] contractID = Converter.wcsToMbcs(null, XPCOM.NS_PREFLOCALIZEDSTRING_CONTRACTID, true);
+				rc = componentManager.CreateInstanceByContractID(contractID, 0, nsIPrefLocalizedString.NS_IPREFLOCALIZEDSTRING_IID, result);
+				if (rc != XPCOM.NS_OK) error(rc);
+				if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+				localizedString = new nsIPrefLocalizedString(result[0]);
+				result[0] = 0;
+			}
+			localizedString.SetDataWithLength(length, charBuffer);
+			rc = prefBranch.SetComplexValue(buffer, nsIPrefLocalizedString.NS_IPREFLOCALIZEDSTRING_IID, localizedString.getAddress());
+		}
+		if (localizedString != null) {
+			localizedString.Release();
+			localizedString = null;
+		}
+
+		/* get Mozilla's current charset preference value */
+		String prefCharset = null;
+		buffer = Converter.wcsToMbcs(null, PREFERENCE_CHARSET, true);
+		rc = prefBranch.GetComplexValue(buffer, nsIPrefLocalizedString.NS_IPREFLOCALIZEDSTRING_IID, result);
+		/* 
+		 * Feature of Debian.  For some reason attempting to query for the current charset
+		 * preference fails on Debian.  The workaround for this is to assume a value of
+		 * "ISO-8859-1" since this is typically the default value when mozilla is used
+		 * without a profile.
+		 */
+		if (rc != XPCOM.NS_OK) {
+			prefCharset = "ISO-8859-1";	//$NON_NLS-1$
+		} else {
+			if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+			localizedString = new nsIPrefLocalizedString(result[0]);
+			result[0] = 0;
+			rc = localizedString.ToString(result);
+			if (rc != XPCOM.NS_OK) error(rc);
+			if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+			int length = XPCOM.strlen_PRUnichar(result[0]);
+			char[] dest = new char[length];
+			XPCOM.memmove(dest, result[0], length * 2);
+			prefCharset = new String(dest);
+		}
+		result[0] = 0;
+
+		String newCharset = System.getProperty("file.encoding");	// $NON-NLS-1$
+		if (!newCharset.equals(prefCharset)) {
+			/* write the new charset value */
+			int length = newCharset.length();
+			char[] charBuffer = new char[length + 1];
+			newCharset.getChars(0, length, charBuffer, 0);
+			if (localizedString == null) {
+				byte[] contractID = Converter.wcsToMbcs(null, XPCOM.NS_PREFLOCALIZEDSTRING_CONTRACTID, true);
+				rc = componentManager.CreateInstanceByContractID(contractID, 0, nsIPrefLocalizedString.NS_IPREFLOCALIZEDSTRING_IID, result);
+				if (rc != XPCOM.NS_OK) error(rc);
+				if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+				localizedString = new nsIPrefLocalizedString(result[0]);
+				result[0] = 0;
+			}
+			localizedString.SetDataWithLength(length, charBuffer);
+			rc = prefBranch.SetComplexValue(buffer, nsIPrefLocalizedString.NS_IPREFLOCALIZEDSTRING_IID, localizedString.getAddress());
+		}
+		if (localizedString != null) localizedString.Release();
+		prefBranch.Release();
+
 		PromptServiceFactory factory = new PromptServiceFactory();
 		factory.AddRef();
 		
@@ -332,7 +594,18 @@ public Browser(Composite parent, int style) {
 	Listener listener = new Listener() {
 		public void handleEvent(Event event) {
 			switch (event.type) {
-				case SWT.Dispose: onDispose(); break;
+				case SWT.Dispose: {
+					/* make this handler run after other dispose listeners */
+					if (ignoreDispose) {
+						ignoreDispose = false;
+						break;
+					}
+					ignoreDispose = true;
+					notifyListeners (event.type, event);
+					event.type = SWT.NONE;
+					onDispose();
+					break;
+				}
 				case SWT.Resize: onResize(); break;
 				case SWT.FocusIn: Activate(); break;
 				case SWT.Deactivate: {
@@ -355,6 +628,65 @@ public Browser(Composite parent, int style) {
 	}
 
 	GTK.gtk_widget_show(gtkHandle);
+}
+
+/**
+ * Clears all session cookies from all current Browser instances.
+ * 
+ * @since 3.2
+ */
+public static void clearSessions () {
+	if (!mozilla) return;
+	int[] result = new int [1];
+	int rc = XPCOM.NS_GetServiceManager (result);
+	if (rc != XPCOM.NS_OK) error (rc);
+	if (result [0] == 0) error (XPCOM.NS_NOINTERFACE);
+	nsIServiceManager serviceManager = new nsIServiceManager (result [0]);
+	result [0] = 0;
+	byte[] buffer = XPCOM.NS_COOKIEMANAGER_CONTRACTID.getBytes ();
+	byte[] aContractID = new byte [buffer.length + 1];
+	System.arraycopy (buffer, 0, aContractID, 0, buffer.length);
+	rc = serviceManager.GetServiceByContractID (aContractID, nsICookieManager.NS_ICOOKIEMANAGER_IID, result);
+	if (rc != XPCOM.NS_OK) error (rc);
+	if (result [0] == 0) error (XPCOM.NS_NOINTERFACE);
+	serviceManager.Release ();
+
+	nsICookieManager manager = new nsICookieManager (result [0]);
+	result [0] = 0;
+	rc = manager.GetEnumerator (result);
+	if (rc != XPCOM.NS_OK) error (rc);
+	manager.Release ();
+
+	nsISimpleEnumerator enumerator = new nsISimpleEnumerator (result [0]);
+	boolean[] moreElements = new boolean [1];
+	rc = enumerator.HasMoreElements (moreElements);
+	if (rc != XPCOM.NS_OK) error (rc);
+	while (moreElements [0]) {
+		result [0] = 0;
+		rc = enumerator.GetNext (result);
+		if (rc != XPCOM.NS_OK) error (rc);
+		nsICookie cookie = new nsICookie (result [0]);
+		long[] expires = new long [1];
+		rc = cookie.GetExpires (expires);
+		if (expires [0] == 0) {
+			/* indicates a session cookie */
+			int domain = XPCOM.nsEmbedCString_new ();
+			int name = XPCOM.nsEmbedCString_new ();
+			int path = XPCOM.nsEmbedCString_new ();
+			cookie.GetHost (domain);
+			cookie.GetName (name);
+			cookie.GetPath (path);
+			rc = manager.Remove (domain, name, path, false);
+			XPCOM.nsEmbedCString_delete (domain);
+			XPCOM.nsEmbedCString_delete (name);
+			XPCOM.nsEmbedCString_delete (path);
+			if (rc != XPCOM.NS_OK) error (rc);
+		}
+		cookie.Release ();
+		rc = enumerator.HasMoreElements (moreElements);
+		if (rc != XPCOM.NS_OK) error (rc);
+	}
+	enumerator.Release ();
 }
 
 /**	 
@@ -889,7 +1221,15 @@ public String getUrl() {
 		XPCOM.nsEmbedCString_delete(aSpec);
 		uri.Release();
 	}
-	return dest != null ? new String(dest) : ""; //$NON-NLS-1$
+	if (dest == null) return ""; //$NON-NLS-1$
+	/*
+	 * If the URI indicates that the current page is being rendered from
+	 * memory (ie.- via setText()) then answer about:blank as the URL
+	 * to be consistent with win32.
+	 */
+	String location = new String (dest);
+	if (location.equals (URI_FROMMEMORY)) location = ABOUT_BLANK;
+	return location;
 }
 
 /**
@@ -1076,13 +1416,19 @@ public void refresh() {
 	
 	nsIWebNavigation webNavigation = new nsIWebNavigation(result[0]);		 	
 	rc = webNavigation.Reload(nsIWebNavigation.LOAD_FLAGS_NONE);
+	webNavigation.Release();
+	if (rc == XPCOM.NS_OK) return;
 	/*
 	* Feature in Mozilla.  Reload returns an error code NS_ERROR_INVALID_POINTER
 	* when it is called immediately after a request to load a new document using
-	* LoadURI.  The workaround is to ignore this error code. 
+	* LoadURI.  The workaround is to ignore this error code.
+	*
+	* Feature in Mozilla.  Attempting to reload a file that no longer exists
+	* returns an error code of NS_ERROR_FILE_NOT_FOUND.  This is equivalent to
+	* attempting to load a non-existent local url, which is not a Browser error,
+	* so this error code should be ignored. 
 	*/
-	if (rc != XPCOM.NS_OK && rc != XPCOM.NS_ERROR_INVALID_POINTER) error(rc);	
-	webNavigation.Release();
+	if (rc != XPCOM.NS_ERROR_INVALID_POINTER && rc != XPCOM.NS_ERROR_FILE_NOT_FOUND) error(rc);
 }
 
 /**	 
@@ -1409,7 +1755,8 @@ public boolean setText(String html) {
 	*/
 	if (this != getDisplay().getFocusControl()) Deactivate();
 	
-	/* Convert the String containing HTML to an array of
+	/*
+	 * Convert the String containing HTML to an array of
 	 * bytes with UTF-8 data.
 	 */
 	byte[] data = null;
@@ -1418,34 +1765,18 @@ public boolean setText(String html) {
 	} catch (UnsupportedEncodingException e) {
 		return false;
 	}
-	/* render HTML in memory */		
-	InputStream inputStream = new InputStream(data);
-	inputStream.AddRef();
 
 	int /*long*/[] result = new int /*long*/[1];
-	int rc = webBrowser.QueryInterface(nsIInterfaceRequestor.NS_IINTERFACEREQUESTOR_IID, result);
-	if (rc != XPCOM.NS_OK) error(rc);
-	if (result[0] == 0) error(XPCOM.NS_ERROR_NO_INTERFACE);
-	
-	nsIInterfaceRequestor interfaceRequestor = new nsIInterfaceRequestor(result[0]);
-	result[0] = 0;
-	rc = interfaceRequestor.GetInterface(nsIDocShell.NS_IDOCSHELL_IID, result);				
-	if (rc != XPCOM.NS_OK) error(rc);
-	if (result[0] == 0) error(XPCOM.NS_ERROR_NO_INTERFACE);
-	interfaceRequestor.Release();
-	
-	nsIDocShell docShell = new nsIDocShell(result[0]);
-	result[0] = 0;
-		
-	rc = XPCOM.NS_GetServiceManager(result);
+	int rc = XPCOM.NS_GetServiceManager(result);
 	if (rc != XPCOM.NS_OK) error(rc);
 	if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
-	
+
 	nsIServiceManager serviceManager = new nsIServiceManager(result[0]);
 	result[0] = 0;
 	rc = serviceManager.GetService(XPCOM.NS_IOSERVICE_CID, nsIIOService.NS_IIOSERVICE_IID, result);
 	if (rc != XPCOM.NS_OK) error(rc);
-	if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);		
+	if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+	serviceManager.Release();
 
 	nsIIOService ioService = new nsIIOService(result[0]);
 	result[0] = 0;
@@ -1454,7 +1785,7 @@ public boolean setText(String html) {
 	* when the URI protocol for the nsInputStreamChannel
 	* is about:blank.  The fix is to specify the file protocol.
 	*/
-	byte[] aString = "file:".getBytes(); //$NON-NLS-1$
+	byte[] aString = URI_FROMMEMORY.getBytes();
 	int /*long*/ aSpec = XPCOM.nsEmbedCString_new(aString, aString.length);
 	rc = ioService.NewURI(aSpec, null, 0, result);
 	XPCOM.nsEmbedCString_delete(aSpec);
@@ -1464,35 +1795,77 @@ public boolean setText(String html) {
 	
 	nsIURI uri = new nsIURI(result[0]);
 	result[0] = 0;
-	rc = XPCOM.NS_GetComponentManager(result);
-	if (rc != XPCOM.NS_OK) error(rc);
-	if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
 
 	/* aContentType */
-	byte[] buffer = "text/plain".getBytes(); //$NON-NLS-1$
+	byte[] buffer = "text/html".getBytes(); //$NON-NLS-1$
 	byte[] contentTypeBuffer = new byte[buffer.length + 1];
 	System.arraycopy(buffer, 0, contentTypeBuffer, 0, buffer.length);
 	int /*long*/ aContentType = XPCOM.nsEmbedCString_new(contentTypeBuffer, contentTypeBuffer.length);
 
-	buffer = "UTF-8".getBytes(); //$NON-NLS-1$
-	byte[] contentCharsetBuffer = new byte[buffer.length + 1];
-	System.arraycopy(buffer, 0, contentCharsetBuffer, 0, buffer.length);
-	int /*long*/ aContentCharset = XPCOM.nsEmbedCString_new(contentCharsetBuffer, contentCharsetBuffer.length);
-
 	/*
-	* Feature in Mozilla. LoadStream invokes the nsIInputStream argument
-	* through a different thread.  The callback mechanism must attach 
-	* a non java thread to the JVM otherwise the nsIInputStream Read and
-	* Close methods never get called.
-	*/
-	rc = docShell.LoadStream(inputStream.getAddress(), uri.getAddress(), aContentType,  aContentCharset, 0);
-	if (rc != XPCOM.NS_OK) error(rc);
+	 * First try to use nsIWebBrowserStream to set the text into the Browser, since this
+	 * interface is frozen.  However, this may fail because this interface was only introduced
+	 * as of mozilla 1.8; if this interface is not found then use the pre-1.8 approach of
+	 * utilizing nsIDocShell instead. 
+	 */
+	result[0] = 0;
+	rc = webBrowser.QueryInterface(nsIWebBrowserStream.NS_IWEBBROWSERSTREAM_IID, result);
+	if (rc == XPCOM.NS_OK) {
+		if (result[0] == 0) error(XPCOM.NS_ERROR_NO_INTERFACE);
+		nsIWebBrowserStream stream = new nsIWebBrowserStream(result[0]);
+		rc = stream.OpenStream(uri.getAddress(), aContentType);
+		if (rc != XPCOM.NS_OK) error(rc);
+		int ptr = XPCOM.PR_Malloc(data.length);
+		XPCOM.memmove(ptr, data, data.length);
+		int pageSize = 8192;
+		int pageCount = data.length / pageSize + 1;
+		int current = ptr;
+		for (int i = 0; i < pageCount; i++) {
+			int length = i == pageCount - 1 ? data.length % pageSize : pageSize;
+			if (length > 0) {
+				rc = stream.AppendToStream(current, length);
+				if (rc != XPCOM.NS_OK) error(rc);
+			}
+			current += pageSize;
+		}
+		rc = stream.CloseStream();
+		if (rc != XPCOM.NS_OK) error(rc);
+		XPCOM.PR_Free(ptr);
+		stream.Release();
+	} else {
+		rc = webBrowser.QueryInterface(nsIInterfaceRequestor.NS_IINTERFACEREQUESTOR_IID, result);
+		if (rc != XPCOM.NS_OK) error(rc);
+		if (result[0] == 0) error(XPCOM.NS_ERROR_NO_INTERFACE);
+		
+		nsIInterfaceRequestor interfaceRequestor = new nsIInterfaceRequestor(result[0]);
+		result[0] = 0;
+		rc = interfaceRequestor.GetInterface(nsIDocShell.NS_IDOCSHELL_IID, result);				
+		interfaceRequestor.Release();
 
-	XPCOM.nsEmbedCString_delete(aContentCharset);
+		nsIDocShell docShell = new nsIDocShell(result[0]);
+		result[0] = 0;
+		buffer = "UTF-8".getBytes(); //$NON-NLS-1$
+		byte[] contentCharsetBuffer = new byte[buffer.length + 1];
+		System.arraycopy(buffer, 0, contentCharsetBuffer, 0, buffer.length);
+		int /*long*/ aContentCharset = XPCOM.nsEmbedCString_new(contentCharsetBuffer, contentCharsetBuffer.length);
+
+		/*
+		* Feature in Mozilla. LoadStream invokes the nsIInputStream argument
+		* through a different thread.  The callback mechanism must attach 
+		* a non java thread to the JVM otherwise the nsIInputStream Read and
+		* Close methods never get called.
+		*/
+		InputStream inputStream = new InputStream(data);
+		inputStream.AddRef();
+		rc = docShell.LoadStream(inputStream.getAddress(), uri.getAddress(), aContentType,  aContentCharset, 0);
+		if (rc != XPCOM.NS_OK) error(rc);
+		XPCOM.nsEmbedCString_delete(aContentCharset);
+		inputStream.Release();
+		docShell.Release();
+	}
+
 	XPCOM.nsEmbedCString_delete(aContentType);
 	uri.Release();
-	inputStream.Release();
-	docShell.Release();
 	return true;
 }
 
@@ -1758,6 +2131,14 @@ int /*long*/ OnLocationChange(int /*long*/ aWebProgress, int /*long*/ aRequest, 
 	event.display = getDisplay();
 	event.widget = this;
 	event.location = new String(dest);
+	if (event.location.equals (URI_FROMMEMORY)) {
+		/*
+		 * If the URI indicates that the page is being rendered from memory
+		 * (ie.- via setText()) then set the event location to about:blank
+		 * to be consistent with win32.
+		 */
+		event.location = ABOUT_BLANK;
+	}
 	event.top = aTop[0] == aDOMWindow[0];
 	for (int i = 0; i < locationListeners.length; i++)
 		locationListeners[i].changed(event);
@@ -1766,14 +2147,15 @@ int /*long*/ OnLocationChange(int /*long*/ aWebProgress, int /*long*/ aRequest, 
   
 int /*long*/ OnStatusChange(int /*long*/ aWebProgress, int /*long*/ aRequest, int /*long*/ aStatus, int /*long*/ aMessage) {
 	/*
-	* Feature in Mozilla.  In Mozilla 1.7.5, navigating to an 
-	* HTTPS link without a user profile set causes a crash.
-	* Most requests for HTTPS pages are aborted in OnStartURIOpen.
-	* However, https page requests that do not initially specify
-	* https as their protocol will get past this check since they
-	* are resolved afterwards.  The workaround is to check the url
-	* whenever there is a status change, and to abort any https
-	* requests that are detected.
+	* Feature in Mozilla.  Navigating to an HTTPS link without a user profile
+	* set causes a crash.  The workaround is to abort attempts to navigate to
+	* HTTPS pages if a profile is not being used.
+	* 
+	* Most navigation requests for HTTPS pages are handled in OnStartURIOpen.
+	* However, https page requests that do not initially specify https as their
+	* protocol will get past this check since they are resolved afterwards.
+	* The workaround is to check the url whenever there is a status change, and
+	* to abort any detected https requests if a profile is not being used.
 	*/
 	nsIRequest request = new nsIRequest(aRequest);
 	int /*long*/ aName = XPCOM.nsEmbedCString_new();
@@ -1784,7 +2166,7 @@ int /*long*/ OnStatusChange(int /*long*/ aWebProgress, int /*long*/ aRequest, in
 	XPCOM.memmove(bytes, buffer, length);
 	XPCOM.nsEmbedCString_delete(aName);
 	String value = new String(bytes);
-	if (value.startsWith(XPCOM.HTTPS_PROTOCOL)) {
+	if (!usingProfile && value.startsWith(XPCOM.HTTPS_PROTOCOL)) {
 		request.Cancel(XPCOM.NS_BINDING_ABORTED);
 		return XPCOM.NS_OK;
 	}
@@ -1818,10 +2200,10 @@ int /*long*/ SetStatus(int /*long*/ statusType, int /*long*/ status) {
 	char[] dest = new char[length];
 	XPCOM.memmove(dest, status, length * 2);
 	String string = new String(dest);
-	if (string == null) string = ""; //$NON-NLS-1$
 	event.text = string;
-	for (int i = 0; i < statusTextListeners.length; i++)
-		statusTextListeners[i].changed(event);	
+	for (int i = 0; i < statusTextListeners.length; i++) {
+		statusTextListeners[i].changed(event);
+	}
 	return XPCOM.NS_OK;
 }		
 
@@ -1921,7 +2303,8 @@ int /*long*/ SetFocus() {
 }	
 
 int /*long*/ GetVisibility(int /*long*/ aVisibility) {
-	return XPCOM.NS_OK;     	
+	XPCOM.memmove(aVisibility, new int[] {isVisible() ? 1 : 0}, 4);
+	return XPCOM.NS_OK; 	
 }
    
 int /*long*/ SetVisibility(int /*long*/ aVisibility) {
@@ -2063,30 +2446,33 @@ int /*long*/ OnStartURIOpen(int /*long*/ aURI, int /*long*/ retval) {
 	XPCOM.nsEmbedCString_delete(aSpec);
 	String value = new String(dest);
 	/*
-	* Feature in Mozilla.  In Mozilla 1.7.5, navigating to an 
-	* HTTPS link without a user profile set causes a crash. 
-	* HTTPS requires a user profile to be set to persist security
-	* information.  This requires creating a new user profile
-	* (i.e. creating a new folder) or locking an existing Mozilla 
-	* user profile.  The Mozilla Profile API is not frozen and it is not 
-	* currently implemented.  The workaround is to not load 
-	* HTTPS resources to avoid the crash.
-	*/
+	 * Feature in Mozilla.  Navigating to an HTTPS link without a user profile
+	 * set causes a crash.  The workaround is to abort attempts to navigate to
+	 * HTTPS pages if a profile is not being used.
+	 */
 	boolean isHttps = value.startsWith(XPCOM.HTTPS_PROTOCOL);
 	if (locationListeners.length == 0) {
-		XPCOM.memmove(retval, new int[] {isHttps ? 1 : 0}, 4);
+		XPCOM.memmove(retval, new int[] {isHttps && !usingProfile ? 1 : 0}, 4);
 		return XPCOM.NS_OK;
 	}
-	boolean doit = !isHttps;
+	boolean doit = !isHttps || usingProfile;
 	if (request == 0) {
 		LocationEvent event = new LocationEvent(this);
 		event.display = getDisplay();
 		event.widget = this;
 		event.location = value;
+		if (event.location.equals (URI_FROMMEMORY)) {
+			/*
+			 * If the URI indicates that the page is being rendered from memory
+			 * (ie.- via setText()) then set the event location to about:blank
+			 * to be consistent with win32.
+			 */
+			event.location = ABOUT_BLANK;
+		}
 		event.doit = doit;
 		for (int i = 0; i < locationListeners.length; i++)
 			locationListeners[i].changing(event);
-		if (!isHttps) doit = event.doit;
+		if (!isHttps || usingProfile) doit = event.doit;
 	}
 	/* Note. boolean remains of size 4 on 64 bit machine */
 	XPCOM.memmove(retval, new int[] {doit ? 0 : 1}, 4);
@@ -2098,8 +2484,39 @@ int /*long*/ DoContent(int /*long*/ aContentType, int /*long*/ aIsContentPreferr
 }
 
 int /*long*/ IsPreferred(int /*long*/ aContentType, int /*long*/ aDesiredContentType, int /*long*/ retval) {
-	/* Note. boolean remains of size 4 on 64 bit machine */
-	XPCOM.memmove(retval, new int[] {1}, 4);
+	boolean preferred = false;
+	int size = XPCOM.strlen(aContentType);
+	if (size > 0) {
+		byte[] typeBytes = new byte[size + 1];
+		XPCOM.memmove(typeBytes, aContentType, size);
+		String contentType = new String(typeBytes);
+
+		/* do not attempt to handle known problematic content types */
+		if (!contentType.equals(XPCOM.CONTENT_MAYBETEXT) && !contentType.equals(XPCOM.CONTENT_MULTIPART)) {
+			/* determine whether browser can handle the content type */
+			int[] result = new int[1];
+			int rc = XPCOM.NS_GetServiceManager(result);
+			if (rc != XPCOM.NS_OK) error(rc);
+			if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+			nsIServiceManager serviceManager = new nsIServiceManager(result[0]);
+			result[0] = 0;
+			rc = serviceManager.GetService(XPCOM.NS_CATEGORYMANAGER_CID, nsICategoryManager.NS_ICATEGORYMANAGER_IID, result);
+			serviceManager.Release();
+			if (rc != XPCOM.NS_OK) error(rc);
+			if (result[0] == 0) error(XPCOM.NS_NOINTERFACE);
+
+			nsICategoryManager categoryManager = new nsICategoryManager(result[0]);
+			result[0] = 0;
+			byte[] categoryBytes = Converter.wcsToMbcs(null, "Gecko-Content-Viewers", true);	//$NON-NLS-1$
+			rc = categoryManager.GetCategoryEntry(categoryBytes, typeBytes, result);
+			categoryManager.Release();
+			/* if no viewer for the content type is registered then rc == XPCOM.NS_ERROR_NOT_AVAILABLE */
+			preferred = rc == XPCOM.NS_OK;
+		}
+	}
+
+	/* note that boolean remains of size 4 on 64 bit machines */
+	XPCOM.memmove(retval, new int[] {preferred ? 1 : 0}, 4);
 	return XPCOM.NS_OK;
 }
 

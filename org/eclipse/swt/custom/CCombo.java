@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -122,7 +122,7 @@ public CCombo (Composite parent, int style) {
 	int [] comboEvents = {SWT.Dispose, SWT.Move, SWT.Resize};
 	for (int i=0; i<comboEvents.length; i++) this.addListener (comboEvents [i], listener);
 	
-	int [] textEvents = {SWT.KeyDown, SWT.KeyUp, SWT.Modify, SWT.MouseDown, SWT.MouseUp, SWT.Traverse, SWT.FocusIn};
+	int [] textEvents = {SWT.KeyDown, SWT.KeyUp, SWT.MenuDetect, SWT.Modify, SWT.MouseDown, SWT.MouseUp, SWT.Traverse, SWT.FocusIn};
 	for (int i=0; i<textEvents.length; i++) text.addListener (textEvents [i], listener);
 	
 	int [] arrowEvents = {SWT.Selection, SWT.FocusIn};
@@ -311,12 +311,14 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 	gc.dispose();
 	Point textSize = text.computeSize (SWT.DEFAULT, SWT.DEFAULT, changed);
 	Point arrowSize = arrow.computeSize (SWT.DEFAULT, SWT.DEFAULT, changed);
-	Point listSize = list.computeSize (wHint, SWT.DEFAULT, changed);
+	Point listSize = list.computeSize (SWT.DEFAULT, SWT.DEFAULT, changed);
 	int borderWidth = getBorderWidth ();
 	
-	height = Math.max (hHint, Math.max (textSize.y, arrowSize.y) + 2*borderWidth);
-	width = Math.max (wHint, Math.max (textWidth + 2*spacer + arrowSize.x + 2*borderWidth, listSize.x));
-	return new Point (width, height);
+	height = Math.max (textSize.y, arrowSize.y);
+	width = Math.max (textWidth + 2*spacer + arrowSize.x + 2*borderWidth, listSize.x);
+	if (wHint != SWT.DEFAULT) width = wHint;
+	if (hHint != SWT.DEFAULT) height = hHint;
+	return new Point (width + 2*borderWidth, height + 2*borderWidth);
 }
 void createPopup(String[] items, int selectionIndex) {		
 		// create shell and list
@@ -412,9 +414,27 @@ void dropDown (boolean drop) {
 	int x = parentRect.x;
 	int y = parentRect.y + comboSize.y;
 	if (y + height > displayRect.y + displayRect.height) y = parentRect.y - height;
+	if (x + width > displayRect.x + displayRect.width) x = displayRect.x + displayRect.width - listRect.width;
 	popup.setBounds (x, y, width, height);
 	popup.setVisible (true);
 	list.setFocus ();
+}
+/*
+ * Return the lowercase of the first non-'&' character following
+ * an '&' character in the given string. If there are no '&'
+ * characters in the given string, return '\0'.
+ */
+char _findMnemonic (String string) {
+	if (string == null) return '\0';
+	int index = 0;
+	int length = string.length ();
+	do {
+		while (index < length && string.charAt (index) != '&') index++;
+		if (++index >= length) return '\0';
+		if (string.charAt (index) != '&') return Character.toLowerCase (string.charAt (index));
+		index++;
+	} while (index < length);
+ 	return '\0';
 }
 /* 
  * Return the Label immediately preceding the receiver in the z-order, 
@@ -423,7 +443,7 @@ void dropDown (boolean drop) {
 Label getAssociatedLabel () {
 	Control[] siblings = getParent ().getChildren ();
 	for (int i = 0; i < siblings.length; i++) {
-		if (siblings [i] == CCombo.this) {
+		if (siblings [i] == this) {
 			if (i > 0 && siblings [i-1] instanceof Label) {
 				return (Label) siblings [i-1];
 			}
@@ -438,7 +458,7 @@ public Control [] getChildren () {
 /**
  * Gets the editable state.
  *
- * @return whether or not the reciever is editable
+ * @return whether or not the receiver is editable
  * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -520,16 +540,8 @@ public String [] getItems () {
 	checkWidget ();
 	return list.getItems ();
 }
-char getMnemonic (String string) {
-	int index = 0;
-	int length = string.length ();
-	do {
-		while ((index < length) && (string.charAt (index) != '&')) index++;
-		if (++index >= length) return '\0';
-		if (string.charAt (index) != '&') return string.charAt (index);
-		index++;
-	} while (index < length);
- 	return '\0';
+public Menu getMenu() {
+	return text.getMenu();
 }
 /**
  * Returns a <code>Point</code> whose x coordinate is the start
@@ -728,7 +740,7 @@ void initAccessible() {
 			if (label != null) {
 				String text = label.getText ();
 				if (text != null) {
-					char mnemonic = getMnemonic (text);
+					char mnemonic = _findMnemonic (text);
 					if (mnemonic != '\0') {
 						shortcut = "Alt+"+mnemonic; //$NON-NLS-1$
 					}
@@ -759,6 +771,11 @@ void initAccessible() {
 	getAccessible().addAccessibleTextListener (new AccessibleTextAdapter() {
 		public void getCaretOffset (AccessibleTextEvent e) {
 			e.offset = text.getCaretPosition ();
+		}
+		public void getSelectionRange(AccessibleTextEvent e) {
+			Point sel = text.getSelection();
+			e.offset = sel.x;
+			e.length = sel.y - sel.x;
 		}
 	});
 	
@@ -1187,7 +1204,7 @@ public void setItems (String [] items) {
  * Sets the layout which is associated with the receiver to be
  * the argument which may be null.
  * <p>
- * Note : No Layout can be set on this Control because it already
+ * Note: No Layout can be set on this Control because it already
  * manages the size and position of its children.
  * </p>
  *
@@ -1201,6 +1218,9 @@ public void setItems (String [] items) {
 public void setLayout (Layout layout) {
 	checkWidget ();
 	return;
+}
+public void setMenu(Menu menu) {
+	text.setMenu(menu);
 }
 /**
  * Sets the selection in the receiver's text field to the
@@ -1383,6 +1403,12 @@ void textEvent (Event event) {
 			e.keyCode = event.keyCode;
 			e.stateMask = event.stateMask;
 			notifyListeners (SWT.KeyUp, e);
+			break;
+		}
+		case SWT.MenuDetect: {
+			Event e = new Event ();
+			e.time = event.time;
+			notifyListeners (SWT.MenuDetect, e);
 			break;
 		}
 		case SWT.Modify: {

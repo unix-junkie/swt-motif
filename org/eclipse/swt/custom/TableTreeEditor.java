@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -29,11 +29,11 @@ import org.eclipse.swt.events.*;
 *	final Table table = tableTree.getTable();
 *	TableColumn column1 = new TableColumn(table, SWT.NONE);
 *	TableColumn column2 = new TableColumn(table, SWT.NONE);
-*	for (int i = 0; i &lt 10; i++) {
+*	for (int i = 0; i &lt; 10; i++) {
 *		TableTreeItem item = new TableTreeItem(tableTree, SWT.NONE);
 *		item.setText(0, "item " + i);
 *		item.setText(1, "edit this value");
-*		for (int j = 0; j &lt 3; j++) {
+*		for (int j = 0; j &lt; 3; j++) {
 *			TableTreeItem subitem = new TableTreeItem(item, SWT.NONE);
 *			subitem.setText(0, "subitem " + i + " " + j);
 *			subitem.setText(1, "edit this value");
@@ -101,7 +101,7 @@ public TableTreeEditor (TableTree tableTree) {
 			public void run() {
 				if (editor == null || editor.isDisposed()) return;
 				if (TableTreeEditor.this.tableTree.isDisposed()) return;
-				resize();
+				_resize();
 				editor.setVisible(true);
 			}
 		};
@@ -120,10 +120,10 @@ public TableTreeEditor (TableTree tableTree) {
 	
 	columnListener = new ControlListener() {
 		public void controlMoved(ControlEvent e){
-			resize ();
+			_resize ();
 		}
 		public void controlResized(ControlEvent e){
-			resize ();
+			_resize ();
 		}
 	};
 	
@@ -208,7 +208,7 @@ public void setColumn(int column) {
 	// In this situation, there is a single default column.
 	if (columnCount == 0) {
 		this.column = (column == 0) ? 0 : -1;
-		resize();
+		_resize();
 		return;
 	}
 	if (this.column > -1 && this.column < columnCount){
@@ -222,11 +222,11 @@ public void setColumn(int column) {
 	this.column = column;
 	TableColumn tableColumn = table.getColumn(this.column);
 	tableColumn.addControlListener(columnListener);
-	resize();
+	_resize();
 }
 public void setItem (TableTreeItem item) {	
 	this.item = item;
-	resize();
+	_resize();
 }
 
 /**
@@ -244,13 +244,13 @@ public void setEditor (Control editor, TableTreeItem item, int column) {
 	setColumn(column);
 	setEditor(editor);
 }
-void resize () {
+void _resize () {
 	if (tableTree.isDisposed()) return;
 	if (item == null || item.isDisposed()) return;
 	Table table = tableTree.getTable();
 	int columnCount = table.getColumnCount();
 	if (columnCount == 0 && column != 0) return;
 	if (columnCount > 0 && (column < 0 || column >= columnCount)) return;
-	super.resize();
+	super._resize();
 }
 }

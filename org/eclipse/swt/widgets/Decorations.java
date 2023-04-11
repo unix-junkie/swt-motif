@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -164,8 +164,6 @@ void _setImages (Image [] images) {
 				pixmap = icon.pixmap;
 				mask = icon.mask;
 				break;
-			default:
-				error (SWT.ERROR_INVALID_IMAGE);
 		}
 	}
 	int [] argList = {
@@ -176,7 +174,7 @@ void _setImages (Image [] images) {
 	OS.XtSetValues (topHandle, argList, argList.length / 2);
 }
 
-void add (Menu menu) {
+void addMenu (Menu menu) {
 	if (menus == null) menus = new Menu [4];
 	for (int i=0; i<menus.length; i++) {
 		if (menus [i] == null) {
@@ -244,7 +242,7 @@ public Rectangle computeTrim (int x, int y, int width, int height) {
 	return trim;
 }
 void createHandle (int index) {
-	state |= HANDLE | CANVAS;
+	state |= CANVAS;
 	createHandle (index, parent.handle, true);
 }
 void createWidget (int index) {
@@ -417,19 +415,27 @@ void propagateWidget (boolean enabled) {
 	OS.XtGetValues (scrolledHandle, argList, argList.length / 2);
 	if (argList [1] != 0) propagateHandle (enabled, argList [1], OS.None);
 }
+void releaseChildren (boolean destroy) {
+	if (menuBar != null) {
+		menuBar.release (false);
+		menuBar = null;
+	}
+	super.releaseChildren (destroy);
+	if (menus != null) {
+		for (int i=0; i<menus.length; i++) {
+			Menu menu = menus [i];
+			if (menu != null && !menu.isDisposed ()) {
+				menu.release (false);
+			}
+		}
+		menus = null;
+	}
+}
 void releaseHandle () {
 	super.releaseHandle ();
 	dialogHandle = 0;
 }
 void releaseWidget () {
-	if (menus != null) {
-		for (int i=0; i<menus.length; i++) {
-			Menu menu = menus [i];
-			if (menu != null && !menu.isDisposed ()) menu.releaseResources ();
-		}
-	}
-	menuBar = null;
-	menus = null;
 	super.releaseWidget ();
 	image = null;
 	images = null;
@@ -453,7 +459,7 @@ boolean restoreFocus () {
 //	return false;
 	return restored;
 }
-void remove (Menu menu) {
+void removeMenu (Menu menu) {
 	if (menus == null) return;
 	for (int i=0; i<menus.length; i++) {
 		if (menus [i] == menu) {
@@ -480,6 +486,7 @@ void remove (Menu menu) {
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_INVALID_ARGUMENT - if the button has been disposed</li> 
+ *    <li>ERROR_INVALID_PARENT - if the control is not in the same widget tree</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -488,6 +495,10 @@ void remove (Menu menu) {
  */
 public void setDefaultButton (Button button) {
 	checkWidget();
+	if (button != null) {
+		if (button.isDisposed ()) error(SWT.ERROR_INVALID_ARGUMENT);
+		if (button.menuShell () != this) error(SWT.ERROR_INVALID_PARENT);
+	}
 	setDefaultButton (button, true);
 }
 void setDefaultButton (Button button, boolean save) {
@@ -497,7 +508,6 @@ void setDefaultButton (Button button, boolean save) {
 			return;
 		}
 	} else {
-		if (button.isDisposed()) error(SWT.ERROR_INVALID_ARGUMENT);
 		if ((button.style & SWT.PUSH) == 0) return;
 		if (button == defaultButton) return;
 	}

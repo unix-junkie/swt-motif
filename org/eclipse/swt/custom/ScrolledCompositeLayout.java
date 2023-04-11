@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -27,18 +27,17 @@ class ScrolledCompositeLayout extends Layout {
 	
 protected Point computeSize(Composite composite, int wHint, int hHint, boolean flushCache) {
 	ScrolledComposite sc = (ScrolledComposite)composite;
-	if (sc.content == null) {
-		int w = (wHint != SWT.DEFAULT) ? wHint : DEFAULT_WIDTH;
-		int h = (hHint != SWT.DEFAULT) ? hHint : DEFAULT_HEIGHT;
-		return new Point(w, h);
+	Point size = new Point(DEFAULT_WIDTH, DEFAULT_HEIGHT);
+	if (sc.content != null) {
+		Point preferredSize = sc.content.computeSize(wHint, hHint, flushCache);
+		Point currentSize = sc.content.getSize();
+		size.x = sc.getExpandHorizontal() ? preferredSize.x : currentSize.x;
+		size.y = sc.getExpandVertical() ? preferredSize.y : currentSize.y;
 	}
-	Point size = sc.content.computeSize (wHint, hHint, flushCache);
-	if (sc.alwaysShowScroll) {
-		ScrollBar hBar = sc.getHorizontalBar();
-		ScrollBar vBar = sc.getVerticalBar();
-		if (hBar != null) size.y += hBar.getSize().y;
-		if (vBar != null) size.x += vBar.getSize().x;
-	}
+	size.x = Math.max(size.x, sc.minWidth);
+	size.y = Math.max(size.y, sc.minHeight);
+	if (wHint != SWT.DEFAULT) size.x = wHint;
+	if (hHint != SWT.DEFAULT) size.y = hHint;
 	return size;
 }
 
@@ -50,10 +49,20 @@ protected void layout(Composite composite, boolean flushCache) {
 	if (inLayout) return;
 	ScrolledComposite sc = (ScrolledComposite)composite;
 	if (sc.content == null) return;
-	inLayout = true;
-	Rectangle contentRect = sc.content.getBounds();
 	ScrollBar hBar = sc.getHorizontalBar();
 	ScrollBar vBar = sc.getVerticalBar();
+	if (hBar != null) {
+		if (hBar.getSize().y >= sc.getSize().y) {
+			return;
+		}
+	}
+	if (vBar != null) {
+		if (vBar.getSize().x >= sc.getSize().x) {
+			return;
+		}
+	}
+	inLayout = true;
+	Rectangle contentRect = sc.content.getBounds();
 	if (!sc.alwaysShowScroll) {
 		boolean hVisible = sc.needHScroll(contentRect, false);
 		boolean vVisible = sc.needVScroll(contentRect, hVisible);
@@ -61,7 +70,6 @@ protected void layout(Composite composite, boolean flushCache) {
 		if (hBar != null) hBar.setVisible(hVisible);
 		if (vBar != null) vBar.setVisible(vVisible);
 	}
-
 	Rectangle hostRect = sc.getClientArea();
 	if (sc.expandHorizontal) {
 		contentRect.width = Math.max(sc.minWidth, hostRect.width);	

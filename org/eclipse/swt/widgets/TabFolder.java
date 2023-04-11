@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -253,8 +253,11 @@ void destroyChild (TabItem item) {
 /**
  * Dispose the items of the receiver
  */
-void doDispose() {
+void doDispose(Event event) {
+	if (inDispose) return;
 	inDispose = true;
+	notifyListeners(SWT.Dispose, event);
+	event.type = SWT.None;
 	// items array is resized during TabItem.dispose
 	// it is length 0 if the last item is removed
 	while (items.length > 0) {						
@@ -597,7 +600,7 @@ public String getToolTipText () {
 void handleEvents (Event event){
 	switch (event.type) {
 		case SWT.Dispose:
-			doDispose();
+			doDispose(event);
 			break;
 		case SWT.Paint:
 			paint(event);
@@ -801,11 +804,11 @@ Point minimumSize (int wHint, int hHint, boolean flushCache) {
 }
 boolean mnemonicHit (char key) {
 	for (int i = 0; i < items.length; i++) {
-		if (i != selectedIndex) {
-			char mnemonic = getMnemonic (items[i].getText ());
-			if (mnemonic != '\0') {
-				if (Character.toUpperCase (key) == Character.toUpperCase (mnemonic)) {
-					setSelection(i, true);
+		char mnemonic = getMnemonic (items[i].getText ());
+		if (mnemonic != '\0') {
+			if (Character.toUpperCase (key) == Character.toUpperCase (mnemonic)) {
+				if (forceFocus ()) {
+					if (i != selectedIndex) setSelection(i, true);
 					return true;
 				}
 			}
@@ -1071,6 +1074,28 @@ public void setSelection(int index) {
 	checkWidget();
 	if (!(0 <= index && index < items.length)) return;
 	setSelection(index, false);
+}
+/**
+ * Sets the receiver's selection to the given item.
+ * The current selected is first cleared, then the new item is
+ * selected.
+ *
+ * @param item the item to select
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the item is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public void setSelection(TabItem item) {
+	checkWidget();
+	if (item == null) error(SWT.ERROR_NULL_ARGUMENT);
+	setSelection(new TabItem[]{item});
 }
 /**
  * Sets the receiver's selection to be the given array of items.

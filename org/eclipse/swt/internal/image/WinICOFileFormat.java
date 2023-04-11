@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -17,6 +17,14 @@ import java.io.*;
 
 final class WinICOFileFormat extends FileFormat {
 	
+byte[] bitInvertData(byte[] data, int startIndex, int endIndex) {
+	// Destructively bit invert data in the given byte array.
+	for (int i = startIndex; i < endIndex; i++) {
+		data[i] = (byte)(255 - data[i - startIndex]);
+	}
+	return data;
+}
+
 static final byte[] convertPad(byte[] data, int width, int height, int depth, int pad, int newPad) {
 	if (pad == newPad) return data;
 	int stride = (width * depth + 7) / 8;
@@ -241,8 +249,8 @@ void unloadIconHeader(ImageData i) {
 	int offset = headerSize + 6;
 	int iconSize = iconSize(i);
 	try {
-		outputStream.writeByte((byte)i.width);
-		outputStream.writeByte((byte)i.height);
+		outputStream.write(i.width);
+		outputStream.write(i.height);
 		outputStream.writeShort(i.palette.colors != null ? i.palette.colors.length : 0);
 		outputStream.writeShort(0);
 		outputStream.writeShort(0);
@@ -252,7 +260,10 @@ void unloadIconHeader(ImageData i) {
 		SWT.error(SWT.ERROR_IO, e);
 	}
 }
-void unloadIntoByteStream(ImageData image) {
+void unloadIntoByteStream(ImageLoader loader) {
+	/* We do not currently support writing multi-image ico,
+	 * so we use the first image data in the loader's array. */
+	ImageData image = loader.data[0];
 	if (!isValidIcon(image))
 		SWT.error(SWT.ERROR_INVALID_IMAGE);
 	try {

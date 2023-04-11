@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -76,6 +76,10 @@ public Scale (Composite parent, int style) {
  * be notified when the receiver's value changes, by sending
  * it one of the messages defined in the <code>SelectionListener</code>
  * interface.
+ * <p>
+ * <code>widgetSelected</code> is called when the control's value changes.
+ * <code>widgetDefaultSelected</code> is not called.
+ * </p>
  *
  * @param listener the listener which should be notified
  *
@@ -118,7 +122,7 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 	return new Point (width, height);
 }
 void createHandle (int index) {
-	state |= HANDLE;
+	state |= THEME_BACKGROUND;
 	int [] argList = {
 		OS.XmNtitleString, 0,
 		OS.XmNborderWidth, (style & SWT.BORDER) != 0 ? 1 : 0,

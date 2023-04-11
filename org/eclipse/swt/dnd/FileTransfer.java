@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -34,13 +34,13 @@ import org.eclipse.swt.internal.motif.*;
  */
 public class FileTransfer extends ByteArrayTransfer {
 	
-	private static FileTransfer _instance = new FileTransfer();
-	private static final String URI_LIST = "text/uri-list";
-	private static final int URI_LIST_ID = registerType(URI_LIST);
-	private static final String URI_LIST_PREFIX = "file:";
-	private static final String URI_LIST_SEPARATOR = "\r";
+	static FileTransfer _instance = new FileTransfer();
+	static final String URI_LIST = "text/uri-list"; //$NON-NLS-1$
+	static final int URI_LIST_ID = registerType(URI_LIST);
+	static final String URI_LIST_PREFIX = "file:"; //$NON-NLS-1$
+	static final String URI_LIST_SEPARATOR = "\r"; //$NON-NLS-1$
 
-private FileTransfer() {}
+FileTransfer() {/*empty*/}
 
 /**
  * Returns the singleton instance of the FileTransfer class.

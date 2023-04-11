@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -78,7 +78,7 @@ public class ControlEditor {
 	/**
 	* Specifies the minimum width the editor can have.  This is used in association with
 	* a true value of grabHorizontal.  If the cell becomes smaller than the minimumWidth, the 
-	* editor will not made smaller than the minumum width value.  The default value is 0.
+	* editor will not made smaller than the minimum width value.  The default value is 0.
 	*/
 	public int minimumWidth = 0;
 	
@@ -98,7 +98,7 @@ public class ControlEditor {
 	/**
 	* Specifies the minimum height the editor can have.  This is used in association with
 	* a true value of grabVertical.  If the control becomes smaller than the minimumHeight, the 
-	* editor will not made smaller than the minumum height value.  The default value is 0.
+	* editor will not made smaller than the minimum height value.  The default value is 0.
 	*/
 	public int minimumHeight = 0;
 
@@ -118,7 +118,7 @@ public ControlEditor (Composite parent) {
 
 	tableListener = new Listener() {
 		public void handleEvent(Event e) {
-			resize ();
+			_resize ();
 		}
 	};	
 	parent.addListener (SWT.Resize, tableListener);
@@ -206,9 +206,9 @@ public Control getEditor () {
  * @since 2.1
  */
 public void layout () {
-	resize();
+	_resize();
 }
-void resize () {
+void _resize () {
 	if (editor == null || editor.isDisposed()) return;
 	if (editor.getVisible ()) {
 		hadFocus = editor.isFocusControl();
@@ -243,8 +243,8 @@ public void setEditor (Control editor) {
 	}
 	
 	this.editor = editor;
-	resize();
-	if (editor == null || editor.isDisposed()) return;
+	_resize();
+	if (this.editor == null || this.editor.isDisposed()) return;
 	editor.setVisible(true);
 }
 }

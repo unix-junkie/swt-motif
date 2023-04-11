@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -54,193 +54,479 @@ public class SWT {
 	
 	/**
 	 * The key down event type (value is 1).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addKeyListener
+	 * @see org.eclipse.swt.widgets.Tracker#addKeyListener
+	 * @see org.eclipse.swt.events.KeyListener#keyPressed
+	 * @see org.eclipse.swt.events.KeyEvent
 	 */
 	public static final int KeyDown = 1;
 	
 	/**
 	 * The key up event type (value is 2).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addKeyListener
+	 * @see org.eclipse.swt.widgets.Tracker#addKeyListener
+	 * @see org.eclipse.swt.events.KeyListener#keyReleased
+	 * @see org.eclipse.swt.events.KeyEvent
 	 */
 	public static final int KeyUp = 2;
 	
 	/**
-	 * The mouse down event type (value is 3)
+	 * The mouse down event type (value is 3).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addMouseListener
+	 * @see org.eclipse.swt.events.MouseListener#mouseDown
+	 * @see org.eclipse.swt.events.MouseEvent
 	 */
 	public static final int MouseDown = 3;
 	
 	/**
 	 * The mouse up event type (value is 4).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addMouseListener
+	 * @see org.eclipse.swt.events.MouseListener#mouseUp
+	 * @see org.eclipse.swt.events.MouseEvent
 	 */
 	public static final int MouseUp = 4;
 	
 	/**
 	 * The mouse move event type (value is 5).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addMouseMoveListener
+	 * @see org.eclipse.swt.events.MouseMoveListener#mouseMove
+	 * @see org.eclipse.swt.events.MouseEvent
 	 */
 	public static final int MouseMove = 5;
 	
 	/**
 	 * The mouse enter event type (value is 6).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addMouseTrackListener
+	 * @see org.eclipse.swt.events.MouseTrackListener#mouseEnter
+	 * @see org.eclipse.swt.events.MouseEvent
 	 */
 	public static final int MouseEnter = 6;		
 	
 	/**
 	 * The mouse exit event type (value is 7).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addMouseTrackListener
+	 * @see org.eclipse.swt.events.MouseTrackListener#mouseExit
+	 * @see org.eclipse.swt.events.MouseEvent
 	 */
 	public static final int MouseExit = 7;
 	
 	/**
 	 * The mouse double click event type (value is 8).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addMouseListener
+	 * @see org.eclipse.swt.events.MouseListener#mouseDoubleClick
+	 * @see org.eclipse.swt.events.MouseEvent
 	 */
 	public static final int MouseDoubleClick = 8;	
 	
 	/**
 	 * The paint event type (value is 9).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addPaintListener
+	 * @see org.eclipse.swt.events.PaintListener#paintControl
+	 * @see org.eclipse.swt.events.PaintEvent
 	 */
 	public static final int Paint = 9;	
 	
 	/**
 	 * The move event type (value is 10).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addControlListener
+	 * @see org.eclipse.swt.widgets.TableColumn#addControlListener
+	 * @see org.eclipse.swt.widgets.Tracker#addControlListener
+	 * @see org.eclipse.swt.widgets.TreeColumn#addControlListener
+	 * @see org.eclipse.swt.events.ControlListener#controlMoved
+	 * @see org.eclipse.swt.events.ControlEvent
 	 */
 	public static final int Move = 10;
 	
 	/**
 	 * The resize event type (value is 11).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addControlListener
+	 * @see org.eclipse.swt.widgets.TableColumn#addControlListener
+	 * @see org.eclipse.swt.widgets.Tracker#addControlListener
+	 * @see org.eclipse.swt.widgets.TreeColumn#addControlListener
+	 * @see org.eclipse.swt.events.ControlListener#controlResized
+	 * @see org.eclipse.swt.events.ControlEvent
 	 */
 	public static final int Resize = 11;
 	
 	/**
 	 * The dispose event type (value is 12).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addDisposeListener
+	 * @see org.eclipse.swt.events.DisposeListener#widgetDisposed
+	 * @see org.eclipse.swt.events.DisposeEvent
 	 */
 	public static final int Dispose = 12;
 	
 	/**
 	 * The selection event type (value is 13).
-	 * <p>
-	 * This event is sent when selection occurs.
-	 * For example, selection occurs in a List when the user selects
-	 * an item or items with the keyboard or mouse.  On some platforms,
-	 * the event occurs when a mouse button or key is pressed.  On others,
-	 * it happens when the mouse or key is released.  The exact key or
-	 * mouse gesture that causes this event is platform specific.
-	 * </p>
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Button#addSelectionListener
+	 * @see org.eclipse.swt.widgets.Combo#addSelectionListener
+	 * @see org.eclipse.swt.widgets.CoolItem#addSelectionListener
+	 * @see org.eclipse.swt.widgets.Link#addSelectionListener
+	 * @see org.eclipse.swt.widgets.List#addSelectionListener
+	 * @see org.eclipse.swt.widgets.MenuItem#addSelectionListener
+	 * @see org.eclipse.swt.widgets.Sash#addSelectionListener
+	 * @see org.eclipse.swt.widgets.Scale#addSelectionListener
+	 * @see org.eclipse.swt.widgets.ScrollBar#addSelectionListener
+	 * @see org.eclipse.swt.widgets.Slider#addSelectionListener
+	 * @see org.eclipse.swt.widgets.TabFolder#addSelectionListener
+	 * @see org.eclipse.swt.widgets.Table#addSelectionListener
+	 * @see org.eclipse.swt.widgets.TableColumn#addSelectionListener
+	 * @see org.eclipse.swt.widgets.ToolItem#addSelectionListener
+	 * @see org.eclipse.swt.widgets.TrayItem#addSelectionListener
+	 * @see org.eclipse.swt.widgets.Tree#addSelectionListener
+	 * @see org.eclipse.swt.widgets.TreeColumn#addSelectionListener
+	 * @see org.eclipse.swt.events.SelectionListener#widgetSelected
+	 * @see org.eclipse.swt.events.SelectionEvent
 	 */
 	public static final int Selection = 13;
 	
 	/**
 	 * The default selection event type (value is 14).
-	 * <p>
-	 * This event is sent when default selection occurs.
-	 * For example, on some platforms default selection occurs in a List
-	 * when the user double-clicks an item or types return in a Text.
-	 * On some platforms, the event occurs when a mouse button or key is
-	 * pressed.  On others, it happens when the mouse or key is released.
-	 * The exact key or mouse gesture that causes this event is platform
-	 * specific.
-	 * </p>
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Combo#addSelectionListener
+	 * @see org.eclipse.swt.widgets.List#addSelectionListener
+	 * @see org.eclipse.swt.widgets.Spinner#addSelectionListener
+	 * @see org.eclipse.swt.widgets.Table#addSelectionListener
+	 * @see org.eclipse.swt.widgets.Text#addSelectionListener
+	 * @see org.eclipse.swt.widgets.TrayItem#addSelectionListener
+	 * @see org.eclipse.swt.widgets.Tree#addSelectionListener
+	 * @see org.eclipse.swt.events.SelectionListener#widgetDefaultSelected
+	 * @see org.eclipse.swt.events.SelectionEvent
 	 */
 	public static final int DefaultSelection = 14;
 	
 	/**
 	 * The focus in event type (value is 15).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addFocusListener
+	 * @see org.eclipse.swt.events.FocusListener#focusGained
+	 * @see org.eclipse.swt.events.FocusEvent
 	 */
 	public static final int FocusIn = 15;
 	
 	/**
 	 * The focus out event type (value is 16).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addFocusListener
+	 * @see org.eclipse.swt.events.FocusListener#focusLost
+	 * @see org.eclipse.swt.events.FocusEvent
 	 */
 	public static final int FocusOut = 16;
 	
 	/**
 	 * The expand event type (value is 17).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Tree#addTreeListener
+	 * @see org.eclipse.swt.events.TreeListener#treeExpanded
+	 * @see org.eclipse.swt.events.TreeEvent
 	 */
 	public static final int Expand = 17;
 	
 	/**
 	 * The collapse event type (value is 18).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Tree#addTreeListener
+	 * @see org.eclipse.swt.events.TreeListener#treeCollapsed
+	 * @see org.eclipse.swt.events.TreeEvent
 	 */
 	public static final int Collapse = 18;
 	
 	/**
 	 * The iconify event type (value is 19).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Shell#addShellListener
+	 * @see org.eclipse.swt.events.ShellListener#shellIconified
+	 * @see org.eclipse.swt.events.ShellEvent
 	 */
 	public static final int Iconify = 19;
 	
 	/**
 	 * The de-iconify event type (value is 20).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Shell#addShellListener
+	 * @see org.eclipse.swt.events.ShellListener#shellDeiconified
+	 * @see org.eclipse.swt.events.ShellEvent
 	 */
 	public static final int Deiconify = 20;
 	
 	/**
 	 * The close event type (value is 21).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Shell#addShellListener
+	 * @see org.eclipse.swt.events.ShellListener#shellClosed
+	 * @see org.eclipse.swt.events.ShellEvent
 	 */
 	public static final int Close = 21;
 	
 	/**
 	 * The show event type (value is 22).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Menu#addMenuListener
+	 * @see org.eclipse.swt.events.MenuListener#menuShown
+	 * @see org.eclipse.swt.events.MenuEvent
 	 */
 	public static final int Show = 22;
 	
 	/**
 	 * The hide event type (value is 23).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Menu#addMenuListener
+	 * @see org.eclipse.swt.events.MenuListener#menuHidden
+	 * @see org.eclipse.swt.events.MenuEvent
 	 */
 	public static final int Hide = 23;
 	
 	/**
 	 * The modify event type (value is 24).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Combo#addModifyListener
+	 * @see org.eclipse.swt.widgets.Spinner#addModifyListener
+	 * @see org.eclipse.swt.widgets.Text#addModifyListener
+	 * @see org.eclipse.swt.events.ModifyListener#modifyText
+	 * @see org.eclipse.swt.events.ModifyEvent
 	 */
 	public static final int Modify = 24;
 	
 	/**
 	 * The verify event type (value is 25).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Combo#addVerifyListener
+	 * @see org.eclipse.swt.widgets.Text#addVerifyListener
+	 * @see org.eclipse.swt.events.VerifyListener#verifyText
+	 * @see org.eclipse.swt.events.VerifyEvent
 	 */
 	public static final int Verify = 25;
 	
 	/**
 	 * The activate event type (value is 26).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Shell#addShellListener
+	 * @see org.eclipse.swt.events.ShellListener#shellActivated
+	 * @see org.eclipse.swt.events.ShellEvent
 	 */
 	public static final int Activate = 26;
 	
 	/**
 	 * The deactivate event type (value is 27).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Shell#addShellListener
+	 * @see org.eclipse.swt.events.ShellListener#shellDeactivated
+	 * @see org.eclipse.swt.events.ShellEvent
 	 */
 	public static final int Deactivate = 27;	
 	
 	/**
 	 * The help event type (value is 28).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addHelpListener
+	 * @see org.eclipse.swt.widgets.Menu#addHelpListener
+	 * @see org.eclipse.swt.widgets.MenuItem#addHelpListener
+	 * @see org.eclipse.swt.events.HelpListener#helpRequested
+	 * @see org.eclipse.swt.events.HelpEvent
 	 */
 	public static final int Help = 28;
 	
 	/**
 	 * The drag detect event type (value is 29).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.dnd.DragSource
 	 */
 	public static final int DragDetect = 29;
 	
 	/**
 	 * The arm event type (value is 30).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.MenuItem#addArmListener
+	 * @see org.eclipse.swt.events.ArmListener#widgetArmed
+	 * @see org.eclipse.swt.events.ArmEvent
 	 */
 	public static final int Arm = 30;
 	
 	/**
 	 * The traverse event type (value is 31).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addTraverseListener
+	 * @see org.eclipse.swt.events.TraverseListener#keyTraversed
+	 * @see org.eclipse.swt.events.TraverseEvent
 	 */
 	public static final int Traverse = 31;
 	
 	/**
 	 * The mouse hover event type (value is 32).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Control#addMouseTrackListener
+	 * @see org.eclipse.swt.events.MouseTrackListener#mouseHover
+	 * @see org.eclipse.swt.events.MouseEvent
 	 */
 	public static final int MouseHover = 32;
 
 	/**
 	 * The hardware key down event type (value is 33).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
 	 */
 	public static final int HardKeyDown = 33;
 	
 	/**
 	 * The hardware key up event type (value is 34).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
 	 */
 	public static final int HardKeyUp = 34;
 
 	/**
 	 * The menu detect event type (value is 35).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
 	 * 
 	 * @since 3.0
 	 */
@@ -249,19 +535,84 @@ public class SWT {
 	/**
 	 * The set data event type (value is 36).
 	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @see org.eclipse.swt.widgets.Table
+	 * @see org.eclipse.swt.widgets.Tree
+	 * 
 	 * @since 3.0
 	 */
 	public static final int SetData = 36;
 
 	/**
-	 * The mouse wheel event type  (value is 37).
+	 * The mouse wheel event type (value is 37).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
 	 * 
 	 * @since 3.1
 	 */
 	public static final int MouseWheel = 37;
 
-	/* Event Details */
+	/**
+	 * The settings changed event type (value is 38).
+	 * <p>
+	 * The settings changed event is sent when an operating system
+	 * property, such as a system font or color, has been changed.
+	 * The event occurs after the property has been changed, but
+	 * before any widget is redrawn.  Applications that cache operating
+	 * system properties can use this event to update their caches.
+	 * A specific property change can be detected by querying the
+	 * new value of a property and comparing it with the equivalent
+	 * cached value.  The operating system automatically redraws and
+	 * lays out all widgets after this event is sent.
+	 * </p>
+	 * 
+	 * @see org.eclipse.swt.widgets.Display#addListener
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @since 3.2
+	 */
+	public static final int Settings = 39;
 	
+	/**
+	 * The erase item event type (value is 40).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @since 3.2
+	 */
+	public static final int EraseItem = 40;
+	
+	/**
+	 * The measure item event type (value is 41).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @since 3.2
+	 */
+	public static final int MeasureItem = 41;
+	
+	/**
+	 * The paint item event type (value is 42).
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @since 3.2
+	 */
+	public static final int PaintItem = 42;	
+	
+	/* Event Details */
+
 	/**
 	 * A constant known to be zero (0), used in operations which
 	 * take bit flags to indicate that "no bits are set".
@@ -740,7 +1091,7 @@ public class SWT {
 	public static final int FLAT = 1 << 23;
 
 	/**
-	 * Style constant for flat appearance. (value is 1&lt;&lt;16).
+	 * Style constant for smooth appearance. (value is 1&lt;&lt;16).
 	 * <br>Note that this is a <em>HINT</em>.
 	 * <p><b>Used By:</b><ul>
 	 * <li><code>ProgressBar</code></li>
@@ -752,7 +1103,7 @@ public class SWT {
 	/**
 	 * Style constant for no background behavior (value is 1&lt;&lt;18).
 	 * <p>
-	 * By default, before a widget paints, the client area is filled with the current background color.
+	 * By default, before a widget paints, the client area is filled with the current background.
 	 * When this style is specified, the background is not filled, and the application is responsible
 	 * for filling every pixel of the client area.
 	 * This style might be used as an alternative to "double-buffering" in order to reduce flicker.
@@ -867,6 +1218,7 @@ public class SWT {
 	 * Style constant to allow virtual data (value is 1&lt;&lt;28).
 	 * <p><b>Used By:</b><ul>
 	 * <li><code>Table</code></li>
+	 * <li><code>Tree</code></li>
 	 * </ul></p>
 	 * 
 	 * @since 3.0
@@ -944,7 +1296,7 @@ public class SWT {
 	public static final int LEFT               = LEAD;
 
 	/**
-	 * Style constant for trailiing alignment (value is 1&lt;&lt;17).
+	 * Style constant for trailing alignment (value is 1&lt;&lt;17).
 	 * <p><b>Used By:</b><ul>
 	 * <li><code>Button</code></li>
 	 * <li><code>Label</code></li>
@@ -1002,12 +1354,62 @@ public class SWT {
 	 * <li><code>ScrollBar</code></li>
 	 * <li><code>Slider</code></li>
 	 * <li><code>ToolBar</code></li>
+	 * <li><code>CoolBar</code></li>
 	 * <li><code>FillLayout</code> type</li>
 	 * <li><code>RowLayout</code> type</li>
 	 * </ul></p>
 	 */
 	public static final int VERTICAL = 1 << 9;
 
+	/**
+	 * Event detail field that indicates a user-interface component
+	 * state is selected (value is 1&lt;&lt;1).
+	 *
+	 * @since 3.2
+	 */
+	public static final int SELECTED = 1 << 1;
+	
+	/**
+	 * Event detail field that indicates a user-interface component
+	 * state is focused (value is 1&lt;&lt;2).
+	 *
+	 * @since 3.2
+	 */	
+	public static final int FOCUSED = 1 << 2;
+	
+	/**
+	 * Event detail field that indicates a user-interface component
+	 * draws the background (value is 1&lt;&lt;3).
+	 *
+	 * @since 3.2
+	 */
+	public static final int BACKGROUND = 1 << 3;
+	
+	/**
+	 * Event detail field that indicates a user-interface component
+	 * draws the foreground (value is 1&lt;&lt;4).
+	 *
+	 * @since 3.2
+	 */
+	public static final int FOREGROUND = 1 << 4;
+
+	/* This code is intentionally commented */
+	//public static final int PRESSED = 1 << 3;
+	//public static final int ACTIVE = 1 << 4;
+	//public static final int DISABLED = 1 << 5;
+	//public static final int HOT = 1 << 6;
+	//public static final int DEFAULTED = 1 << 7;
+
+	/**
+	 * Style constant for balloon behavior (value is 1&lt;&lt;12).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>ToolTip</code></li>
+	 * </ul></p>
+	 *
+	 * @since 3.2
+	 */	
+	public static final int BALLOON = 1 << 12;
+	
 	/**
 	 * Style constant for vertical alignment or orientation behavior (value is 1).
 	 * <p><b>Used By:</b><ul>
@@ -1628,7 +2030,7 @@ public class SWT {
 	public static final int BREAK = KEYCODE_BIT + 86;
 	
 	/**
-	 * Keyboard event constant representing the break
+	 * Keyboard event constant representing the print screen
 	 * key (value is (1&lt;&lt;24)+87).
 	 * 
 	 * @since 3.0
@@ -1727,6 +2129,36 @@ public class SWT {
 	public static final int SAVE = 1 << 13;
 
 	/**
+	 * The <code>Composite</code> constant to indicate that
+	 * an attribute (such as background) is not inherited
+	 * by the children (value is 0).
+	 *
+	 * @since 3.2
+	 */
+	public static final int INHERIT_NONE = 0;
+	
+	/**
+	 * The <code>Composite</code> constant to indicate that
+	 * an attribute (such as background) is inherited by
+	 * children who choose this value as their "default"
+	 * (value is 1).  For example, a label child will
+	 * typically choose to inherit the background color
+	 * of a composite while a list or table will not.
+	 *
+	 * @since 3.2
+	 */
+	public static final int INHERIT_DEFAULT = 1;
+	
+	/**
+	 * The <code>Composite</code> constant to indicate that
+	 * an attribute (such as background) is inherited by
+	 * all children.
+	 *
+	 * @since 3.2
+	 */
+	public static final int INHERIT_FORCE = 2;
+	
+	/**
 	 * Default color white (value is 1).
 	 */
 	public static final int COLOR_WHITE = 1;
@@ -1762,7 +2194,7 @@ public class SWT {
 	public static final int COLOR_YELLOW = 7;
 
 	/**
-	 * Default color dark yello (value is 8).
+	 * Default color dark yellow (value is 8).
 	 */
 	public static final int COLOR_DARK_YELLOW = 8;
 
@@ -1925,7 +2357,7 @@ public class SWT {
 
 	/**
 	 * Draw constant indicating whether the string drawing operation
-	 * should handle line-delimeters (value is 1&lt;&lt;1).
+	 * should handle line-delimiters (value is 1&lt;&lt;1).
 	 */
 	public static final int DRAW_DELIMITER = 1 << 1;
 

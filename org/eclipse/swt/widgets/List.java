@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -21,7 +21,7 @@ import org.eclipse.swt.events.*;
 /** 
  * Instances of this class represent a selectable user interface
  * object that displays a list of strings and issues notification
- * when a string selected.  A list may be single or multi select.
+ * when a string is selected.  A list may be single or multi select.
  * <p>
  * <dl>
  * <dt><b>Styles:</b></dt>
@@ -246,9 +246,7 @@ public Rectangle computeTrim (int x, int y, int width, int height) {
 	trimY -= argList [1] + argList [3] + argList [7];
 	return new Rectangle (trimX, trimY, trimWidth, trimHeight);
 }
-void createHandle (int index) {
-	state |= HANDLE;
-	
+void createHandle (int index) {	
 	/*
 	* Feature in Motif.  When items are added or removed
 	* from a list, it may request and be granted, a new

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -94,10 +94,11 @@ public MenuItem (Menu parent, int style) {
  *
  * @param parent a menu control which will be the parent of the new instance (cannot be null)
  * @param style the style of control to construct
- * @param index the index to store the receiver in its parent
+ * @param index the zero-relative index to store the receiver in its parent
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
+ *    <li>ERROR_INVALID_RANGE - if the index is not between 0 and the number of elements in the parent (inclusive)</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
@@ -254,7 +255,6 @@ protected void checkSubclass () {
 	if (!isValidSubclass ()) error (SWT.ERROR_INVALID_SUBCLASS);
 }
 void createHandle (int index) {
-	state |= HANDLE;
 	int parentHandle = parent.handle;
 	int [] argList1 = {OS.XmNchildren, 0, OS.XmNnumChildren, 0};
 	OS.XtGetValues (parentHandle, argList1, argList1.length / 2);
@@ -501,14 +501,19 @@ String keysymName (int keysym) {
 void manageChildren () {
 	OS.XtManageChild (handle);
 }
-void releaseChild () {
-	super.releaseChild ();
+void releaseChildren (boolean destroy) {
+	if (menu != null) {
+		menu.release (false);
+		menu = null;
+	}
+	super.releaseChildren (destroy);
+}
+void releaseParent () {
+	super.releaseParent ();
 	if (menu != null) menu.dispose ();
 	menu = null;
 }
 void releaseWidget () {
-	if (menu != null && !menu.isDisposed ()) menu.releaseResources ();
-	menu = null;
 	super.releaseWidget ();
 	accelerator = 0;
 	if (this == parent.defaultItem) {
@@ -673,6 +678,11 @@ public void setEnabled (boolean enabled) {
  * pull down menu. The sequence of key strokes, button presses
  * and/or button releases that are used to request a pull down
  * menu is platform specific.
+ * <p>
+ * Note: Disposing of a menu item that has a pull down menu
+ * will dispose of the menu.  To avoid this behavior, set the
+ * menu to null before the menu item is disposed.
+ * </p>
  *
  * @param menu the new pull down menu
  *
@@ -762,14 +772,14 @@ public void setSelection (boolean selected) {
  * Sets the receiver's text. The string may include
  * the mnemonic character and accelerator text.
  * <p>
- * Mnemonics are indicated by an '&amp' that causes the next
+ * Mnemonics are indicated by an '&amp;' that causes the next
  * character to be the mnemonic.  When the user presses a
  * key sequence that matches the mnemonic, a selection
  * event occurs. On most platforms, the mnemonic appears
  * underlined but may be emphasised in a platform specific
- * manner.  The mnemonic indicator character '&amp' can be
+ * manner.  The mnemonic indicator character '&amp;' can be
  * escaped by doubling it in the string, causing a single
- *'&amp' to be displayed.
+ * '&amp;' to be displayed.
  * </p>
  * <p>
  * Accelerator text is indicated by the '\t' character.

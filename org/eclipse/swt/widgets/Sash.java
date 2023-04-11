@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -80,7 +80,7 @@ public Sash (Composite parent, int style) {
  * interface.
  * <p>
  * When <code>widgetSelected</code> is called, the x, y, width, and height fields of the event object are valid.
- * If the reciever is being dragged, the event object detail field contains the value <code>SWT.DRAG</code>.
+ * If the receiver is being dragged, the event object detail field contains the value <code>SWT.DRAG</code>.
  * <code>widgetDefaultSelected</code> is not called.
  * </p>
  *
@@ -122,7 +122,7 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 	return new Point (width, height);
 }
 void createHandle (int index) {
-	state |= HANDLE;
+	state |= THEME_BACKGROUND;
 	int border = (style & SWT.BORDER) != 0 ? 1 : 0;
 	int [] argList = {
 		OS.XmNborderWidth, border,
@@ -141,9 +141,11 @@ void drawBand (int x, int y, int width, int height) {
 	if (display == 0) return;
 	int window = OS.XtWindow (parent.handle);
 	if (window == 0) return;
-	int [] argList = {OS.XmNforeground, 0, OS.XmNbackground, 0};
-	OS.XtGetValues (parent.handle, argList, argList.length / 2);
-	int color = argList [1] ^ argList [3];
+	int foreground = parent.getForegroundPixel ();
+	Control control = parent.findBackgroundControl ();
+	if (control == null) control = parent;
+	int background = control.getBackgroundPixel ();
+	int color = foreground ^ background;
 	byte [] bits = {-86, 85, -86, 85, -86, 85, -86, 85};
 	int stipplePixmap = OS.XCreateBitmapFromData (display, window, bits, 8, 8);
 	int gc = OS.XCreateGC (display, window, 0, null);

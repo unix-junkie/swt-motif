@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -58,7 +58,7 @@ import org.eclipse.swt.internal.motif.*;
  * 			// write data to a byte array and then ask super to convert to pMedium
  * 			ByteArrayOutputStream out = new ByteArrayOutputStream();
  * 			DataOutputStream writeOut = new DataOutputStream(out);
- * 			for (int i = 0, length = myTypes.length; i &lt length;  i++){
+ * 			for (int i = 0, length = myTypes.length; i &lt; length;  i++){
  * 				byte[] buffer = myTypes[i].fileName.getBytes();
  * 				writeOut.writeInt(buffer.length);
  * 				writeOut.write(buffer);

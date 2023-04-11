@@ -1,30 +1,27 @@
 /*******************************************************************************
-* Copyright (c) 2000, 2005 IBM Corporation and others. All rights reserved.
-* The contents of this file are made available under the terms
-* of the GNU Lesser General Public License (LGPL) Version 2.1 that
-* accompanies this distribution (lgpl-v21.txt).  The LGPL is also
-* available at http://www.gnu.org/licenses/lgpl.html.  If the version
-* of the LGPL at http://www.gnu.org is different to the version of
-* the LGPL accompanying this distribution and there is any conflict
-* between the two license versions, the terms of the LGPL accompanying
-* this distribution shall govern.
-* 
-* Contributors:
-*     IBM Corporation - initial API and implementation
-*******************************************************************************/
+ * Copyright (c) 2000, 2006 IBM Corporation and others. All rights reserved.
+ * The contents of this file are made available under the terms
+ * of the GNU Lesser General Public License (LGPL) Version 2.1 that
+ * accompanies this distribution (lgpl-v21.txt).  The LGPL is also
+ * available at http://www.gnu.org/licenses/lgpl.html.  If the version
+ * of the LGPL at http://www.gnu.org is different to the version of
+ * the LGPL accompanying this distribution and there is any conflict
+ * between the two license versions, the terms of the LGPL accompanying
+ * this distribution shall govern.
+ * 
+ * Contributors:
+ *     IBM Corporation - initial API and implementation
+ *******************************************************************************/
 
 #include "swt.h"
 #include "gnome_stats.h"
 
 #ifdef NATIVE_STATS
 
-int GNOME_nativeFunctionCount = 25;
-int GNOME_nativeFunctionCallCount[25];
+int GNOME_nativeFunctionCount = 22;
+int GNOME_nativeFunctionCallCount[22];
 char * GNOME_nativeFunctionNames[] = {
 	"GnomeVFSMimeApplication_1sizeof",
-	"_1dlclose",
-	"_1dlopen",
-	"_1dlsym",
 	"_1g_1free",
 	"_1g_1list_1append",
 	"_1g_1list_1free",

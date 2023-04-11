@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -14,20 +14,38 @@ import org.eclipse.swt.*;
 import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.internal.CloneableCompatibility;
 
-public class StyleRange implements CloneableCompatibility {
-	public int start;		// style start offset. 0 based from the document start
-	public int length;		// style length.	
-	public Color foreground; 
-	public Color background;
-	public int fontStyle = SWT.NORMAL;	// may be SWT.NORMAL, SWT.ITALIC or SWT.BOLD
-	public boolean underline;
-	public boolean strikeout;
+public class StyleRange extends TextStyle implements CloneableCompatibility {
+	
+	/**
+	 * the start offset of the range, zero-based from the document start
+	 */
+	public int start;
+	
+	/**
+	 * the length of the range
+	 */
+	public int length;
 
+	/**
+	 * the font style of the range. It may be a combination of
+	 * SWT.NORMAL, SWT.ITALIC or SWT.BOLD
+	 * 
+	 * Note: the font style is not used if the <code>font</code> attribute
+	 * is set
+	 */
+	public int fontStyle = SWT.NORMAL;
+	
+/**
+ * Create a new style range with no styles
+ * 
+ * @since 3.2
+ */
 public StyleRange() {
+	super(null, null, null);
 }
+
 /** 
  * Create a new style range.
- * <p>
  *
  * @param start start offset of the style
  * @param length length of the style 
@@ -35,15 +53,13 @@ public StyleRange() {
  * @param background background color of the style, null if none
  */
 public StyleRange(int start, int length, Color foreground, Color background) {
+	super(null, foreground, background);
 	this.start = start;
 	this.length = length;
-	this.foreground = foreground;
-	this.background = background;
 }
 
 /** 
  * Create a new style range.
- * <p>
  *
  * @param start start offset of the style
  * @param length length of the style 
@@ -52,10 +68,7 @@ public StyleRange(int start, int length, Color foreground, Color background) {
  * @param fontStyle font style of the style, may be SWT.NORMAL, SWT.ITALIC or SWT.BOLD
  */
 public StyleRange(int start, int length, Color foreground, Color background, int fontStyle) {
-	this.start = start;
-	this.length = length;
-	this.foreground = foreground;
-	this.background = background;
+	this(start, length, foreground, background);
 	this.fontStyle = fontStyle;
 }
 
@@ -70,14 +83,16 @@ public StyleRange(int start, int length, Color foreground, Color background, int
  * @see #hashCode()
  */
 public boolean equals(Object object) {
-	StyleRange style;
 	if (object == this) return true;
-	if (object instanceof StyleRange) style = (StyleRange)object;
-	else return false;
-	if (this.start != style.start) return false;
-	if (this.length != style.length) return false;
-	return similarTo(style);
+	if (object instanceof StyleRange) {
+		StyleRange style = (StyleRange)object;
+		if (start != style.start) return false;
+		if (length != style.length) return false;
+		return similarTo(style);
+	}
+	return false;
 }
+
 /**
  * Returns an integer hash code for the receiver. Any two 
  * objects that return <code>true</code> when passed to 
@@ -89,86 +104,87 @@ public boolean equals(Object object) {
  * @see #equals(Object)
  */
 public int hashCode() {
-	int code = start + length;
-	
-	if (foreground != null)
-		code += foreground.hashCode();
-	if (background != null)
-		code += background.hashCode();
-	return code + fontStyle;
+	return super.hashCode() ^ fontStyle;
+}
+boolean isVariableHeight() {
+	return font != null || metrics != null || rise != 0;
 }
 /**
  * Returns whether or not the receiver is unstyled (i.e., does not have any 
  * style attributes specified).
- * <p>
  *
  * @return true if the receiver is unstyled, false otherwise.
  */
 public boolean isUnstyled() {
-	if (this.foreground != null) return false;
-	if (this.background != null) return false;
-	if (this.fontStyle != SWT.NORMAL) return false;
-	if (this.underline) return false;
-	if (this.strikeout) return false;
+	if (font != null) return false;
+	if (rise != 0) return false;
+	if (metrics != null) return false;
+	if (foreground != null) return false;
+	if (background != null) return false;
+	if (fontStyle != SWT.NORMAL) return false;
+	if (underline) return false;
+	if (strikeout) return false;
 	return true;
 }
+
 /**
  * Compares the specified object to this StyleRange and answer if the two 
  * are similar. The object must be an instance of StyleRange and have the
  * same field values for except for start and length.
- * <p>
  *
  * @param style the object to compare with this object
  * @return true if the objects are similar, false otherwise
  */
 public boolean similarTo(StyleRange style) {
-	if (this.foreground != null) {
-		if (!this.foreground.equals(style.foreground)) return false;
-	} else if (style.foreground != null) return false;
-	if (this.background != null) {
-		if (!this.background.equals(style.background)) return false;
-	} else if (style.background != null) return false; 
-	if (this.fontStyle != style.fontStyle) return false;
-	if (this.underline != style.underline) return false;
-	if (this.strikeout != style.strikeout) return false;
+	if (!super.equals(style)) return false;
+	if (fontStyle != style.fontStyle) return false;
 	return true;
 }
+
 /**
- * Answers a new StyleRange with the same values as this StyleRange.
- * <p>
+ * Returns a new StyleRange with the same values as this StyleRange.
  *
  * @return a shallow copy of this StyleRange
  */	
 public Object clone() {
- 	StyleRange style = new StyleRange(start, length, foreground, background, fontStyle);
- 	style.underline = this.underline;
- 	style.strikeout = this.strikeout;
-	return style;
+	try {
+		return super.clone();
+	} catch (CloneNotSupportedException e) {
+		return null;
+	}
 }
+
 /**
  * Returns a string containing a concise, human-readable
  * description of the receiver.
  *
- * @return a string representation of the event
+ * @return a string representation of the StyleRange
  */
 public String toString() {
-	StringBuffer buf = new StringBuffer();
-	buf.append(start + "," + length + " fg:" + foreground + " bg:" + background + " fStyle:");
+	StringBuffer buffer = new StringBuffer();
+	buffer.append("StyleRange {");
+	buffer.append(start);
+	buffer.append(", ");
+	buffer.append(length);
+	buffer.append(", fontStyle=");
 	switch (fontStyle) {
 		case SWT.BOLD:
-			buf.append("bold");
+			buffer.append("bold");
 			break;
 		case SWT.ITALIC:
-			buf.append("italic");
+			buffer.append("italic");
 			break;
 		case SWT.BOLD | SWT.ITALIC:
-			buf.append("bold-italic");
+			buffer.append("bold-italic");
 			break;
 		default:
-			buf.append("normal");
+			buffer.append("normal");
 	}
-	if (underline) buf.append(" underline");
-	if (strikeout) buf.append(" strikeout");
-	return buf.toString();
+	String str = super.toString();
+	int index = str.indexOf('{');
+	str = str.substring(index + 1);
+	if (str.length() > 1) buffer.append(", ");
+	buffer.append(str);
+	return buffer.toString();
 }
 }

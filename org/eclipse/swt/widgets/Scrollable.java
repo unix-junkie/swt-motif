@@ -128,7 +128,6 @@ ScrollBar createStandardBar (int style) {
 	bar.parent = this;
 	bar.style = style;
 	bar.display = display;
-	bar.state |= HANDLE;
 	int [] argList = {OS.XmNhorizontalScrollBar, 0, OS.XmNverticalScrollBar, 0};
 	OS.XtGetValues (scrolledHandle, argList, argList.length / 2);
 	if (style == SWT.H_SCROLL) bar.handle = argList [1];
@@ -239,15 +238,20 @@ void register () {
 	if (formHandle != 0) display.addWidget (formHandle, this);
 	if (scrolledHandle != 0) display.addWidget (scrolledHandle, this);
 }
+void releaseChildren (boolean destroy) {
+	if (horizontalBar != null) {
+		horizontalBar.release (false);
+		horizontalBar = null;
+	}
+	if (verticalBar != null) {
+		verticalBar.release (false);
+		verticalBar = null;
+	}
+	super.releaseChildren (destroy);
+}
 void releaseHandle () {
 	super.releaseHandle ();
 	scrolledHandle = formHandle = 0;
-}
-void releaseWidget () {
-	if (horizontalBar != null) horizontalBar.releaseResources ();
-	if (verticalBar != null) verticalBar.releaseResources ();
-	horizontalBar = verticalBar = null;
-	super.releaseWidget ();
 }
 void setBackgroundPixel (int pixel) {
 	super.setBackgroundPixel (pixel);
@@ -263,6 +267,35 @@ void setBackgroundPixel (int pixel) {
 //		if (argList1 [1] != 0) OS.XmChangeColor (argList1 [1], pixel);
 //		if (argList1 [3] != 0) OS.XmChangeColor (argList1 [3], pixel);
 //	}
+}
+void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren, boolean trim) {
+	super.redrawWidget (x, y, width, height, redrawAll, allChildren, trim);
+	if (!trim) return;
+	if (formHandle == 0 && scrolledHandle == 0) return;
+	short [] root_x = new short [1], root_y = new short [1];
+	OS.XtTranslateCoords (handle, (short) x, (short) y, root_x, root_y);
+	if (formHandle != 0) {
+		short [] form_x = new short [1], form_y = new short [1];
+		OS.XtTranslateCoords (formHandle, (short) 0, (short) 0, form_x, form_y);
+		redrawHandle (root_x [0] - form_x [0], root_y [0] - form_y [0], width, height, redrawAll, formHandle);
+	}
+	if (scrolledHandle != 0) {
+		short [] scrolled_x = new short [1], scrolled_y = new short [1];
+		OS.XtTranslateCoords (scrolledHandle, (short) 0, (short) 0, scrolled_x, scrolled_y);
+		redrawHandle (root_x [0] - scrolled_x [0], root_y [0] - scrolled_y [0], width, height, redrawAll, scrolledHandle);
+		if (horizontalBar != null && horizontalBar.getVisible ()) {
+			int horizontalHandle = horizontalBar.handle;
+			short [] hscroll_x = new short [1], hscroll_y = new short [1];
+			OS.XtTranslateCoords (horizontalHandle, (short) 0, (short) 0, hscroll_x, hscroll_y);
+			redrawHandle (root_x [0] - hscroll_x [0], root_y [0] - hscroll_y [0], width, height, redrawAll, horizontalHandle);
+		}
+		if (verticalBar != null && verticalBar.getVisible ()) {
+			int verticalHandle = verticalBar.handle;
+			short [] vscroll_x = new short [1], vscroll_y = new short [1];
+			OS.XtTranslateCoords (verticalHandle, (short) 0, (short) 0, vscroll_x, vscroll_y);
+			redrawHandle (root_x [0] - vscroll_x [0], root_y [0] - vscroll_y [0], width, height, redrawAll, verticalHandle);
+		}
+	}
 }
 boolean setScrollBarVisible (ScrollBar bar, boolean visible) {
 	if (scrolledHandle == 0) return false;

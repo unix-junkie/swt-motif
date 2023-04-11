@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -15,12 +15,11 @@ package org.eclipse.swt.custom;
  * This class provides access to the public constants provided by <code>StyledText</code>.
  */
 public class ST {
-	
-	/* StyledText key action constants.  Key bindings for the actions are set
-	 * by the StyledText widget.  @see StyledText#createKeyBindings()
-	 */
 	 
-	/* Navigation Key Actions */	
+	/*
+	 *  Navigation Key Actions. Key bindings for the actions are set
+	 *  by the StyledText widget.
+	 */	
 	public static final int LINE_UP = 16777217; 			// binding = SWT.ARROW_UP
 	public static final int LINE_DOWN = 16777218; 		// binding = SWT.ARROW_DOWN
 	public static final int LINE_START = 16777223; 		// binding = SWT.HOME
@@ -36,7 +35,9 @@ public class ST {
 	public static final int WINDOW_START = 17039365; 	// binding = SWT.MOD1 + SWT.PAGE_UP
 	public static final int WINDOW_END = 17039366; 		// binding = SWT.MOD1 + SWT.PAGE_DOWN
 
-	/* Selection Key Actions */
+	/* 
+	 * Selection Key Actions 
+	 */
 	public static final int SELECT_ALL = 262209; 				// binding = SWT.MOD1 + 'A'
 	public static final int SELECT_LINE_UP = 16908289; 			// binding = SWT.MOD2 + SWT.ARROW_UP
 	public static final int SELECT_LINE_DOWN = 16908290; 		// binding = SWT.MOD2 + SWT.ARROW_DOWN
@@ -53,7 +54,9 @@ public class ST {
 	public static final int SELECT_WINDOW_START = 17170437; 		// binding = SWT.MOD1 + SWT.MOD2 + SWT.PAGE_UP
 	public static final int SELECT_WINDOW_END = 17170438; 		// binding = SWT.MOD1 + SWT.MOD2 + SWT.PAGE_DOWN
 
-	/* Modification Key Actions */
+	/*
+	 *  Modification Key Actions 
+	 */
 	public static final int CUT = 131199; 			// binding = SWT.MOD2 + SWT.DEL
 	public static final int COPY = 17039369; 		// binding = SWT.MOD1 + SWT.INSERT;
 	public static final int PASTE = 16908297;		// binding = SWT.MOD2 + SWT.INSERT ;
@@ -62,6 +65,65 @@ public class ST {
 	public static final int DELETE_WORD_PREVIOUS = 262152;	// binding = SWT.BS | SWT.MOD1;
 	public static final int DELETE_WORD_NEXT = 262271;	// binding = SWT.DEL | SWT.MOD1;
 
-	/* Miscellaneous Key Actions */
+	/* 
+	 * Miscellaneous Key Actions 
+	 */
 	public static final int TOGGLE_OVERWRITE = 16777225; // binding = SWT.INSERT;
+	
+	/**
+	 *  Bullet style dot.
+	 * 
+	 *  @see Bullet
+	 *  
+	 *  @since 3.2
+	 */
+	public static final int BULLET_DOT = 1 << 0;
+
+	/**
+	 *  Bullet style number.
+	 * 
+	 *  @see Bullet
+	 *  
+	 *  @since 3.2
+	 */
+	public static final int BULLET_NUMBER = 1 << 1;
+
+	/**
+	 *  Bullet style lower case letter.
+	 * 
+	 *  @see Bullet
+	 *  
+	 *  @since 3.2
+	 */
+	public static final int BULLET_LETTER_LOWER = 1 << 2;
+
+	/**
+	 *  Bullet style upper case letter.
+	 * 
+	 *  @see Bullet
+	 *  
+	 *  @since 3.2
+	 */
+	public static final int BULLET_LETTER_UPPER = 1 << 3;
+
+	/**
+	 *  Bullet style text.
+	 * 
+	 *  @see Bullet
+	 *  
+	 *  @since 3.2
+	 */
+	public static final int BULLET_TEXT = 1 << 4;
+
+	/**
+	 *  Bullet style custom draw.
+	 *  
+	 *  @see StyledText#addPaintObjectListener(PaintObjectListener)
+	 *  @see StyledText#removePaintObjectListener(PaintObjectListener)
+	 *  @see Bullet 
+	 *  
+	 *  @since 3.2
+	 */
+	public static final int BULLET_CUSTOM = 1 << 5;
+
 }

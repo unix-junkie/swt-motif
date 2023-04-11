@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -116,7 +116,8 @@ public class CTabFolder extends Composite {
 	int selectedIndex = -1;
 	int[] priority = new int[0];
 	boolean mru = false;
-
+	Listener listener;
+	
 	/* External Listener management */
 	CTabFolder2Listener[] folderListeners = new CTabFolder2Listener[0];
 	// support for deprecated listener mechanism
@@ -184,12 +185,6 @@ public class CTabFolder extends Composite {
 	Point oldSize;
 	Font oldFont;
 	
-	// tooltip
-	int [] toolTipEvents = new int[] {SWT.MouseExit, SWT.MouseHover, SWT.MouseMove, SWT.MouseDown, SWT.DragDetect};
-	Listener toolTipListener;
-	Shell toolTipShell;
-	Label toolTipLabel;
-	
 	// internal constants
 	static final int DEFAULT_WIDTH = 64;
 	static final int DEFAULT_HEIGHT = 64;
@@ -218,6 +213,11 @@ public class CTabFolder extends Composite {
 	static final int HOT = 2;
 	static final int SELECTED = 3;
 	static final RGB CLOSE_FILL = new RGB(252, 160, 160);
+	
+	static final int CHEVRON_CHILD_ID = 0;
+	static final int MINIMIZE_CHILD_ID = 1;
+	static final int MAXIMIZE_CHILD_ID = 2;
+	static final int EXTRA_CHILD_ID_COUNT = 3;
 	
 
 /**
@@ -276,18 +276,18 @@ public CTabFolder(Composite parent, int style) {
 	initAccessible();
 	
 	// Add all listeners
-	Listener listener = new Listener() {
+	listener = new Listener() {
 		public void handleEvent(Event event) {
 			switch (event.type) {
-				case SWT.Dispose:          onDispose(); break;
+				case SWT.Dispose:          onDispose(event); break;
 				case SWT.DragDetect:       onDragDetect(event); break;
 				case SWT.FocusIn:          onFocus(event);	break;
 				case SWT.FocusOut:         onFocus(event);	break;
 				case SWT.KeyDown:          onKeyDown(event); break;
 				case SWT.MouseDoubleClick: onMouseDoubleClick(event); break;
 				case SWT.MouseDown:        onMouse(event);	break;
+				case SWT.MouseEnter:       onMouse(event);	break;
 				case SWT.MouseExit:        onMouse(event);	break;
-				case SWT.MouseHover:       onMouseHover(event); break;
 				case SWT.MouseMove:        onMouse(event); break;
 				case SWT.MouseUp:          onMouse(event); break;
 				case SWT.Paint:            onPaint(event);	break;
@@ -305,8 +305,8 @@ public CTabFolder(Composite parent, int style) {
 		SWT.KeyDown,
 		SWT.MouseDoubleClick, 
 		SWT.MouseDown,
-		SWT.MouseExit,
-		SWT.MouseHover, 
+		SWT.MouseEnter, 
+		SWT.MouseExit, 
 		SWT.MouseMove,
 		SWT.MouseUp,
 		SWT.Paint,
@@ -316,21 +316,6 @@ public CTabFolder(Composite parent, int style) {
 	for (int i = 0; i < folderEvents.length; i++) {
 		addListener(folderEvents[i], listener);
 	}
-	
-	toolTipListener = new Listener() {
-		public void handleEvent(Event event) {
-			switch (event.type) {
-				case SWT.MouseHover:
-				case SWT.MouseMove:
-					if (updateToolTip(event.x, event.y)) break;
-					// FALL THROUGH
-				case SWT.MouseExit:
-				case SWT.MouseDown:
-					hideToolTip();
-					break;
-			}
-		}
-	};
 }
 static int checkStyle (Composite parent, int style) {
 	int mask = SWT.CLOSE | SWT.TOP | SWT.BOTTOM | SWT.FLAT | SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT | SWT.SINGLE | SWT.MULTI;
@@ -575,7 +560,7 @@ void destroyItem (CTabItem item) {
 		if (control != null && !control.isDisposed()) {
 			control.setVisible(false);
 		}
-		hideToolTip();
+		setToolTipText(null);
 		setButtonBounds();
 		redraw();
 		return;
@@ -795,7 +780,7 @@ void drawChevron(GC gc) {
 	FontData fd = getFont().getFontData()[0];
 	fd.setHeight(fontHeight);
 	Font f = new Font(display, fd);
-	int fHeight = f.getFontData()[0].getHeight() * display.getDPI().y / 72;
+	int fHeight = f.getFontData()[0].getHeight() * dpi.y / 72;
 	int indent = Math.max(2, (chevronRect.height - fHeight - 4) /2);
 	int x = chevronRect.x + 2;
 	int y = chevronRect.y + indent;
@@ -1204,6 +1189,11 @@ public CTabItem [] getItems() {
 	System.arraycopy(items, 0, tabItems, 0, items.length);
 	return tabItems;
 }
+/*
+ * Return the lowercase of the first non-'&' character following
+ * an '&' character in the given string. If there are no '&'
+ * characters in the given string, return '\0'.
+ */
 char _findMnemonic (String string) {
 	if (string == null) return '\0';
 	int index = 0;
@@ -1211,10 +1201,23 @@ char _findMnemonic (String string) {
 	do {
 		while (index < length && string.charAt (index) != '&') index++;
 		if (++index >= length) return '\0';
-		if (string.charAt (index) != '&') return string.charAt (index);
+		if (string.charAt (index) != '&') return Character.toLowerCase (string.charAt (index));
 		index++;
 	} while (index < length);
  	return '\0';
+}
+String stripMnemonic (String string) {
+	int index = 0;
+	int length = string.length ();
+	do {
+		while ((index < length) && (string.charAt (index) != '&')) index++;
+		if (++index >= length) return string;
+		if (string.charAt (index) != '&') {
+			return string.substring(0, index-1) + string.substring(index, length);
+		}
+		index++;
+	} while (index < length);
+ 	return string;
 }
 /**
  * Returns <code>true</code> if the receiver is minimized.
@@ -1540,11 +1543,13 @@ void initAccessible() {
 			String name = null;
 			int childID = e.childID;
 			if (childID >= 0 && childID < items.length) {
-				name = items[childID].getText();
-				int index = name.indexOf('&');
-				if (index > 0) {
-					name = name.substring(0, index) + name.substring(index + 1);
-				}
+				name = stripMnemonic(items[childID].getText());
+			} else if (childID == items.length + CHEVRON_CHILD_ID) {
+				name = SWT.getMessage("SWT_ShowList"); //$NON-NLS-1$
+			} else if (childID == items.length + MINIMIZE_CHILD_ID) {
+				name = minimized ? SWT.getMessage("SWT_Restore") : SWT.getMessage("SWT_Minimize"); //$NON-NLS-1$ //$NON-NLS-2$
+			} else if (childID == items.length + MAXIMIZE_CHILD_ID) {
+				name = maximized ? SWT.getMessage("SWT_Restore") : SWT.getMessage("SWT_Maximize"); //$NON-NLS-1$ //$NON-NLS-2$
 			}
 			e.result = name;
 		}
@@ -1587,24 +1592,36 @@ void initAccessible() {
 				}
 			}
 			if (childID == ACC.CHILDID_NONE) {
-				Rectangle location = getBounds();
-				location.height = location.height - getClientArea().height;
-				if (location.contains(testPoint)) {
-					childID = ACC.CHILDID_SELF;
+				if (showChevron && chevronRect.contains(testPoint)) {
+					childID = items.length + CHEVRON_CHILD_ID;
+				} else if (showMin && minRect.contains(testPoint)) {
+					childID = items.length + MINIMIZE_CHILD_ID;
+				} else if (showMax && maxRect.contains(testPoint)) {
+					childID = items.length + MAXIMIZE_CHILD_ID;
+				} else {
+					Rectangle location = getBounds();
+					location.height = location.height - getClientArea().height;
+					if (location.contains(testPoint)) {
+						childID = ACC.CHILDID_SELF;
+					}
 				}
 			}
 			e.childID = childID;
 		}
 
-		
 		public void getLocation(AccessibleControlEvent e) {
 			Rectangle location = null;
 			int childID = e.childID;
 			if (childID == ACC.CHILDID_SELF) {
 				location = getBounds();
-			}
-			if (childID >= 0 && childID < items.length) {
+			} else if (childID >= 0 && childID < items.length) {
 				location = items[childID].getBounds();
+			} else if (showChevron && childID == items.length + CHEVRON_CHILD_ID) {
+				location = chevronRect;
+			} else if (showMin && childID == items.length + MINIMIZE_CHILD_ID) {
+				location = minRect;
+			} else if (showMax && childID == items.length + MAXIMIZE_CHILD_ID) {
+				location = maxRect;
 			}
 			if (location != null) {
 				Point pt = toDisplay(location.x, location.y);
@@ -1616,7 +1633,7 @@ void initAccessible() {
 		}
 		
 		public void getChildCount(AccessibleControlEvent e) {
-			e.detail = items.length;
+			e.detail = items.length + EXTRA_CHILD_ID_COUNT;
 		}
 		
 		public void getDefaultAction(AccessibleControlEvent e) {
@@ -1624,6 +1641,9 @@ void initAccessible() {
 			int childID = e.childID;
 			if (childID >= 0 && childID < items.length) {
 				action = SWT.getMessage ("SWT_Switch"); //$NON-NLS-1$
+			}
+			if (childID >= items.length && childID < items.length + EXTRA_CHILD_ID_COUNT) {
+				action = SWT.getMessage ("SWT_Press"); //$NON-NLS-1$
 			}
 			e.result = action;
 		}
@@ -1647,6 +1667,8 @@ void initAccessible() {
 				role = ACC.ROLE_TABFOLDER;
 			} else if (childID >= 0 && childID < items.length) {
 				role = ACC.ROLE_TABITEM;
+			} else if (childID >= items.length && childID < items.length + EXTRA_CHILD_ID_COUNT) {
+				role = ACC.ROLE_PUSHBUTTON;
 			}
 			e.detail = role;
 		}
@@ -1671,13 +1693,20 @@ void initAccessible() {
 						state |= ACC.STATE_FOCUSED;
 					}
 				}
+			} else if (childID == items.length + CHEVRON_CHILD_ID) {
+				state = showChevron ? ACC.STATE_NORMAL : ACC.STATE_INVISIBLE;
+			} else if (childID == items.length + MINIMIZE_CHILD_ID) {
+				state = showMin ? ACC.STATE_NORMAL : ACC.STATE_INVISIBLE;
+			} else if (childID == items.length + MAXIMIZE_CHILD_ID) {
+				state = showMax ? ACC.STATE_NORMAL : ACC.STATE_INVISIBLE;
 			}
 			e.detail = state;
 		}
 		
 		public void getChildren(AccessibleControlEvent e) {
-			Object[] children = new Object[items.length];
-			for (int i = 0; i < items.length; i++) {
+			int childIdCount = items.length + EXTRA_CHILD_ID_COUNT;
+			Object[] children = new Object[childIdCount];
+			for (int i = 0; i < childIdCount; i++) {
 				children[i] = new Integer(i);
 			}
 			e.children = children;
@@ -1755,7 +1784,10 @@ void onKeyDown (Event event) {
 			forceFocus();
 	}
 }
-void onDispose() {
+void onDispose(Event event) {
+	removeListener(SWT.Dispose, listener);
+	notifyListeners(SWT.Dispose, event);
+	event.type = SWT.None;
 	/*
 	 * Usually when an item is disposed, destroyItem will change the size of the items array, 
 	 * reset the bounds of all the tabs and manage the widget associated with the tab.
@@ -1763,8 +1795,6 @@ void onDispose() {
 	 * the inDispose flag is used to skip over this part of the item dispose.
 	 */
 	inDispose = true;
-	
-	hideToolTip();
 
 	if (showMenu != null && !showMenu.isDisposed()) {
 		showMenu.dispose();
@@ -1816,7 +1846,7 @@ boolean onMnemonic (Event event) {
 		if (items[i] != null) {
 			char mnemonic = _findMnemonic (items[i].getText ());
 			if (mnemonic != '\0') {
-				if (Character.toUpperCase (key) == Character.toUpperCase (mnemonic)) {
+				if (Character.toLowerCase (key) == mnemonic) {
 					setSelection(i, true);
 					return true;
 				}
@@ -1835,12 +1865,13 @@ void onMouseDoubleClick(Event event) {
 		notifyListeners(SWT.DefaultSelection, e);
 	}
 }
-void onMouseHover(Event event) {
-	showToolTip(event.x, event.y);
-}
 void onMouse(Event event) {
 	int x = event.x, y = event.y;
 	switch (event.type) {
+		case SWT.MouseEnter: {
+			setToolTipText(null);
+			break;
+		}
 		case SWT.MouseExit: {
 			if (minImageState != NORMAL) {
 				minImageState = NORMAL;
@@ -1926,6 +1957,7 @@ void onMouse(Event event) {
 			break;
 		}
 		case SWT.MouseMove: {
+			_setToolTipText(event.x, event.y);
 			boolean close = false, minimize = false, maximize = false, chevron = false;
 			if (minRect.contains(x, y)) {
 				minimize = true;
@@ -2216,7 +2248,8 @@ void onTraverse (Event event) {
 		case SWT.TRAVERSE_RETURN:
 		case SWT.TRAVERSE_TAB_NEXT:
 		case SWT.TRAVERSE_TAB_PREVIOUS:
-			event.doit = true;
+			Control focusControl = getDisplay().getFocusControl();
+			if (focusControl == this) event.doit = true;
 			break;
 		case SWT.TRAVERSE_MNEMONIC:
 			event.doit = onMnemonic(event);
@@ -2928,7 +2961,7 @@ public void setMaximizeVisible(boolean visible) {
  * Sets the layout which is associated with the receiver to be
  * the argument which may be null.
  * <p>
- * Note : No Layout can be set on this Control because it already
+ * Note: No Layout can be set on this Control because it already
  * manages the size and position of its children.
  * </p>
  *
@@ -2978,7 +3011,7 @@ public void setMaximized(boolean maximize) {
 public void setMinimizeVisible(boolean visible) {
 	checkWidget();
 	if (showMin == visible) return;
-	// display maximize button
+	// display minimize button
 	showMin = visible;
 	updateItems();
 	redraw();
@@ -3630,36 +3663,18 @@ public void showSelection () {
 	}
 }
 
-void hideToolTip() {
-	if(toolTipShell == null) return;
-	for (int i = 0; i < toolTipEvents.length; i++) {
-		removeListener(toolTipEvents[i], toolTipListener);
+void _setToolTipText (int x, int y) {
+	String oldTip = getToolTipText();
+	String newTip = _getToolTip(x, y);
+	if (newTip == null || !newTip.equals(oldTip)) {
+		setToolTipText(newTip);
 	}
-	toolTipShell.dispose();
-	toolTipShell = null;
-	toolTipLabel = null;
 }
-void showToolTip (int x, int y) {
-	if (toolTipShell == null) {
-		toolTipShell = new Shell (getShell(), SWT.ON_TOP | SWT.TOOL);
-		toolTipLabel = new Label (toolTipShell, SWT.CENTER);
-		Display display = toolTipShell.getDisplay();
-		toolTipLabel.setForeground (display.getSystemColor (SWT.COLOR_INFO_FOREGROUND));
-		toolTipLabel.setBackground (display.getSystemColor (SWT.COLOR_INFO_BACKGROUND));
-		for (int i = 0; i < toolTipEvents.length; i++) {
-			addListener(toolTipEvents[i], toolTipListener);
-		}
-	}
-	if (updateToolTip(x, y)) {
-		toolTipShell.setVisible(true);
-	} else {
-		hideToolTip();
-	}
-	
-}
+
 boolean updateItems() {
 	return updateItems(selectedIndex);
 }
+
 boolean updateItems(int showIndex) {
 	if (!single && !mru && showIndex != -1) {
 		// make sure selected item will be showing
@@ -3717,10 +3732,10 @@ boolean updateItems(int showIndex) {
 	changed |= setItemLocation();
 	setButtonBounds();
 	changed |= showChevron != oldShowChevron;
-	if (changed && toolTipShell != null) {
+	if (changed && getToolTipText() != null) {
 		Point pt = getDisplay().getCursorLocation();
 		pt = toControl(pt);
-		if (!updateToolTip(pt.x, pt.y)) hideToolTip();
+		_setToolTipText(pt.x, pt.y);
 	}
 	return changed;
 }
@@ -3773,42 +3788,5 @@ String _getToolTip(int x, int y) {
 		return SWT.getMessage("SWT_Close"); //$NON-NLS-1$
 	}
 	return item.getToolTipText();
-}
-boolean updateToolTip (int x, int y) {
-	String tooltip = _getToolTip(x, y);
-	if (tooltip == null) return false;
-	if (tooltip.equals(toolTipLabel.getText())) return true;
-	
-	toolTipLabel.setText(tooltip);
-	Point labelSize = toolTipLabel.computeSize(SWT.DEFAULT, SWT.DEFAULT, true);
-	labelSize.x += 2; labelSize.y += 2;
-	toolTipLabel.setSize(labelSize);
-	toolTipShell.pack();
-	/*
-	 * On some platforms, there is a minimum size for a shell  
-	 * which may be greater than the label size.
-	 * To avoid having the background of the tip shell showing
-	 * around the label, force the label to fill the entire client area.
-	 */
-	Rectangle area = toolTipShell.getClientArea();
-	toolTipLabel.setSize(area.width, area.height);
-	/*
-	 * Position the tooltip and ensure that it is not located off
-	 * the screen.
-	 */
-	Point cursorLocation = getDisplay().getCursorLocation();
-	// Assuming cursor is 21x21 because this is the size of
-	// the arrow cursor on Windows 
-	int cursorHeight = 21; 
-	Point size = toolTipShell.getSize();
-	Rectangle rect = getMonitor().getBounds();
-	Point pt = new Point(cursorLocation.x, cursorLocation.y + cursorHeight + 2);
-	pt.x = Math.max(pt.x, rect.x);
-	if (pt.x + size.x > rect.x + rect.width) pt.x = rect.x + rect.width - size.x;
-	if (pt.y + size.y > rect.y + rect.height) {
-		pt.y = cursorLocation.y - 2 - size.y;
-	}
-	toolTipShell.setLocation(pt);
-	return true;
 }
 }

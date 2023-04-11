@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -12,13 +12,28 @@ package org.eclipse.swt.internal.image;
 
 
 import org.eclipse.swt.*;
+import org.eclipse.swt.graphics.*;
 
 public class PngTrnsChunk extends PngChunk {
 	static final int TRANSPARENCY_TYPE_PIXEL = 0;
 	static final int TRANSPARENCY_TYPE_ALPHAS = 1;
+	static final int RGB_DATA_LENGTH = 6;
 	
+PngTrnsChunk(RGB rgb) {
+	super(RGB_DATA_LENGTH);
+	setType(TYPE_tRNS);
+	setInt16(DATA_OFFSET, rgb.red);
+	setInt16(DATA_OFFSET + 2, rgb.green);
+	setInt16(DATA_OFFSET + 4, rgb.blue);	
+	setCRC(computeCRC());
+}
+
 PngTrnsChunk(byte[] reference){
 	super(reference);
+}
+
+int getChunkType() {
+	return CHUNK_tRNS;
 }
 
 void validateLength(PngIhdrChunk header, PngPlteChunk paletteChunk) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -45,6 +45,8 @@ public final class GridLayout extends Layout {
  
  	/**
  	 * numColumns specifies the number of cell columns in the layout.
+ 	 * If numColumns has a value less than 1, the layout will not
+ 	 * set the size and postion of any controls.
  	 *
  	 * The default value is 1.
  	 */
@@ -140,6 +142,8 @@ public GridLayout () {}
  * Constructs a new instance of this class given the
  * number of columns, and whether or not the columns
  * should be forced to have the same width.
+ * If numColumns has a value less than 1, the layout will not
+ * set the size and postion of any controls.
  *
  * @param numColumns the number of columns in the grid
  * @param makeColumnsEqualWidth whether or not the columns will have equal width
@@ -190,14 +194,17 @@ Point layout (Composite composite, boolean move, int x, int y, int width, int he
 	if (numColumns < 1) {
 		return new Point (marginLeft + marginWidth * 2 + marginRight, marginTop + marginHeight * 2 + marginBottom);
 	}
-	int count = 0;
 	Control [] children = composite.getChildren ();
+	int count = 0;
 	for (int i=0; i<children.length; i++) {
 		Control control = children [i];
 		GridData data = (GridData) control.getLayoutData ();
 		if (data == null || !data.exclude) {
 			children [count++] = children [i];
 		} 
+	}
+	if (count == 0) {
+		return new Point (marginLeft + marginWidth * 2 + marginRight, marginTop + marginHeight * 2 + marginBottom);
 	}
 	for (int i=0; i<count; i++) {
 		Control child = children [i];
@@ -314,17 +321,26 @@ Point layout (Composite composite, boolean move, int x, int y, int width, int he
 					}
 					int w = data.cacheWidth + data.horizontalIndent - spanWidth - (hSpan - 1) * horizontalSpacing;
 					if (w > 0) {
-						if (spanExpandCount == 0) {
-							widths [j] += w;
-						} else {
-							int delta = w / spanExpandCount;
-							int remainder = w % spanExpandCount, last = -1;
+						if (makeColumnsEqualWidth) {
+							int equalWidth = (w + spanWidth) / hSpan;
+							int remainder = (w + spanWidth) % hSpan, last = -1;
 							for (int k = 0; k < hSpan; k++) {
-								if (expandColumn [j-k]) {
-									widths [last=j-k] += delta;
-								}
+								widths [last=j-k] = Math.max (equalWidth, widths [j-k]);
 							}
 							if (last > -1) widths [last] += remainder;
+						} else {
+							if (spanExpandCount == 0) {
+								widths [j] += w;
+							} else {
+								int delta = w / spanExpandCount;
+								int remainder = w % spanExpandCount, last = -1;
+								for (int k = 0; k < hSpan; k++) {
+									if (expandColumn [j-k]) {
+										widths [last=j-k] += delta;
+									}
+								}
+								if (last > -1) widths [last] += remainder;
+							}
 						}
 					}
 					if (!data.grabExcessHorizontalSpace || data.minimumWidth != 0) {
@@ -705,7 +721,7 @@ String getName () {
  * Returns a string containing a concise, human-readable
  * description of the receiver.
  *
- * @return a string representation of the event
+ * @return a string representation of the layout
  */
 public String toString () {
  	String string = getName ()+" {";

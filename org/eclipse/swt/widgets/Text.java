@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -264,6 +264,13 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 		} else {
 			byte [] buffer = new byte [size + 1];
 			OS.memmove (buffer, ptr, size);
+			boolean wrap = (style & SWT.MULTI) != 0 && (style & SWT.WRAP) != 0;
+			if (wrap && wHint != SWT.DEFAULT) {
+				char[] chars = Converter.mbcsToWcs (getCodePage (), buffer);
+				String text = new String (chars);
+				String wrapped = display.wrapText (text, font, wHint);
+				buffer = Converter.wcsToMbcs (getCodePage (), wrapped, true);
+			}
 			int xmString;
 			if ((style & SWT.SINGLE) != 0) {
 				xmString = OS.XmStringParseText (
@@ -350,7 +357,6 @@ public void copy () {
 	OS.XmTextCopy (handle, OS.XtLastTimestampProcessed (xDisplay));
 }
 void createHandle (int index) {
-	state |= HANDLE;
 	int [] argList1 = {
 		OS.XmNverifyBell, 0,
 		OS.XmNeditMode, (style & SWT.SINGLE) != 0 ? OS.XmSINGLE_LINE_EDIT : OS.XmMULTI_LINE_EDIT,
@@ -388,12 +394,18 @@ void createHandle (int index) {
 		};
 		OS.XtSetValues (handle, argList3, argList3.length / 2);
 	}
+	/*
+	* Feature in Motif.  The Text widget is created with a default
+	* drop target.  This is inconsistent with other platforms.
+	* To be consistent, disable the default drop target.
+	*/
+	OS.XmDropSiteUnregister (handle);
 }
 ScrollBar createScrollBar (int type) {
 	return createStandardBar (type);
 }
 void createWidget (int index) {
-	super.createWidget (index);
+	super.createWidget (index);	
 	hiddenText = "";
 	if ((style & SWT.PASSWORD) != 0) setEchoChar ('*');
 }
@@ -423,6 +435,19 @@ Font defaultFont () {
 }
 int defaultForeground () {
 	return display.textForeground;
+}
+boolean dragDetect (int x, int y) {
+	if (hooks (SWT.DragDetect)) {
+		int [] start = new int [1], end = new int [1];
+		OS.XmTextGetSelectionPosition (handle, start, end);
+		if (start [0] == end [0]) return false;
+		int pos = OS.XmTextXYToPos(handle, (short) x, (short) y);
+		return pos > start [0] && pos < end [0];
+	}
+	return false;
+}
+boolean dragOverride () {
+	return true;
 }
 /**
  * Returns the line number of the caret.
@@ -539,7 +564,7 @@ public char getEchoChar () {
 /**
  * Returns the editable state.
  *
- * @return whether or not the reciever is editable
+ * @return whether or not the receiver is editable
  * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1295,14 +1320,19 @@ public void setSelection (int start, int end) {
 	/* Set the selection. */
 	int xDisplay = OS.XtDisplay (handle);
 	if (xDisplay == 0) return;
-	int nStart = Math.min (Math.max (Math.min (start, end), 0), position);
-	int nEnd = Math.min (Math.max (Math.max (start, end), 0), position);
+	start = Math.min (Math.max (start, 0), position);
+	end = Math.min (Math.max (end, 0), position);
+	int nStart = Math.min (start, end), nEnd = Math.max (start, end);
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XmTextSetSelection (handle, nStart, nEnd, OS.XtLastTimestampProcessed (xDisplay));
 
 	/* Force the i-beam to follow the highlight/selection. */
-	OS.XmTextSetInsertionPosition (handle, nEnd);
+	if (start > end) {
+		OS.XmTextSetInsertionPosition (handle, nStart);
+	} else {
+		OS.XmTextSetInsertionPosition (handle, nEnd);
+	}
 	display.setWarnings (warnings);
 }
 /**
@@ -1383,12 +1413,6 @@ public void setText (String string) {
 	OS.XmTextSetString (handle, buffer);
 	OS.XmTextSetInsertionPosition (handle, 0);
 	display.setWarnings(warnings);
-	/*
-	* Bug in Linux.  When the widget is multi-line
-	* it does not send a Modify to notify the application
-	* that the text has changed.  The fix is to send the event.
-	*/
-	if (OS.IsLinux && (style & SWT.MULTI) != 0) sendEvent (SWT.Modify);
 }
 /**
  * Sets the maximum number of characters that the receiver

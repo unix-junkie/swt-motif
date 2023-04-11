@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -227,14 +227,17 @@ protected void layout (Composite composite, boolean flushCache) {
 }
 
 Point layoutHorizontal (Composite composite, boolean move, boolean wrap, int width, boolean flushCache) {
-	int count = 0;
 	Control [] children = composite.getChildren ();
+	int count = 0;
 	for (int i=0; i<children.length; i++) {
 		Control control = children [i];
 		RowData data = (RowData) control.getLayoutData ();
 		if (data == null || !data.exclude) {
 			children [count++] = children [i];
 		} 
+	}
+	if (count == 0) {
+		return new Point (marginLeft + marginWidth * 2 + marginRight, marginTop + marginHeight * 2 + marginBottom);
 	}
 	int childWidth = 0, childHeight = 0, maxHeight = 0;
 	if (!pack) {
@@ -331,14 +334,17 @@ Point layoutHorizontal (Composite composite, boolean move, boolean wrap, int wid
 }
 
 Point layoutVertical (Composite composite, boolean move, boolean wrap, int height, boolean flushCache) {
-	int count = 0;
 	Control [] children = composite.getChildren ();
+	int count = 0;
 	for (int i=0; i<children.length; i++) {
 		Control control = children [i];
 		RowData data = (RowData) control.getLayoutData ();
 		if (data == null || !data.exclude) {
 			children [count++] = children [i];
 		} 
+	}
+	if (count == 0) {
+		return new Point (marginLeft + marginWidth * 2 + marginRight, marginTop + marginHeight * 2 + marginBottom);
 	}
 	int childWidth = 0, childHeight = 0, maxWidth = 0;
 	if (!pack) {
@@ -438,7 +444,7 @@ Point layoutVertical (Composite composite, boolean move, boolean wrap, int heigh
  * Returns a string containing a concise, human-readable
  * description of the receiver.
  *
- * @return a string representation of the event
+ * @return a string representation of the layout
  */
 public String toString () {
  	String string = getName ()+" {";

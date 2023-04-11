@@ -1,13 +1,13 @@
 /*******************************************************************************
-* Copyright (c) 2000, 2005 IBM Corporation and others.
-* All rights reserved. This program and the accompanying materials
-* are made available under the terms of the Eclipse Public License v1.0
-* which accompanies this distribution, and is available at
-* http://www.eclipse.org/legal/epl-v10.html
-*
-* Contributors:
-*     IBM Corporation - initial API and implementation
-*******************************************************************************/
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *    IBM Corporation - initial API and implementation
+ *******************************************************************************/
 
 #ifdef NATIVE_STATS
 extern int OS_nativeFunctionCount;
@@ -29,6 +29,7 @@ typedef enum {
 	MB_1CUR_1MAX_FUNC,
 	MonitorEnter_FUNC,
 	MonitorExit_FUNC,
+	XRenderPictureAttributes_1sizeof_FUNC,
 	_1Call_FUNC,
 	_1ConnectionNumber_FUNC,
 	_1XAllocColor_FUNC,
@@ -46,6 +47,7 @@ typedef enum {
 	_1XCopyArea_FUNC,
 	_1XCopyPlane_FUNC,
 	_1XCreateBitmapFromData_FUNC,
+	_1XCreateColormap_FUNC,
 	_1XCreateFontCursor_FUNC,
 	_1XCreateGC_FUNC,
 	_1XCreateImage_FUNC,
@@ -83,6 +85,7 @@ typedef enum {
 	_1XFlush_FUNC,
 	_1XFontsOfFontSet_FUNC,
 	_1XFree_FUNC,
+	_1XFreeColormap_FUNC,
 	_1XFreeColors_FUNC,
 	_1XFreeCursor_FUNC,
 	_1XFreeFont_FUNC,
@@ -125,6 +128,16 @@ typedef enum {
 	_1XRaiseWindow_FUNC,
 	_1XReconfigureWMWindow_FUNC,
 	_1XRectInRegion_FUNC,
+	_1XRenderComposite_FUNC,
+	_1XRenderCreatePicture_FUNC,
+	_1XRenderFindStandardFormat_FUNC,
+	_1XRenderFindVisualFormat_FUNC,
+	_1XRenderFreePicture_FUNC,
+	_1XRenderQueryExtension_FUNC,
+	_1XRenderQueryVersion_FUNC,
+	_1XRenderSetPictureClipRectangles_FUNC,
+	_1XRenderSetPictureClipRegion_FUNC,
+	_1XRenderSetPictureTransform_FUNC,
 	_1XReparentWindow_FUNC,
 	_1XResizeWindow_FUNC,
 	_1XRootWindowOfScreen_FUNC,
@@ -146,7 +159,10 @@ typedef enum {
 	_1XSetRegion_FUNC,
 	_1XSetStipple_FUNC,
 	_1XSetSubwindowMode_FUNC,
+	_1XSetTSOrigin_FUNC,
+	_1XSetTile_FUNC,
 	_1XSetWMNormalHints_FUNC,
+	_1XSetWindowBackgroundPixmap_FUNC,
 	_1XShapeCombineMask_FUNC,
 	_1XShapeCombineRegion_FUNC,
 	_1XSubtractRegion_FUNC,
@@ -317,6 +333,7 @@ typedef enum {
 	_1XmTextSetSelection_FUNC,
 	_1XmTextSetString_FUNC,
 	_1XmTextShowPosition_FUNC,
+	_1XmTextXYToPos_FUNC,
 	_1XmUpdateDisplay_FUNC,
 	_1XmWidgetGetDisplayRect_FUNC,
 	_1XmbTextListToTextProperty_FUNC,
@@ -405,6 +422,9 @@ typedef enum {
 	_1XtWindowToWidget_FUNC,
 	_1_1XmSetMenuTraversal_FUNC,
 	_1applicationShellWidgetClass_FUNC,
+	_1dlclose_FUNC,
+	_1dlopen_FUNC,
+	_1dlsym_FUNC,
 	_1overrideShellWidgetClass_FUNC,
 	_1shellWidgetClass_FUNC,
 	_1topLevelShellWidgetClass_FUNC,

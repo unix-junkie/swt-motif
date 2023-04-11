@@ -263,9 +263,7 @@ static MenuItem checkNull (MenuItem item) {
 	if (item == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
 	return item;
 }
-void createHandle (int index) {
-	state |= HANDLE;
-	
+void createHandle (int index) {	
 	/*
 	* Bug in Motif. For some reason, creating a menu after any application context
 	* and shell have been destroyed will segment fault unless a new application
@@ -332,7 +330,7 @@ void createHandle (int index) {
 void createWidget (int index) {
 	checkOrientation (parent);
 	super.createWidget (index);
-	parent.add (this);
+	parent.addMenu (this);
 }
 /*public*/ Rectangle getBounds () {
 	checkWidget();
@@ -663,19 +661,24 @@ public boolean isVisible () {
 	checkWidget();
 	return getVisible ();
 }
-void releaseChild () {
-	super.releaseChild ();
+void releaseChildren (boolean destroy) {
+	MenuItem [] items = getItems ();
+	for (int i=0; i<items.length; i++) {
+		MenuItem item = items [i];
+		if (item != null && !item.isDisposed ()) {
+			item.release (false);
+		}
+	}
+	super.releaseChildren (destroy);
+}
+void releaseParent () {
+	super.releaseParent ();
 	if (cascade != null) cascade.setMenu (null);
 	if ((style & SWT.BAR) != 0 && this == parent.menuBar) parent.setMenuBar (null);
 }
 void releaseWidget () {
-	MenuItem [] items = getItems ();
-	for (int i=0; i<items.length; i++) {
-		MenuItem item = items [i];
-		if (!item.isDisposed ()) item.releaseResources ();
-	}
 	super.releaseWidget ();
-	if (parent != null) parent.remove (this);
+	if (parent != null) parent.removeMenu (this);
 	parent = null;
 	cascade = defaultItem = null;
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -54,14 +54,29 @@ public abstract class Widget {
 	Object data;
 	
 	/* Global state flags */
-	static final int DISPOSED		= 1<<0;
-	static final int CANVAS			= 1<<1;
-	static final int KEYED_DATA		= 1<<2;
-	static final int HANDLE			= 1<<3;
-	static final int FOCUS_FORCED	= 1<<4;
-	static final int LAYOUT_NEEDED	= 1<<5;
-	static final int LAYOUT_CHANGED	= 1<<6;
+	static final int DISPOSED = 1<<0;
+	static final int CANVAS = 1<<1;
+	static final int KEYED_DATA = 1<<2;
+	static final int FOCUS_FORCED = 1<<3;
+	static final int BACKGROUND = 1<<4;
+	static final int FOREGROUND = 1<<5;
+	static final int PARENT_BACKGROUND = 1<<6;
+	static final int THEME_BACKGROUND = 1<<7;
 	
+	/* A layout was requested on this widget */
+	static final int LAYOUT_NEEDED	= 1<<8;
+	
+	/* The preferred size of a child has changed */
+	static final int LAYOUT_CHANGED = 1<<9;
+	
+	/* A layout was requested in this widget hierachy */
+	static final int LAYOUT_CHILD = 1<<10;
+
+	/* More global state flags */
+	static final int RELEASED = 1<<11;
+	static final int DISPOSE_SENT = 1<<12;
+	
+	/* Default size for widgets */
 	static final int DEFAULT_WIDTH	= 64;
 	static final int DEFAULT_HEIGHT	= 64;
 	
@@ -140,9 +155,10 @@ public Widget (Widget parent, int style) {
 }
 /**
  * Adds the listener to the collection of listeners who will
- * be notifed when an event of the given type occurs. When the
+ * be notified when an event of the given type occurs. When the
  * event does occur in the widget, the listener is notified by
- * sending it the <code>handleEvent()</code> message.
+ * sending it the <code>handleEvent()</code> message. The event
+ * type is one of the event constants defined in class <code>SWT</code>.
  *
  * @param eventType the type of event to listen for
  * @param listener the listener which should be notified when the event occurs
@@ -156,7 +172,9 @@ public Widget (Widget parent, int style) {
  * </ul>
  *
  * @see Listener
+ * @see SWT
  * @see #removeListener
+ * @see #notifyListeners
  */
 public void addListener (int eventType, Listener handler) {
 	checkWidget();
@@ -166,7 +184,7 @@ public void addListener (int eventType, Listener handler) {
 }
 /**
  * Adds the listener to the collection of listeners who will
- * be notifed when the widget is disposed. When the widget is
+ * be notified when the widget is disposed. When the widget is
  * disposed, the listener is notified by sending it the
  * <code>widgetDisposed()</code> message.
  *
@@ -327,11 +345,9 @@ public void dispose () {
 	* Note:  It is valid to attempt to dispose a widget
 	* more than once.  If this happens, fail silently.
 	*/
-	if (isDisposed()) return;
+	if (isDisposed ()) return;
 	if (!isValidThread ()) error (SWT.ERROR_THREAD_INVALID_ACCESS);
-	releaseChild ();
-	releaseWidget ();
-	destroyWidget ();
+	release (true);
 }
 void enableHandle (boolean enabled, int widgetHandle) {
 	int [] argList = {OS.XmNsensitive, enabled ? 1 : 0};
@@ -498,22 +514,23 @@ boolean hooks (int eventType) {
  * @return <code>true</code> when the widget is disposed and <code>false</code> otherwise
  */
 public boolean isDisposed () {
-	if (handle != 0) return false;
-	if ((state & HANDLE) != 0) return true;
 	return (state & DISPOSED) != 0;
 }
 /**
  * Returns <code>true</code> if there are any listeners
  * for the specified event type associated with the receiver,
- * and <code>false</code> otherwise.
+ * and <code>false</code> otherwise. The event type is one of
+ * the event constants defined in class <code>SWT</code>.
  *
- * @param	eventType the type of event
+ * @param eventType the type of event
  * @return true if the event is hooked
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ *
+ * @see SWT
  */
 public boolean isListening (int eventType) {
 	checkWidget();
@@ -531,7 +548,9 @@ void manageChildren () {
 /**
  * Notifies all of the receiver's listeners for events
  * of the given type that one such event has occurred by
- * invoking their <code>handleEvent()</code> method.
+ * invoking their <code>handleEvent()</code> method.  The
+ * event type is one of the event constants defined in class
+ * <code>SWT</code>.
  *
  * @param eventType the type of event which has occurred
  * @param event the event data
@@ -540,6 +559,10 @@ void manageChildren () {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @see SWT
+ * @see #addListener
+ * @see #removeListener
  */
 public void notifyListeners (int eventType, Event event) {
 	checkWidget();
@@ -607,27 +630,45 @@ void register () {
 	if (handle == 0) return;
 	display.addWidget (handle, this);
 }
-void releaseChild () {
-	/* Do nothing */
+void release (boolean destroy) {
+	if ((state & DISPOSE_SENT) == 0) {
+		state |= DISPOSE_SENT;
+		sendEvent (SWT.Dispose);
+	}
+	if ((state & DISPOSED) == 0) {
+		releaseChildren (destroy);
+	}
+	if ((state & RELEASED) == 0) {
+		state |= RELEASED;
+		if (destroy) {
+			releaseParent ();
+			releaseWidget ();
+			destroyWidget ();
+		} else {
+			releaseWidget ();
+			releaseHandle ();
+		}
+	}
+}
+void releaseChildren (boolean destroy) {
 }
 void releaseHandle () {
 	handle = 0;
 	state |= DISPOSED;
 	display = null;
 }
-void releaseResources () {
-	releaseWidget ();
-	releaseHandle ();
+void releaseParent () {
+	/* Do nothing */
 }
 void releaseWidget () {
-	sendEvent (SWT.Dispose);
 	deregister ();
 	eventTable = null;
 	data = null;
 }
 /**
  * Removes the listener from the collection of listeners who will
- * be notifed when an event of the given type occurs.
+ * be notified when an event of the given type occurs. The event
+ * type is one of the event constants defined in class <code>SWT</code>.
  *
  * @param eventType the type of event to listen for
  * @param listener the listener which should no longer be notified when the event occurs
@@ -641,7 +682,9 @@ void releaseWidget () {
  * </ul>
  *
  * @see Listener
+ * @see SWT
  * @see #addListener
+ * @see #notifyListeners
  */
 public void removeListener (int eventType, Listener handler) {
 	checkWidget();
@@ -651,7 +694,7 @@ public void removeListener (int eventType, Listener handler) {
 }
 /**
  * Removes the listener from the collection of listeners who will
- * be notifed when an event of the given type occurs.
+ * be notified when an event of the given type occurs.
  * <p>
  * <b>IMPORTANT:</b> This method is <em>not</em> part of the SWT
  * public API. It is marked public only so that it can be shared
@@ -681,7 +724,7 @@ protected void removeListener (int eventType, SWTEventListener handler) {
 }
 /**
  * Removes the listener from the collection of listeners who will
- * be notifed when the widget is disposed.
+ * be notified when the widget is disposed.
  *
  * @param listener the listener which should no longer be notified when the receiver is disposed
  *

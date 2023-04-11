@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -10,9 +10,15 @@
  *******************************************************************************/
 package org.eclipse.swt.dnd;
 
+import org.eclipse.swt.graphics.*;
+import org.eclipse.swt.widgets.*;
 
-abstract class DragUnderEffect {
+abstract class DragAndDropEffect {
 	
-abstract void show(int effect, int x, int y);
+Widget getItem(int x, int y){return null;}
+
+ImageData getDragSourceImage(int x, int y){return null;}
+
+void showDropTargetEffect(int effect, int x, int y) {}
 
 }

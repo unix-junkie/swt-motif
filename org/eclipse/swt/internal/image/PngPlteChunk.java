@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -13,19 +13,33 @@ package org.eclipse.swt.internal.image;
 
 import org.eclipse.swt.*;
 import org.eclipse.swt.graphics.*;
-import org.eclipse.swt.internal.Compatibility;
 
 class PngPlteChunk extends PngChunk {
+	
+	int paletteSize;
+
+PngPlteChunk(PaletteData palette) {
+	super(palette.getRGBs().length * 3);
+	paletteSize = length / 3;
+	setType(TYPE_PLTE);
+	setPaletteData(palette);
+	setCRC(computeCRC());
+}		
 
 PngPlteChunk(byte[] reference){
 	super(reference);
+	paletteSize = length / 3;
+}
+
+int getChunkType() {
+	return CHUNK_PLTE;
 }
 
 /**
  * Get the number of colors in this palette.
  */
 int getPaletteSize() {
-	return getLength() / 3;
+	return paletteSize;
 }
 
 /**
@@ -35,9 +49,9 @@ int getPaletteSize() {
  * does not store the palette data created.
  */
 PaletteData getPaletteData() {
-	RGB[] rgbs = new RGB[getPaletteSize()];
+	RGB[] rgbs = new RGB[paletteSize];
 //	int start = DATA_OFFSET;
-//	int end = DATA_OFFSET + getLength();
+//	int end = DATA_OFFSET + length;
 	for (int i = 0; i < rgbs.length; i++) {
 		int offset = DATA_OFFSET + (i * 3);
 		int red = reference[offset] & 0xFF;
@@ -46,6 +60,20 @@ PaletteData getPaletteData() {
 		rgbs[i] = new RGB(red, green, blue);		
 	}
 	return new PaletteData(rgbs);
+}
+
+/**
+ * Set the data of a PLTE chunk to the colors
+ * stored in the specified PaletteData object.
+ */
+void setPaletteData(PaletteData palette) {
+	RGB[] rgbs = palette.getRGBs();
+	for (int i = 0; i < rgbs.length; i++) {
+		int offset = DATA_OFFSET + (i * 3);
+		reference[offset] = (byte) rgbs[i].red;
+		reference[offset + 1] = (byte) rgbs[i].green;
+		reference[offset + 2] = (byte) rgbs[i].blue;
+	}
 }
 
 /**
@@ -68,7 +96,9 @@ void validate(PngFileReadState readState, PngIhdrChunk headerChunk) {
 	super.validate(readState, headerChunk);
 	
 	// Palettes cannot be included in grayscale images.
-	if (!headerChunk.getCanHavePalette()) SWT.error(SWT.ERROR_INVALID_IMAGE);
+	// 
+	// Note: just ignore the palette.
+//	if (!headerChunk.getCanHavePalette()) SWT.error(SWT.ERROR_INVALID_IMAGE);
 	
 	// Palette chunks' data fields must be event multiples
 	// of 3. Each 3-byte group represents an RGB value.
@@ -77,17 +107,17 @@ void validate(PngFileReadState readState, PngIhdrChunk headerChunk) {
 	// Palettes cannot have more entries than 2^bitDepth
 	// where bitDepth is the bit depth of the image given
 	// in the IHDR chunk.
-	if (Compatibility.pow2(headerChunk.getBitDepth()) < getPaletteSize()) {
+	if (1 << headerChunk.getBitDepth() < paletteSize) {
 		SWT.error(SWT.ERROR_INVALID_IMAGE);
 	}
 	
 	// Palettes cannot have more than 256 entries.
-	if (256 < getPaletteSize()) SWT.error(SWT.ERROR_INVALID_IMAGE);
+	if (256 < paletteSize) SWT.error(SWT.ERROR_INVALID_IMAGE);
 }
 
 void contributeToString(StringBuffer buffer) {
 	buffer.append("\n\tPalette size:");
-	buffer.append(getPaletteSize());
+	buffer.append(paletteSize);
 }
 
 }

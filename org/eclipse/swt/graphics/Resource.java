@@ -10,6 +10,8 @@
  *******************************************************************************/
 package org.eclipse.swt.graphics;
 
+import org.eclipse.swt.*;
+
 /**
  * This class is the abstract superclass of all graphics resource objects.  
  * Resources created by the application must be disposed.
@@ -45,6 +47,20 @@ public abstract class Resource {
  * which they allocate.
  */
 public abstract void dispose();
+
+/**
+ * Returns the <code>Device</code> where this resource was
+ * created.
+ *
+ * @return <code>Device</code> the device of the receiver
+ * 
+ * @since 3.2
+ */
+public Device getDevice() {
+	Device device = this.device;
+	if (device == null || isDisposed ()) SWT.error (SWT.ERROR_GRAPHIC_DISPOSED);
+	return device;
+}
 
 /**
  * Returns <code>true</code> if the resource has been disposed,

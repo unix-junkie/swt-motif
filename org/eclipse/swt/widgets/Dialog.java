@@ -50,9 +50,9 @@ import org.eclipse.swt.*;
  * </pre></code>
  * <p>
  * Note: The <em>modality</em> styles supported by this class
- * must be treated as <em>HINT</em>s, because not all are
- * supported by every subclass on every platform. If a modality style
- * is not supported, it is "upgraded" to a more restrictive modality
+ * are treated as <em>HINT</em>s, because not all are supported
+ * by every subclass on every platform. If a modality style is
+ * not supported, it is "upgraded" to a more restrictive modality
  * style that is supported.  For example, if <code>PRIMARY_MODAL</code>
  * is not supported by a particular dialog, it would be upgraded to 
  * <code>APPLICATION_MODAL</code>. In addition, as is the case
@@ -66,8 +66,8 @@ import org.eclipse.swt.*;
  * <dd>(none)</dd>
  * </dl>
  * <p>
- * Note: Only one of the styles APPLICATION_MODAL, PRIMARY_MODAL, and SYSTEM_MODAL 
- * may be specified.
+ * Note: Only one of the styles APPLICATION_MODAL, PRIMARY_MODAL,
+ * and SYSTEM_MODAL may be specified.
  * </p>
  * 
  * @see Shell
@@ -116,6 +116,10 @@ public Dialog (Shell parent) {
  * @exception SWTException <ul>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
  * </ul>
+ * 
+ * @see SWT#PRIMARY_MODAL
+ * @see SWT#APPLICATION_MODAL
+ * @see SWT#SYSTEM_MODAL
  */
 public Dialog (Shell parent, int style) {
 	checkParent (parent);

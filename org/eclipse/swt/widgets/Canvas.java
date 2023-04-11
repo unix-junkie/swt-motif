@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -70,6 +70,33 @@ Canvas () {
 public Canvas (Composite parent, int style) {
 	super (parent, style);
 }
+/** 
+ * Fills the interior of the rectangle specified by the arguments,
+ * with the receiver's background. 
+ *
+ * @param gc the gc where the rectangle is to be filled
+ * @param x the x coordinate of the rectangle to be filled
+ * @param y the y coordinate of the rectangle to be filled
+ * @param width the width of the rectangle to be filled
+ * @param height the height of the rectangle to be filled
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the gc is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the gc has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public void drawBackground (GC gc, int x, int y, int width, int height) {
+	checkWidget ();
+	if (gc == null) error (SWT.ERROR_NULL_ARGUMENT);
+	if (gc.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
+	super.drawBackground (gc, x, y, width, height);
+}
 /**
  * Returns the caret.
  * <p>
@@ -95,17 +122,19 @@ public Caret getCaret () {
 Caret getIMCaret () {
 	return caret;
 }
-void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren) {
+void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren, boolean trim) {
 	boolean isFocus = caret != null && caret.isFocusCaret ();
 	if (isFocus) caret.killFocus ();
-	super.redrawWidget (x, y, width, height, redrawAll, allChildren);
+	super.redrawWidget (x, y, width, height, redrawAll, allChildren, trim);
 	if (isFocus) caret.setFocus ();
 }
 
-void releaseWidget () {
-	if (caret != null) caret.releaseResources ();
-	caret = null;
-	super.releaseWidget();
+void releaseChildren (boolean destroy) {
+	if (caret != null) {
+		caret.release (false);
+		caret = null;
+	}
+	super.releaseChildren (destroy);
 }
 
 /**
@@ -153,22 +182,29 @@ public void scroll (int destX, int destY, int x, int y, int width, int height, b
 		}
 		OS.XtFree (xEvent);
 	}
-	int xGC = OS.XCreateGC (xDisplay, xWindow, 0, null);
-	OS.XCopyArea (xDisplay, xWindow, xWindow, xGC, x, y, width, height, destX, destY);
-	OS.XFreeGC (xDisplay, xGC);
-	boolean disjoint = (destX + width < x) || (x + width < destX) || (destY + height < y) || (y + height < destY);
-	if (disjoint) {
-		OS.XClearArea (xDisplay, xWindow, x, y, width, height, true);
+	Control control = findBackgroundControl ();
+	if (control == null) control = this;
+	if (control.backgroundImage != null) {
+		redrawWidget (x, y, width, height, false, false, false);
+		redrawWidget (destX, destY, width, height, false, false, false);
 	} else {
-		if (deltaX != 0) {
-			int newX = destX - deltaX;
-			if (deltaX < 0) newX = destX + width;
-			OS.XClearArea (xDisplay, xWindow, newX, y, Math.abs (deltaX), height, true);
-		}
-		if (deltaY != 0) {
-			int newY = destY - deltaY;
-			if (deltaY < 0) newY = destY + height;
-			OS.XClearArea (xDisplay, xWindow, x, newY, width, Math.abs (deltaY), true);
+		int xGC = OS.XCreateGC (xDisplay, xWindow, 0, null);
+		OS.XCopyArea (xDisplay, xWindow, xWindow, xGC, x, y, width, height, destX, destY);
+		OS.XFreeGC (xDisplay, xGC);
+		boolean disjoint = (destX + width < x) || (x + width < destX) || (destY + height < y) || (y + height < destY);
+		if (disjoint) {
+			OS.XClearArea (xDisplay, xWindow, x, y, width, height, true);
+		} else {
+			if (deltaX != 0) {
+				int newX = destX - deltaX;
+				if (deltaX < 0) newX = destX + width;
+				OS.XClearArea (xDisplay, xWindow, newX, y, Math.abs (deltaX), height, true);
+			}
+			if (deltaY != 0) {
+				int newY = destY - deltaY;
+				if (deltaY < 0) newY = destY + height;
+				OS.XClearArea (xDisplay, xWindow, x, newY, width, Math.abs (deltaY), true);
+			}
 		}
 	}
 	if (all) {

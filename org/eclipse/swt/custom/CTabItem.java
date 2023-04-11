@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -104,10 +104,11 @@ public CTabItem (CTabFolder parent, int style) {
  *
  * @param parent a CTabFolder which will be the parent of the new instance (cannot be null)
  * @param style the style of control to construct
- * @param index the index to store the receiver in its parent
+ * @param index the zero-relative index to store the receiver in its parent
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
+ *    <li>ERROR_INVALID_RANGE - if the index is not between 0 and the number of elements in the parent (inclusive)</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
@@ -361,14 +362,10 @@ void drawSelected(GC gc ) {
 		if (!parent.single && closeRect.width > 0) maxImageWidth -= closeRect.width + INTERNAL_SPACING;
 		if (imageBounds.width < maxImageWidth) {
 			int imageX = xDraw;
-			int imageHeight = imageBounds.height;
-			int imageY = y + (height - imageHeight) / 2;
+			int imageY = y + (height - imageBounds.height) / 2;
 			imageY += parent.onBottom ? -1 : 1;
-			int imageWidth = imageBounds.width * imageHeight / imageBounds.height;
-			gc.drawImage(image, 
-				         imageBounds.x, imageBounds.y, imageBounds.width, imageBounds.height,
-				         imageX, imageY, imageWidth, imageHeight);
-			xDraw += imageWidth + INTERNAL_SPACING;
+			gc.drawImage(image, imageX, imageY);
+			xDraw += imageBounds.width + INTERNAL_SPACING;
 		}
 	}
 	
@@ -488,7 +485,7 @@ public Rectangle getBounds () {
 	return new Rectangle(x, y, w, height);
 }
 /**
-* Gets the control that is displayed in the content are of the tab item.
+* Gets the control that is displayed in the content area of the tab item.
 *
 * @return the control
 *

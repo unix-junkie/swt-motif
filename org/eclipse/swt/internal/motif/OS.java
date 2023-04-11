@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -52,6 +52,7 @@ public class OS extends Platform {
 	/** Constants */
 	public static final int Above = 0;
 	public static final int AllPlanes = 0xFFFFFFFF;
+	public static final int AllocNone = 0;
 	public static final int Below = 1;
 	public static final int Button1Mask = (1<<8);
 	public static final int Button2Mask = (1<<9);
@@ -68,6 +69,7 @@ public class OS extends Platform {
 	public static final int Button5MotionMask = 1 << 12;
 	public static final int CWBackPixmap = 0x1;
 	public static final int CWBitGravity = 0x10;
+	public static final int CWColormap = 1 << 13;
 	public static final int CWCursor = 0x4000;
 	public static final int CWDontPropagate = 0x1000;
 	public static final int CWEventMask = 0x800;
@@ -93,6 +95,7 @@ public class OS extends Platform {
 	public static final int Expose = 12;
 	public static final int ExposureMask = 1 << 15;
 	public static final int FillStippled = 0x2;
+	public static final int FillTiled = 0x1;
 	public static final int FocusChangeMask = 1 << 21;
 	public static final int FocusIn = 9;
 	public static final int FocusOut = 10;
@@ -104,6 +107,10 @@ public class OS extends Platform {
 	public static final int GCFunction = 0x1;
 	public static final int GCJoinStyle = 1 << 7;
 	public static final int GCLineWidth = 0x10;
+	public static final int GCFillStyle = 1<<8;
+	public static final int GCTile = 1<<10;
+	public static final int GCTileStipXOrigin	= 1<<12;
+	public static final int GCTileStipYOrigin	= 1<<13;
 	public static final int GXand = 0x1;
 	public static final int GXcopy = 0x3;
 	public static final int GXxor = 0x6;
@@ -156,6 +163,7 @@ public class OS extends Platform {
 	public static final int NotifyNormal = 0x0;
 	public static final int NotifyGrab = 0x1;
 	public static final int NotifyUngrab = 0x2;
+	public static final int ParentRelative = 1;
 	public static final int PMinSize = 1 << 4;
 	public static final int PMaxSize = 1 << 5;
 	public static final int PPosition = 1 << 2;
@@ -169,6 +177,7 @@ public class OS extends Platform {
 	public static final int ReparentNotify = 21;
 	public static final int ResizeRedirectMask = 1 << 18;
 	public static final int RevertToParent = 0x2;
+	public static final int RTLD_LAZY = 1; 
 	public static final int SelectionClear = 29;
 	public static final int SelectionNotify = 31;
 	public static final int SelectionRequest = 30;
@@ -404,6 +413,7 @@ public class OS extends Platform {
 	public static final int XmNarrowSize = malloc ("arrowSize", 2);
 	public static final int XmNarrowSpacing = malloc ("arrowSpacing", 2);
 	public static final int XmNbackground = malloc ("background", 4);
+	public static final int XmNbackgroundPixmap = malloc ("backgroundPixmap", 4);
 	public static final int XmNblendModel = malloc ("blendModel", 1);
 	public static final int XmNblinkRate = malloc ("blinkRate", 4);
 	public static final int XmNborderColor = malloc ("borderColor", 4);
@@ -426,6 +436,7 @@ public class OS extends Platform {
 	public static final int XmNdecrementCallback = malloc ("decrementCallback", 4);
 	public static final int XmNdefaultActionCallback = malloc ("defaultActionCallback", 4);
 	public static final int XmNdefaultButtonShadowThickness = malloc ("defaultButtonShadowThickness", 4);
+	public static final int XmNdefaultPosition = malloc ("defaultPosition", 1);
 	public static final int XmNdeleteResponse = malloc ("deleteResponse", 1);
 	public static final int XmNdialogStyle = malloc ("dialogStyle", 1);
 	public static final int XmNdialogTitle = malloc ("dialogTitle", 4);
@@ -574,6 +585,7 @@ public class OS extends Platform {
 	public static final int XmNverifyBell = malloc ("verifyBell", 1);
 	public static final int XmNverticalScrollBar = malloc ("verticalScrollBar", 4);
 	public static final int XmNvisibleItemCount = malloc ("visibleItemCount", 4);
+	public static final int XmNvisual = malloc ("visual", 4);
 	public static final int XmNUMERIC = 0x3;
 	public static final int XmNwidth = malloc ("width", 2);
 	public static final int XmNwordWrap = malloc ("wordWrap", 1);
@@ -633,6 +645,136 @@ public class OS extends Platform {
 		return result;
 	}
 	static final native int setResourceMem (int start, int end);
+
+/** X render natives and constants */
+public static final int PictStandardARGB32 = 0;
+public static final int PictStandardRGB24 = 1;
+public static final int PictStandardA8 = 2;
+public static final int PictStandardA4 = 3;
+public static final int PictStandardA1 = 4;
+public static final int PictOpSrc = 1;
+public static final int PictOpOver = 3;
+
+public static final native int XRenderPictureAttributes_sizeof();
+public static final native boolean _XRenderQueryExtension(int /*long*/ display, int[] event_basep, int[] error_basep);
+public static final boolean XRenderQueryExtension(int /*long*/ display, int[] event_basep, int[] error_basep) {
+	lock.lock();
+	try {
+		return _XRenderQueryExtension(display, event_basep, error_basep);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native int _XRenderQueryVersion(int /*long*/ display, int[] major_versionp, int[] minor_versionp);
+public static final int XRenderQueryVersion(int /*long*/ display, int[] major_versionp, int[] minor_versionp) {
+	lock.lock();
+	try {
+		return _XRenderQueryVersion(display, major_versionp, minor_versionp);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native int /*long*/ _XRenderCreatePicture(int /*long*/ display, int /*long*/ drawable, int /*long*/ format, int /*long*/ valuemask, XRenderPictureAttributes attributes);
+public static final int /*long*/ XRenderCreatePicture(int /*long*/ display, int /*long*/ drawable, int /*long*/ format, int /*long*/ valuemask, XRenderPictureAttributes attributes) {
+	lock.lock();
+	try {
+		return _XRenderCreatePicture(display, drawable, format, valuemask, attributes);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native void _XRenderSetPictureClipRegion(int /*long*/ display, int /*long*/ picture, int /*long*/ region);
+public static final void XRenderSetPictureClipRegion(int /*long*/ display, int /*long*/ picture, int /*long*/ region) {
+	lock.lock();
+	try {
+		_XRenderSetPictureClipRegion(display, picture, region);
+	} finally {
+		lock.unlock();
+	}
+}
+
+public static final native void _XRenderSetPictureClipRectangles(int /*long*/ display, int /*long*/ picture, int xOrigin, int yOrigin, short[] rects, int count);
+public static final void XRenderSetPictureClipRectangles(int /*long*/ display, int /*long*/ picture, int xOrigin, int yOrigin, short[] rects, int count) {
+	lock.lock();
+	try {
+		_XRenderSetPictureClipRectangles(display, picture, xOrigin, yOrigin, rects, count);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native void _XRenderSetPictureTransform(int /*long*/ display, int /*long*/ picture, int[] transform);
+public static final void XRenderSetPictureTransform(int /*long*/ display, int /*long*/ picture, int[] transform) {
+	lock.lock();
+	try {
+		_XRenderSetPictureTransform(display, picture, transform);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native void _XRenderFreePicture(int /*long*/ display, int /*long*/ picture);
+public static final void XRenderFreePicture(int /*long*/ display, int /*long*/ picture) {
+	lock.lock();
+	try {
+		_XRenderFreePicture(display, picture);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native void _XRenderComposite(int /*long*/ display, int op, int /*long*/ src, int /*long*/ mask, int /*long*/ dst, int src_x, int src_y, int mask_x, int mask_y, int dst_x, int dst_y, int width, int height);
+public static final void XRenderComposite(int /*long*/ display, int op, int /*long*/ src, int /*long*/ mask, int /*long*/ dst, int src_x, int src_y, int mask_x, int mask_y, int dst_x, int dst_y, int width, int height) {
+	lock.lock();
+	try {
+		_XRenderComposite(display, op, src, mask, dst, src_x, src_y, mask_x, mask_y, dst_x, dst_y, width, height);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native int /*long*/ _XRenderFindStandardFormat(int /*long*/ display, int format);
+public static final int /*long*/ XRenderFindStandardFormat(int /*long*/ display, int format) {
+	lock.lock();
+	try {
+		return _XRenderFindStandardFormat(display, format);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native int /*long*/ _XRenderFindVisualFormat(int /*long*/ display, int /*long*/ visual);
+public static final int /*long*/ XRenderFindVisualFormat(int /*long*/ display, int /*long*/ visual) {
+	lock.lock();
+	try {
+		return _XRenderFindVisualFormat(display, visual);
+	} finally {
+		lock.unlock();
+	}
+}
+
+public static final native int _dlclose(int /*long*/ handle);
+public static final int dlclose(int /*long*/ handle) {
+	lock.lock();
+	try {
+		return _dlclose(handle);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native int /*long*/ _dlopen(byte[] filename, int flag);
+public static final int /*long*/ dlopen(byte[] filename, int flag) {
+	lock.lock();
+	try {
+		return _dlopen(filename, flag);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native int /*long*/ _dlsym(int /*long*/ handle, byte[] symbol);
+public static final int /*long*/ dlsym(int /*long*/ handle, byte[] symbol) {
+	lock.lock();
+	try {
+		return _dlsym(handle, symbol);
+	} finally {
+		lock.unlock();
+	}
+}
 
 /** JNI native methods */
 public static final native int MonitorEnter(Object object);
@@ -848,6 +990,15 @@ public static final int XCreateBitmapFromData(int display, int drawable, byte[] 
 	lock.lock();
 	try {
 		return _XCreateBitmapFromData(display, drawable, data, width, height);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native int _XCreateColormap(int display, int window, int visual, int alloc);
+public static final int XCreateColormap(int display, int window, int visual, int alloc) {
+	lock.lock();
+	try {
+		return _XCreateColormap(display, window, visual, alloc);
 	} finally {
 		lock.unlock();
 	}
@@ -1181,6 +1332,15 @@ public static final int XFree(int address) {
 	lock.lock();
 	try {
 		return _XFree(address);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native int _XFreeColormap(int display, int colormap);
+public static final int XFreeColormap(int display, int colormap) {
+	lock.lock();
+	try {
+		return _XFreeColormap(display, colormap);
 	} finally {
 		lock.unlock();
 	}
@@ -1748,6 +1908,33 @@ public static final void XSetSubwindowMode(int display, int gc, int subwindow_mo
 	lock.lock();
 	try {
 		_XSetSubwindowMode(display, gc, subwindow_mode);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native void _XSetTile(int display, int gc, int pixmap);
+public static final void XSetTile(int display, int gc, int pixmap) {
+	lock.lock();
+	try {
+		_XSetTile(display, gc, pixmap);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native void _XSetTSOrigin(int display, int gc, int ts_x_origin, int ts_y_origin);
+public static final void XSetTSOrigin(int display, int gc, int ts_x_origin, int ts_y_origin) {
+	lock.lock();
+	try {
+		_XSetTSOrigin(display, gc, ts_x_origin, ts_y_origin);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native void _XSetWindowBackgroundPixmap(int display, int w, int pixmap);
+public static final void XSetWindowBackgroundPixmap(int display, int w, int pixmap) {
+	lock.lock();
+	try {
+		_XSetWindowBackgroundPixmap(display, w, pixmap);
 	} finally {
 		lock.unlock();
 	}
@@ -3287,6 +3474,15 @@ public static final void XmTextShowPosition(int widget, int position) {
 	lock.lock();
 	try {
 		_XmTextShowPosition(widget, position);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native int _XmTextXYToPos(int widget, short x, short y);
+public static final int XmTextXYToPos(int widget, short x, short y) {
+	lock.lock();
+	try {
+		return _XmTextXYToPos(widget, x, y);
 	} finally {
 		lock.unlock();
 	}

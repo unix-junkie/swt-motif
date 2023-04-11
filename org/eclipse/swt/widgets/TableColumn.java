@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -16,13 +16,13 @@ import org.eclipse.swt.graphics.*;
 
 /**
  * Instances of this class represent a column in a table widget.
- *  <dl>
+ * <p><dl>
  * <dt><b>Styles:</b></dt>
  * <dd>LEFT, RIGHT, CENTER</dd>
  * <dt><b>Events:</b></dt>
  * <dd> Move, Resize, Selection</dd>
  * </dl>
- * <p>
+ * </p><p>
  * Note: Only one of the styles LEFT, RIGHT and CENTER may be specified.
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
@@ -33,6 +33,8 @@ public class TableColumn extends Item {
 	String displayText = "";
 	int width;
 	boolean moveable, resizable = true;
+	int sort = SWT.NONE;
+	String toolTipText;
 
 /**
  * Constructs a new instance of this class given its parent
@@ -86,10 +88,11 @@ public TableColumn (Table parent, int style) {
  *
  * @param parent a composite control which will be the parent of the new instance (cannot be null)
  * @param style the style of control to construct
- * @param index the index to store the receiver in its parent
+ * @param index the zero-relative index to store the receiver in its parent
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
+ *    <li>ERROR_INVALID_RANGE - if the index is not between 0 and the number of elements in the parent (inclusive)</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
@@ -181,6 +184,10 @@ void computeDisplayText (GC gc) {
 		availableWidth -= image.getBounds ().width;
 		availableWidth -= Table.MARGIN_IMAGE;
 	}
+	if (sort != SWT.NONE) {
+		availableWidth -= parent.arrowBounds.width;
+		availableWidth -= Table.MARGIN_IMAGE;
+	}
 	String text = this.text;
 	int textWidth = gc.textExtent (text, SWT.DRAW_MNEMONIC).x;
 	if (textWidth <= availableWidth) {
@@ -197,7 +204,7 @@ void computeDisplayText (GC gc) {
 	}
 	
 	/* Make initial guess. */
-	int index = availableWidth / gc.getFontMetrics ().getAverageCharWidth ();
+	int index = Math.min (availableWidth / gc.getFontMetrics ().getAverageCharWidth (), text.length ());
 	textWidth = gc.textExtent (text.substring (0, index), SWT.DRAW_MNEMONIC).x;
 
 	/* Initial guess is correct. */
@@ -230,25 +237,33 @@ void computeDisplayText (GC gc) {
 }
 public void dispose () {
 	if (isDisposed ()) return;
-	Rectangle parentBounds = parent.getClientArea ();
+	Rectangle parentBounds = parent.clientArea;
 	int x = getX ();
 	int index = getIndex ();
 	int orderIndex = getOrderIndex ();
+	int nextColumnAlignment = parent.columns.length > 1 ? parent.columns [1].getAlignment () : SWT.LEFT;
 	Table parent = this.parent;
 	dispose (true);
 
 	int width = parentBounds.width - x;
 	parent.redraw (x, 0, width, parentBounds.height, false);
 	/* 
-	 * If column 0 was disposed and if the parent has style CHECK then
-	 * the new column 0 will change, so explicitly redraw it if it appears to
-	 * the left of the disposed column in the column order.
+	 * If column 0 was disposed then the new column 0 must be redrawn if it appears to the
+	 * left of the disposed column in the column order AND one the following are true:
+	 * - the parent has style CHECK, since these will now appear in the new column 0
+	 * - the new column 0 had non-left alignment before the dispose, since the parent will have
+	 * 	changed this to LEFT in the call to dispose(true)
 	 */
-	if ((parent.style & SWT.CHECK) != 0 && index == 0) {
+	if (index == 0 && ((parent.style & SWT.CHECK) != 0 || nextColumnAlignment != SWT.LEFT)) {
 		if (parent.columns.length > 0) {
 			TableColumn newColumn0 = parent.columns [0];
 			if (newColumn0.getOrderIndex () < orderIndex) {
-				parent.redraw (newColumn0.getX (), 0, newColumn0.width, parentBounds.height, false);
+				int newColumn0x = newColumn0.getX (); 
+				parent.redraw (newColumn0x, 0, newColumn0.width, parentBounds.height, false);
+				/* if the alignment changed then the header text must be repainted with its new alignment */
+				if (nextColumnAlignment != SWT.LEFT && parent.getHeaderVisible () && parent.drawCount == 0) {
+					parent.header.redraw (newColumn0x, 0, newColumn0.width, parent.header.getClientArea ().height, false);
+				}
 			}
 		}
 	}
@@ -257,7 +272,7 @@ public void dispose () {
 	}
 }
 void dispose (boolean notifyParent) {
-	super.dispose ();	/* the use of super is intentional here */
+	super.dispose ();	/* super is intentional here */
 	if (notifyParent) parent.destroyItem (this);
 	parent = null;
 }
@@ -280,7 +295,8 @@ public int getAlignment () {
 	return SWT.LEFT;
 }
 /*
- * Returns the width of the header's content (image + text + margin widths)
+ * Returns the width of the header's content
+ * (image + text + sort arrow + internal margins)
  */
 int getContentWidth (GC gc, boolean useDisplayText) {
 	int contentWidth = 0;
@@ -291,6 +307,12 @@ int getContentWidth (GC gc, boolean useDisplayText) {
 	if (image != null) {
 		contentWidth += image.getBounds ().width;
 		if (text.length () > 0) contentWidth += Table.MARGIN_IMAGE;
+	}
+	if (sort != SWT.NONE) {
+		contentWidth += parent.arrowBounds.width;
+		if (text.length () > 0 || image != null) {
+			contentWidth += Table.MARGIN_IMAGE;
+		}
 	}
 	return contentWidth;
 }
@@ -371,6 +393,23 @@ public boolean getResizable () {
 	return resizable;
 }
 /**
+ * Returns the receiver's tool tip text, or null if it has
+ * not been set.
+ *
+ * @return the receiver's tool tip text
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public String getToolTipText () {
+	checkWidget ();
+	return toolTipText;
+}
+/**
  * Gets the width of the receiver.
  *
  * @return the width
@@ -410,7 +449,12 @@ public void pack () {
 	int index = getIndex ();
 	int newWidth = getPreferredWidth ();
 	for (int i = 0; i < parent.itemsCount; i++) {
-		newWidth = Math.max (newWidth, items [i].getPreferredWidth (index));
+		int width = items [i].getPreferredWidth (index);
+		/* ensure that receiver and parent were not disposed in a callback */
+		if (parent.isDisposed () || isDisposed ()) return;
+		if (!items [i].isDisposed ()) {
+			newWidth = Math.max (newWidth, width);
+		}
 	}
 	if (newWidth != width) parent.updateColumnWidth (this, newWidth);
 }
@@ -445,13 +489,18 @@ void paint (GC gc) {
 			imageBounds.width, imageBounds.height,
 			startX, (headerHeight - drawHeight) / 2,
 			imageBounds.width, drawHeight); 
-		startX += imageBounds.width;
-		if (displayText.length () > 0) startX += Table.MARGIN_IMAGE; 
+		startX += imageBounds.width + Table.MARGIN_IMAGE; 
 	}
 	if (displayText.length () > 0) {
 		gc.setForeground (display.getSystemColor (SWT.COLOR_BLACK));
 		int fontHeight = parent.fontHeight;
 		gc.drawText (displayText, startX, (headerHeight - fontHeight) / 2, SWT.DRAW_MNEMONIC);
+		startX += gc.textExtent (displayText, SWT.DRAW_MNEMONIC).x + Table.MARGIN_IMAGE;
+	}
+	if (sort != SWT.NONE) {
+		Image image = sort == SWT.DOWN ? parent.getArrowDownImage () : parent.getArrowUpImage ();
+		int y = (headerHeight - parent.arrowBounds.height) / 2;
+		gc.drawImage (image, startX, y);
 	}
 }
 /**
@@ -523,7 +572,7 @@ public void setAlignment (int alignment) {
 	style &= ~(SWT.LEFT | SWT.CENTER | SWT.RIGHT);
 	style |= alignment;
 	int x = getX ();
-	parent.redraw (x, 0, width, parent.getClientArea ().height, false);
+	parent.redraw (x, 0, width, parent.clientArea.height, false);
 	if (parent.drawCount == 0 && parent.getHeaderVisible ()) {
 		parent.header.redraw (x, 0, width, parent.getHeaderHeight (), false);		
 	}
@@ -603,6 +652,23 @@ public void setResizable (boolean value) {
 	checkWidget ();
 	resizable = value;
 }
+void setSortDirection (int value) {
+	if (value == sort) return;
+	boolean widthChange = value == SWT.NONE || sort == SWT.NONE;
+	sort = value;
+	if (widthChange) {
+		/* 
+		 * adding/removing the sort arrow decreases/increases the width that is
+		 * available for the column's header text, so recompute the display text
+		 */
+		GC gc = new GC (parent);
+		computeDisplayText (gc);
+		gc.dispose ();
+	}
+	if (parent.drawCount == 0 && parent.getHeaderVisible ()) {
+		parent.header.redraw (getX (), 0, width, parent.getHeaderHeight (), false);
+	}
+}
 public void setText (String value) {
 	checkWidget ();
 	if (value == null) error (SWT.ERROR_NULL_ARGUMENT);
@@ -614,6 +680,28 @@ public void setText (String value) {
 	if (parent.drawCount == 0 && parent.getHeaderVisible ()) {
 		parent.header.redraw (getX (), 0, width, parent.getHeaderHeight (), false);
 	}
+}
+/**
+ * Sets the receiver's tool tip text to the argument, which
+ * may be null indicating that no tool tip text should be shown.
+ *
+ * @param string the new tool tip text (or null)
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public void setToolTipText (String string) {
+	checkWidget ();
+	if (toolTipText == string) return;
+	if (toolTipText != null && toolTipText.equals (string)) return;
+	toolTipText = string;
+	if (parent.toolTipShell == null) return; /* tooltip not currently showing */
+	if (((Integer) parent.toolTipShell.getData ()).intValue () != getIndex ()) return;	/* tooltip showing for different column */
+	parent.headerUpdateToolTip (getX () + (width / 2));	/* update the tooltip text */
 }
 /**
  * Sets the width of the receiver.
@@ -633,5 +721,19 @@ public void setWidth (int value) {
 }
 void updateFont (GC gc) {
 	computeDisplayText (gc);
+}
+/*
+ * Perform any internal changes necessary to reflect a changed width.
+ */
+void updateWidth (GC gc) {
+	String oldDisplayText = displayText;
+	computeDisplayText (gc);
+	/* the header must be damaged if the display text has changed or if the alignment is not LEFT */
+	if (parent.getHeaderVisible ()) {
+		if ((style & SWT.LEFT) == 0 || !oldDisplayText.equals (displayText)) {
+			int padding = parent.getHeaderPadding ();
+			parent.header.redraw (getX () + padding, 0, width - padding, parent.getHeaderHeight (), false);
+		}
+	}
 }
 }

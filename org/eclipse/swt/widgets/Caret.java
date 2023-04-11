@@ -93,10 +93,10 @@ boolean drawCaret () {
 	int gc = OS.XCreateGC (xDisplay, window, 0, null);
 	int color;
 	if (OS.IsSunOS) {
-		int [] argList = {OS.XmNforeground, 0, OS.XmNbackground, 0};
-		OS.XtGetValues (handle, argList, argList.length / 2);
-		int foreground = argList [1];
-		int background = argList [3];
+		int foreground = parent.getForegroundPixel ();
+		Control control = parent.findBackgroundControl ();
+		if (control == null) control = parent;
+		int background = control.getBackgroundPixel ();
 		color = foreground ^ background;
 	} else {
 		int screenNum = OS.XDefaultScreen (xDisplay);	
@@ -263,8 +263,8 @@ void killFocus () {
 	display.setCurrentCaret (null);
 	if (isVisible) hideCaret ();
 }
-void releaseChild () {
-	super.releaseChild ();
+void releaseParent () {
+	super.releaseParent ();
 	if (this == parent.getCaret ()) parent.setCaret (null);
 }
 void releaseWidget () {

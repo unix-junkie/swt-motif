@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -101,10 +101,11 @@ public ToolItem (ToolBar parent, int style) {
  *
  * @param parent a composite control which will be the parent of the new instance (cannot be null)
  * @param style the style of control to construct
- * @param index the index to store the receiver in its parent
+ * @param index the zero-relative index to store the receiver in its parent
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
+ *    <li>ERROR_INVALID_RANGE - if the index is not between 0 and the number of elements in the parent (inclusive)</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
@@ -164,7 +165,6 @@ protected void checkSubclass () {
 	if (!isValidSubclass ()) error (SWT.ERROR_INVALID_SUBCLASS);
 }
 void createHandle (int index) {
-	state |= HANDLE;
 	int parentHandle = parent.handle;
 	if ((style & SWT.SEPARATOR) != 0) {
 		int orientation = (parent.style & SWT.HORIZONTAL) != 0 ? OS.XmVERTICAL : OS.XmHORIZONTAL;
@@ -194,8 +194,9 @@ void createHandle (int index) {
 	};
 	handle = OS.XmCreateDrawnButton (parentHandle, null, argList, argList.length / 2);
 	if (handle == 0) error (SWT.ERROR_NO_HANDLES);
-	int pixel = parent.getBackgroundPixel ();
-	setBackgroundPixel (pixel);
+	Control control = parent.findBackgroundControl ();
+	if (control == null) control = parent;
+	setBackgroundPixel (parent.getBackgroundPixel ());
 }
 
 void click (boolean dropDown, int state) {
@@ -286,6 +287,22 @@ Point computeSize (GC gc) {
 	}
 	return new Point (width, height);
 }
+void createWidget (int index) {
+	super.createWidget (index);
+	int topHandle = topHandle ();
+	if (OS.XtIsRealized (topHandle)) {
+		/*
+		* Make sure that the widget has been properly realized
+		* because the widget was created after the parent
+		* has been realized.
+		*/
+		realizeChildren ();
+	}
+}
+void destroyWidget () {
+	parent.destroyItem (this);
+	super.destroyWidget ();
+}
 public void dispose () {
 	if (isDisposed()) return;
 	ToolBar parent = this.parent;
@@ -311,7 +328,7 @@ public Rectangle getBounds () {
 }
 /**
  * Returns the control that is used to fill the bounds of
- * the item when the items is a <code>SEPARATOR</code>.
+ * the item when the item is a <code>SEPARATOR</code>.
  *
  * @return the control
  *
@@ -501,6 +518,11 @@ public boolean isEnabled () {
 void manageChildren () {
 	OS.XtManageChild (handle);
 }
+void realizeChildren () {
+	if ((parent.state & PARENT_BACKGROUND) != 0) {
+		setParentBackground ();
+	}
+}
 void redraw () {
 	int display = OS.XtDisplay (handle);
 	if (display == 0) return;
@@ -508,15 +530,17 @@ void redraw () {
 	if (window == 0) return;
 	OS.XClearArea (display, window, 0, 0, 0, 0, true);
 }
-void releaseChild () {
-	super.releaseChild ();
-	parent.destroyItem (this);
+void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren, boolean trim) {
+	redrawHandle (x, y, width, height, redrawAll, handle);
+}
+void releaseHandle () {
+	super.releaseHandle ();
+	parent = null;
 }
 void releaseWidget () {
-	display.releaseToolTipHandle (handle);
 	super.releaseWidget ();
+	display.releaseToolTipHandle (handle);
 	if (parent.lastFocus == this) parent.lastFocus = null;
-	parent = null;
 	control = null;
 	toolTipText = null;
 	image = disabledImage = hotImage = null; 
@@ -572,7 +596,7 @@ void setBounds (int x, int y, int width, int height) {
 }
 /**
  * Sets the control that is used to fill the bounds of
- * the item when the items is a <code>SEPARATOR</code>.
+ * the item when the item is a <code>SEPARATOR</code>.
  *
  * @param control the new control
  *
@@ -714,6 +738,9 @@ public void setImage (Image image) {
 	parent.relayout();
 	redraw ();
 }
+void setParentBackground () {
+	parent.setParentBackground (handle);
+}
 boolean setRadioSelection (boolean value) {
 	if ((style & SWT.RADIO) == 0) return false;
 	if (getSelection () != value) {
@@ -749,14 +776,14 @@ public void setSelection (boolean selected) {
  * the mnemonic character.
  * </p>
  * <p>
- * Mnemonics are indicated by an '&amp' that causes the next
+ * Mnemonics are indicated by an '&amp;' that causes the next
  * character to be the mnemonic.  When the user presses a
  * key sequence that matches the mnemonic, a selection
  * event occurs. On most platforms, the mnemonic appears
  * underlined but may be emphasised in a platform specific
- * manner.  The mnemonic indicator character '&amp' can be
+ * manner.  The mnemonic indicator character '&amp;' can be
  * escaped by doubling it in the string, causing a single
- *'&amp' to be displayed.
+ * '&amp;' to be displayed.
  * </p>
  * 
  * @param string the new text
@@ -831,16 +858,9 @@ void propagateWidget (boolean enabled) {
 	propagateHandle (enabled, handle, OS.None);
 }
 int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatch) {
-//	Shell shell = parent.getShell ();
 	display.hideToolTip ();
 	XButtonEvent xEvent = new XButtonEvent ();
 	OS.memmove (xEvent, call_data, XButtonEvent.sizeof);
-	if (xEvent.button == 1) {
-		if (!set && (style & SWT.RADIO) == 0) {
-			setDrawPressed (!set);
-		}
-	}
-	
 	/*
 	* Forward the mouse event to the parent.
 	* This is necessary so that mouse listeners
@@ -854,33 +874,17 @@ int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatc
 	xEvent.window = OS.XtWindow (parent.handle);
 	xEvent.x += argList [1];  xEvent.y += argList [3];
 	OS.memmove (call_data, xEvent, XButtonEvent.sizeof);
-	parent.XButtonPress (w, client_data, call_data, continue_to_dispatch);
-
-	/*
-	* It is possible that the shell may be
-	* disposed at this point.  If this happens
-	* don't send the activate and deactivate
-	* events.
-	*/	
-//	if (!shell.isDisposed()) {
-//		shell.setActiveControl (parent);
-//	}
-	return 0;
+	int result = parent.XButtonPress (w, client_data, call_data, continue_to_dispatch);
+	xEvent.x -= argList [1];  xEvent.y -= argList [3];
+	if (result == 0 && xEvent.button == 1) {
+		if (!set) setDrawPressed (!set);
+	}
+	return result;
 }
 int XButtonRelease (int w, int client_data, int call_data, int continue_to_dispatch) {
 	display.hideToolTip(); 
 	XButtonEvent xEvent = new XButtonEvent ();
 	OS.memmove (xEvent, call_data, XButtonEvent.sizeof);
-	if (xEvent.button == 1) {
-		int [] argList = {OS.XmNwidth, 0, OS.XmNheight, 0};
-		OS.XtGetValues (handle, argList, argList.length / 2);
-		int width = argList [1], height = argList [3];
-		if (0 <= xEvent.x && xEvent.x < width && 0 <= xEvent.y && xEvent.y < height) {
-			click (xEvent.x > width - 12, xEvent.state);
-		}
-		setDrawPressed(set);
-	}
-
 	/*
 	* Forward the mouse event to the parent.
 	* This is necessary so that mouse listeners
@@ -894,9 +898,18 @@ int XButtonRelease (int w, int client_data, int call_data, int continue_to_dispa
 	xEvent.window = OS.XtWindow (parent.handle);
 	xEvent.x += argList [1];  xEvent.y += argList [3];
 	OS.memmove (call_data, xEvent, XButtonEvent.sizeof);
-	parent.XButtonRelease (w, client_data, call_data, continue_to_dispatch);
-
-	return 0;
+	int result = parent.XButtonRelease (w, client_data, call_data, continue_to_dispatch);
+	xEvent.x -= argList [1];  xEvent.y -= argList [3];
+	if (result == 0 && xEvent.button == 1) {
+		int [] argList2 = {OS.XmNwidth, 0, OS.XmNheight, 0};
+		OS.XtGetValues (handle, argList2, argList2.length / 2);
+		int width = argList2 [1], height = argList2 [3];
+		if (0 <= xEvent.x && xEvent.x < width && 0 <= xEvent.y && xEvent.y < height) {
+			click (xEvent.x > width - 12, xEvent.state);
+		}
+		setDrawPressed (set);
+	}
+	return result;
 }
 int XEnterWindow (int w, int client_data, int call_data, int continue_to_dispatch) {
 	XCrossingEvent xEvent = new XCrossingEvent ();
@@ -937,8 +950,10 @@ int XKeyPress (int w, int client_data, int call_data, int continue_to_dispatch) 
 			result = 1;
 			break;
 		case OS.XK_Down:
-			click (true, xEvent.state);
-			result = 1;
+			if ((style & SWT.DROP_DOWN) != 0) {
+				click (true, xEvent.state);
+				result = 1;
+			}
 			break;
 	}
 	/*
@@ -1083,7 +1098,7 @@ int XmNexposureCallback (int w, int client_data, int call_data) {
 		textX -= 6;  imageX -=6;
 	}
 	if (textWidth > 0) {
-		int flags = SWT.DRAW_DELIMITER | SWT.DRAW_TAB | SWT.DRAW_MNEMONIC;
+		int flags = SWT.DRAW_DELIMITER | SWT.DRAW_TAB | SWT.DRAW_MNEMONIC | SWT.DRAW_TRANSPARENT;
 		gc.drawText(text, textX, textY, flags);
 	}
 	if (imageWidth > 0) gc.drawImage(currentImage, imageX, imageY);
@@ -1127,8 +1142,10 @@ int XPointerMotion (int w, int client_data, int call_data, int continue_to_dispa
 	*/
 //	OS.memmove (callData, xEvent, XButtonEvent.sizeof);
 //	parent.XPointerMotion (w, client_data, call_data, continue_to_dispatch);
-	parent.sendMouseEvent (SWT.MouseMove, xEvent);
-
+	if (!parent.sendMouseEvent (SWT.MouseMove, xEvent)) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
+	}
 	return 0;
 }
 }

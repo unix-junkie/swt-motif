@@ -66,6 +66,7 @@ public class CLabel extends Canvas {
 	private Color[] gradientColors;
 	private int[] gradientPercents;
 	private boolean gradientVertical;
+	private Color background;
 	
 	private static int DRAW_FLAGS = SWT.DRAW_MNEMONIC | SWT.DRAW_TAB | SWT.DRAW_TRANSPARENT | SWT.DRAW_DELIMITER;
 
@@ -137,18 +138,7 @@ private static int checkStyle (int style) {
 	if ((style & SWT.BORDER) != 0) style |= SWT.SHADOW_IN;
 	int mask = SWT.SHADOW_IN | SWT.SHADOW_OUT | SWT.SHADOW_NONE | SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT;
 	style = style & mask;
-	style |= SWT.NO_FOCUS;
-	//TEMPORARY CODE
-	/*
-	 * The default background on carbon and some GTK themes is not a solid color 
-	 * but a texture.  To show the correct default background, we must allow
-	 * the operating system to draw it and therefore, we can not use the 
-	 * NO_BACKGROUND style.  The NO_BACKGROUND style is not required on platforms
-	 * that use double buffering which is true in both of these cases.
-	 */
-	String platform = SWT.getPlatform();
-	if ("carbon".equals(platform) || "gtk".equals(platform)) return style; //$NON-NLS-1$ //$NON-NLS-2$
-	return style | SWT.NO_BACKGROUND;
+	return style |= SWT.NO_FOCUS | SWT.DOUBLE_BUFFERED;
 }
 
 //protected void checkSubclass () {
@@ -186,7 +176,11 @@ private void drawBevelRect(GC gc, int x, int y, int w, int h, Color topleft, Col
 	gc.drawLine(x, y, x+w-1, y);
 	gc.drawLine(x, y, x,     y+h-1);
 }
-
+/*
+ * Return the lowercase of the first non-'&' character following
+ * an '&' character in the given string. If there are no '&'
+ * characters in the given string, return '\0'.
+ */
 char _findMnemonic (String string) {
 	if (string == null) return '\0';
 	int index = 0;
@@ -194,12 +188,11 @@ char _findMnemonic (String string) {
 	do {
 		while (index < length && string.charAt (index) != '&') index++;
 		if (++index >= length) return '\0';
-		if (string.charAt (index) != '&') return string.charAt (index);
+		if (string.charAt (index) != '&') return Character.toLowerCase (string.charAt (index));
 		index++;
 	} while (index < length);
  	return '\0';
 }
-
 /**
  * Returns the alignment.
  * The alignment style (LEFT, CENTER or RIGHT) is returned.
@@ -310,10 +303,6 @@ private void initAccessible() {
 		public void getState(AccessibleControlEvent e) {
 			e.detail = ACC.STATE_READONLY;
 		}
-		
-		public void getValue(AccessibleControlEvent e) {
-			e.result = getText();
-		}
 	});
 }
 void onDispose(DisposeEvent event) {
@@ -327,7 +316,7 @@ void onDispose(DisposeEvent event) {
 void onMnemonic(TraverseEvent event) {
 	char mnemonic = _findMnemonic(text);
 	if (mnemonic == '\0') return;
-	if (Character.toUpperCase(event.character) != Character.toUpperCase(mnemonic)) return;
+	if (Character.toLowerCase(event.character) != mnemonic) return;
 	Composite control = this.getParent();
 	while (control != null) {
 		Control [] children = control.getChildren();
@@ -450,13 +439,13 @@ void onPaint(PaintEvent event) {
 			}
 			gc.setBackground(oldBackground);
 		} else {
-			if ((getStyle() & SWT.NO_BACKGROUND) != 0) {
+			if (background != null || (getStyle() & SWT.DOUBLE_BUFFERED) == 0) {
 				gc.setBackground(getBackground());
 				gc.fillRectangle(rect);
 			}
 		}
 	} catch (SWTException e) {
-		if ((getStyle() & SWT.NO_BACKGROUND) != 0) {
+		if ((getStyle() & SWT.DOUBLE_BUFFERED) == 0) {
 			gc.setBackground(getBackground());
 			gc.fillRectangle(rect);
 		}
@@ -549,13 +538,16 @@ public void setAlignment(int align) {
 public void setBackground (Color color) {
 	super.setBackground (color);
 	// Are these settings the same as before?
-	if (color != null && backgroundImage == null && 
-		gradientColors == null && gradientPercents == null) {
-		Color background = getBackground();
-		if (color.equals(background)) {
-			return;
+	if (backgroundImage == null && 
+		gradientColors == null && 
+		gradientPercents == null) {
+		if (color == null) {
+			if (background == null) return;
+		} else {
+			if (color.equals(background)) return;
 		}		
 	}
+	background = color;
 	backgroundImage = null;
 	gradientColors = null;
 	gradientPercents = null;

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -140,6 +140,7 @@ public ScrolledComposite(Composite parent, int style) {
 	super.setLayout(new ScrolledCompositeLayout());
 	ScrollBar hBar = getHorizontalBar ();
 	if (hBar != null) {
+		hBar.setVisible(false);
 		hBar.addListener (SWT.Selection, new Listener () {
 			public void handleEvent (Event e) {
 				hScroll();
@@ -149,6 +150,7 @@ public ScrolledComposite(Composite parent, int style) {
 	
 	ScrollBar vBar = getVerticalBar ();
 	if (vBar != null) {
+		vBar.setVisible(false);
 		vBar.addListener (SWT.Selection, new Listener () {
 			public void handleEvent (Event e) {
 				vScroll();
@@ -181,6 +183,76 @@ static int checkStyle (int style) {
 public boolean getAlwaysShowScrollBars() {
 	//checkWidget();
 	return alwaysShowScroll;
+}
+
+/**
+ * Returns <code>true</code> if the content control 
+ * will be expanded to fill available horizontal space.
+ *
+ * @return the receiver's horizontal expansion state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public boolean getExpandHorizontal() {
+	checkWidget();
+	return expandHorizontal;
+}
+
+/**
+ * Returns <code>true</code> if the content control 
+ * will be expanded to fill available vertical space.
+ *
+ * @return the receiver's vertical expansion state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public boolean getExpandVertical() {
+	checkWidget();
+	return expandVertical;
+}
+
+/**
+ * Returns the minimum width of the content control.
+ *
+ * @return the minimum width
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public int getMinWidth() {
+	checkWidget();
+	return minWidth;
+}
+
+/**
+ * Returns the minimum height of the content control.
+ *
+ * @return the minimum height
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public int getMinHeight() {
+	checkWidget();
+	return minHeight;
 }
 
 /**
@@ -231,10 +303,10 @@ boolean needVScroll(Rectangle contentRect, boolean hVisible) {
 }
 
 /**
- * Return the point in the content that currenly appears in the top left 
+ * Return the point in the content that currently appears in the top left 
  * corner of the scrolled composite.
  * 
- * @return the point in the content that currenly appears in the top left 
+ * @return the point in the content that currently appears in the top left 
  * corner of the scrolled composite.  If no content has been set, this returns
  * (0, 0).
  * 
@@ -375,7 +447,7 @@ public void setContent(Control content) {
  * Configure the ScrolledComposite to resize the content object to be as wide as the 
  * ScrolledComposite when the width of the ScrolledComposite is greater than the
  * minimum width specified in setMinWidth.  If the ScrolledComposite is less than the
- * minimum width, the content will not resized and instead the horizontal scroll bar will be
+ * minimum width, the content will not be resized and instead the horizontal scroll bar will be
  * used to view the entire width.
  * If expand is false, this behaviour is turned off.  By default, this behaviour is turned off.
  * 
@@ -396,7 +468,7 @@ public void setExpandHorizontal(boolean expand) {
  * Configure the ScrolledComposite to resize the content object to be as tall as the 
  * ScrolledComposite when the height of the ScrolledComposite is greater than the
  * minimum height specified in setMinHeight.  If the ScrolledComposite is less than the
- * minimum height, the content will not resized and instead the vertical scroll bar will be
+ * minimum height, the content will not be resized and instead the vertical scroll bar will be
  * used to view the entire height.
  * If expand is false, this behaviour is turned off.  By default, this behaviour is turned off.
  * 
@@ -417,7 +489,7 @@ public void setExpandVertical(boolean expand) {
  * Sets the layout which is associated with the receiver to be
  * the argument which may be null.
  * <p>
- * Note : No Layout can be set on this Control because it already
+ * Note: No Layout can be set on this Control because it already
  * manages the size and position of its children.
  * </p>
  *

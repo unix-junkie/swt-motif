@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -371,8 +371,6 @@ public void copy () {
 	OS.XmTextCopy (argList [1], OS.XtLastTimestampProcessed (xDisplay));
 }
 void createHandle (int index) {
-	state |= HANDLE;
-	
 	/*
 	* Feature in Motif.  When items are added or removed
 	* from a combo, it may request and be granted, a new
@@ -402,8 +400,15 @@ void createHandle (int index) {
 	if (handle == 0) error (SWT.ERROR_NO_HANDLES);
 	int [] argList3 = {OS.XmNtextField, 0};
 	OS.XtGetValues (handle, argList3, argList3.length / 2);
+	int textHandle = argList3 [1];
 	int [] argList4 = {OS.XmNverifyBell, 0};
-	OS.XtSetValues (argList3 [1], argList4, argList4.length / 2);
+	OS.XtSetValues (textHandle, argList4, argList4.length / 2);
+	/*
+	* Feature in Motif.  The Combo widget is created with a default
+	* drop target.  This is inconsistent with other platforms.
+	* To be consistent, disable the default drop target.
+	*/
+	OS.XmDropSiteUnregister (textHandle);
 }
 /**
  * Cuts the selected text.
@@ -987,6 +992,7 @@ void register () {
 	display.addWidget (argList[3], this);
 }
 void releaseWidget () {
+	super.releaseWidget ();
 	/*
 	* Bug in Motif.  Disposing a Combo while its list is visible
 	* causes Motif to crash.  The fix is to hide the drop down
@@ -995,13 +1001,12 @@ void releaseWidget () {
 	if ((style & SWT.DROP_DOWN) != 0) {
 		int[] argList = new int[] {OS.XmNlist, 0};
 		OS.XtGetValues (handle, argList, argList.length / 2);
-		int parent = OS.XtParent (argList [1]);
-		while (parent != 0 && !OS.XtIsSubclass (parent, OS.shellWidgetClass ())) {
-			parent = OS.XtParent (parent);
+		int xtParent = OS.XtParent (argList [1]);
+		while (xtParent != 0 && !OS.XtIsSubclass (xtParent, OS.shellWidgetClass ())) {
+			xtParent = OS.XtParent (xtParent);
 		}
-		if (parent != 0) OS.XtPopdown (parent);
+		if (xtParent != 0) OS.XtPopdown (xtParent);
 	}
-	super.releaseWidget ();
 }
 /**
  * Searches the receiver's list starting at the first item

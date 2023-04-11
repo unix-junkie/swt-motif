@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -29,7 +29,7 @@ import org.eclipse.swt.accessibility.*;
  *     MouseExit, MouseHover, MouseUp, MouseMove, Move, Paint, Resize, Traverse,
  *     DragDetect, MenuDetect</dd>
  * </dl>
- * <p>
+ * </p><p>
  * Only one of LEFT_TO_RIGHT or RIGHT_TO_LEFT may be specified.
  * </p><p>
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
@@ -41,6 +41,7 @@ public abstract class Control extends Widget implements Drawable {
 	Composite parent;
 	Cursor cursor;
 	Menu menu;
+	Image backgroundImage;
 	Font font;
 	String toolTipText;
 	Object layoutData;
@@ -317,6 +318,30 @@ public void addTraverseListener (TraverseListener listener) {
 int borderHandle () {
 	return topHandle ();
 }
+void checkBackground () {
+	Shell shell = getShell ();
+	if (this == shell) return;
+	state &= ~PARENT_BACKGROUND;
+	Composite composite = parent;
+	do {
+		int mode = composite.backgroundMode;
+		if (mode != 0) {
+			if (mode == SWT.INHERIT_DEFAULT) {
+				Control control = this;
+				do {
+					if ((control.state & THEME_BACKGROUND) == 0) {
+						return;
+					}
+					control = control.parent;
+				} while (control != composite);
+			}
+			state |= PARENT_BACKGROUND;
+			return;
+		}
+		if (composite == shell) break;
+		composite = composite.parent;
+	} while (true);
+}
 void checkBuffered () {
 	style &= ~SWT.DOUBLE_BUFFERED;
 }
@@ -428,6 +453,7 @@ Control [] computeTabList () {
 void createWidget (int index) {
 	checkOrientation (parent);
 	super.createWidget (index);
+	checkBackground ();
 	checkBuffered ();
 	setParentTraversal ();
 	overrideTranslations ();
@@ -503,11 +529,21 @@ Font defaultFont () {
 int defaultForeground () {
 	return display.defaultForeground;
 }
-boolean drawGripper (int x, int y, int width, int height) {
+boolean dragDetect (int x, int y) {
+	return hooks (SWT.DragDetect);
+}
+boolean dragOverride () {
+	return false;
+}
+boolean drawGripper (int x, int y, int width, int height, boolean vertical) {
 	return false;
 }
 void enableWidget (boolean enabled) {
 	enableHandle (enabled, handle);
+}
+Control findBackgroundControl () {
+	if ((state & BACKGROUND) != 0 || backgroundImage != null) return this;
+	return (state & PARENT_BACKGROUND) != 0 ? parent.findBackgroundControl () : null;
 }
 char findMnemonic (String string) {
 	int index = 0;
@@ -624,7 +660,27 @@ public Accessible getAccessible () {
  */
 public Color getBackground () {
 	checkWidget();
-	return Color.motif_new (display, getXColor (getBackgroundPixel ()));
+	Control control = findBackgroundControl ();
+	if (control == null) control = this;
+	return Color.motif_new (display, getXColor (control.getBackgroundPixel ()));
+}
+/**
+ * Returns the receiver's background image.
+ *
+ * @return the background image
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public Image getBackgroundImage () {
+	checkWidget ();
+	Control control = findBackgroundControl ();
+	if (control == null) control = this;
+	return control.backgroundImage;
 }
 int getBackgroundPixel () {
 	int [] argList = {OS.XmNbackground, 0};
@@ -1112,8 +1168,6 @@ public int internal_new_GC (GCData data) {
 	int xGC = OS.XCreateGC (xDisplay, xWindow, 0, null);
 	if (xGC == 0) SWT.error(SWT.ERROR_NO_HANDLES);
 	OS.XSetGraphicsExposures (xDisplay, xGC, false);
-	int [] argList = {OS.XmNforeground, 0, OS.XmNbackground, 0, OS.XmNcolormap, 0};
-	OS.XtGetValues (handle, argList, argList.length / 2);
 	if (data != null) {
 		int mask = SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT;
 		if ((data.style & mask) == 0) {
@@ -1122,10 +1176,15 @@ public int internal_new_GC (GCData data) {
 		data.device = display;
 		data.display = xDisplay;
 		data.drawable = xWindow;
-		data.foreground = argList [1];
-		data.background = argList [3];
+		data.foreground = getForegroundPixel ();
+		Control control = findBackgroundControl ();
+		if (control == null) control = this;
+		data.background = control.getBackgroundPixel ();
+		data.backgroundImage = control.backgroundImage;
 		data.font = font;
-		data.colormap = argList [5];
+		int [] argList = {OS.XmNcolormap, 0};
+		OS.XtGetValues (handle, argList, argList.length / 2);
+		data.colormap = argList [1];
 	}
 	return xGC;
 }
@@ -1396,15 +1455,19 @@ void propagateWidget (boolean enabled) {
 }
 void realizeChildren () {
 	if (isEnabled ()) {
-		if (cursor == null) return;
-		int xWindow = OS.XtWindow (handle);
-		if (xWindow == 0) return;
-		int xDisplay = OS.XtDisplay (handle);
-		if (xDisplay == 0) return;
-		OS.XDefineCursor (xDisplay, xWindow, cursor.handle);
-		OS.XFlush (xDisplay);
+		if (cursor != null) {
+			int xWindow = OS.XtWindow (handle);
+			if (xWindow == 0) return;
+			int xDisplay = OS.XtDisplay (handle);
+			if (xDisplay == 0) return;
+			OS.XDefineCursor (xDisplay, xWindow, cursor.handle);
+			OS.XFlush (xDisplay);
+		}
 	} else {
 		propagateWidget (false);
+	}
+	if ((state & PARENT_BACKGROUND) != 0) {
+		setParentBackground ();
 	}
 }
 /**
@@ -1427,7 +1490,7 @@ void realizeChildren () {
  */
 public void redraw () {
 	checkWidget();
-	redrawWidget (0, 0, 0, 0, true, false);
+	redrawWidget (0, 0, 0, 0, true, false, false);
 }
 /**
  * Causes the rectangular area of the receiver specified by
@@ -1461,16 +1524,23 @@ public void redraw () {
 public void redraw (int x, int y, int width, int height, boolean all) {
 	checkWidget ();
 	if (width > 0 && height > 0) {
-		redrawWidget (x, y, width, height, false, all);
+		redrawWidget (x, y, width, height, false, all, false);
 	}
 }
-void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren) {
+void redrawChildren () {
+}
+void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren, boolean trim) {
 	redrawHandle (x, y, width, height, redrawAll, handle);
 }
-void releaseChild () {
+void releaseHandle () {
+	super.releaseHandle ();
+	parent = null;
+}
+void releaseParent () {
 	parent.removeControl (this);
 }
 void releaseWidget () {
+	super.releaseWidget ();
 	/*
 	* Restore the default font for the widget in case the
 	* application disposes the widget font in the dispose
@@ -1484,7 +1554,6 @@ void releaseWidget () {
 		OS.XtSetValues (fontHandle, argList2, argList2.length / 2);
 		OS.XmImSetValues (fontHandle, argList2, argList2.length / 2);
 	}
-	super.releaseWidget ();
 	display.releaseToolTipHandle (handle);
 	toolTipText = null;
 	if (menu != null && !menu.isDisposed ()) {
@@ -1499,7 +1568,6 @@ void releaseWidget () {
 			OS.XmImUnregister (focusHandle);
 		}
 	}
-	parent = null;
 	layoutData = null;
 }
 /**
@@ -1715,6 +1783,14 @@ public void removeTraverseListener(TraverseListener listener) {
 	if (eventTable == null) return;
 	eventTable.unhook (SWT.Traverse, listener);
 }
+boolean sendDragEvent (int x, int y) {
+	Event event = new Event ();
+	event.x = x;
+	event.y = y;
+	postEvent (SWT.DragDetect, event);
+	if (isDisposed ()) return false;
+	return event.doit;
+}
 void sendHelpEvent (int callData) {
 	Control control = this;
 	while (control != null) {
@@ -1733,6 +1809,7 @@ boolean sendMouseEvent (int type) {
 	return sendMouseEvent (type, 0, 0, 0, false, 0, windowX [0], windowY [0], mask [0]);
 }
 boolean sendMouseEvent (int type, int button, int count, int detail, boolean send, int time, int x, int y, int state) {
+//	if (!hooks (type) && !filters (type)) return true;
 	Event event = new Event ();
 	event.time = time;
 	event.button = button;
@@ -1750,19 +1827,31 @@ boolean sendMouseEvent (int type, int button, int count, int detail, boolean sen
 	return event.doit;
 }
 boolean sendMouseEvent (int type, XButtonEvent xEvent) {
-	int count = 0, detail = 0, button = xEvent.button;
-	boolean send = false;
+	int button = xEvent.button;
 	switch (button) {
 		case 4:
 		case 5:
 			/* Use MouseDown button 4 and 5 to emulated MouseWheel */
-			if (type != SWT.MouseDown) return false;
-			detail = SWT.SCROLL_LINE;
-			count = button == 4 ? 3 : - 3;
+			if (type != SWT.MouseDown) return true;
 			type = SWT.MouseWheel;
-			button = 0;
-			send = true;
-			break;
+			if (!hooks (type) && !filters (type)) return true;
+			short [] x_root = new short [1], y_root = new short [1];
+			OS.XtTranslateCoords (handle, (short) 0, (short) 0, x_root, y_root);
+			int x = xEvent.x_root - x_root [0], y = xEvent.y_root - y_root [0];
+			int count = button == 4 ? 3 : -3;
+			Control control = this;
+			Shell shell = getShell ();
+			do {
+				if (!control.sendMouseEvent (type, 0, count, SWT.SCROLL_LINE, true, xEvent.time, x, y, xEvent.state)) {
+					return false;
+				}
+				if (control == shell) break;
+				control = control.parent;
+				OS.XtTranslateCoords (control.handle, (short) 0, (short) 0, x_root, y_root);
+				x = xEvent.x_root - x_root [0];
+				y = xEvent.y_root - y_root [0];			
+			} while (control != null);
+			return true;
 		case 6:
 			button = 4;
 			break;
@@ -1774,23 +1863,7 @@ boolean sendMouseEvent (int type, XButtonEvent xEvent) {
 	short [] x_root = new short [1], y_root = new short [1];
 	OS.XtTranslateCoords (handle, (short) 0, (short) 0, x_root, y_root);
 	int x = xEvent.x_root - x_root [0], y = xEvent.y_root - y_root [0];
-	if (type == SWT.MouseWheel) {
-		Control control = this;
-		Shell shell = getShell ();
-		do {
-			if (!control.sendMouseEvent (type, button, count, detail, send, xEvent.time, x, y, xEvent.state)) {
-				return false;
-			}
-			if (control == shell) break;
-			control = control.parent;
-			OS.XtTranslateCoords (control.handle, (short) 0, (short) 0, x_root, y_root);
-			x = xEvent.x_root - x_root [0];
-			y = xEvent.y_root - y_root [0];			
-		} while (control != null);
-	} else {
-		sendMouseEvent (type, button, count, detail, send, xEvent.time, x, y, xEvent.state);
-	}
-	return true;	
+	return sendMouseEvent (type, button, 0, 0, false, xEvent.time, x, y, xEvent.state);
 }
 boolean sendMouseEvent (int type, XCrossingEvent xEvent) {
 	if (!hooks (type) && !filters (type)) return true;
@@ -1805,6 +1878,22 @@ boolean sendMouseEvent (int type, XMotionEvent xEvent) {
 	OS.XtTranslateCoords (handle, (short) 0, (short) 0, x_root, y_root);
 	int x = xEvent.x_root - x_root [0], y = xEvent.y_root - y_root [0];
 	return sendMouseEvent (type, 0, 0, 0, false, xEvent.time, x, y, xEvent.state);
+}
+void setBackground () {
+	if ((state & PARENT_BACKGROUND) != 0 && (state & BACKGROUND) == 0 && backgroundImage == null) {
+		setParentBackground ();
+	} else {
+		if (backgroundImage != null) {
+			int [] argList = {OS.XmNbackgroundPixmap, backgroundImage.pixmap};
+			OS.XtSetValues (handle, argList, argList.length / 2);
+		} else {
+			/* Ensure the resource value changes, otherwise XtSetValues() does nothing */
+			int pixel = getBackgroundPixel ();
+			setBackgroundPixel (pixel + 1);
+			setBackgroundPixel (pixel);
+		}
+	}
+	redrawWidget (0, 0, 0, 0, true, false, false);
 }
 /**
  * Sets the receiver's background color to the color specified
@@ -1824,11 +1913,51 @@ boolean sendMouseEvent (int type, XMotionEvent xEvent) {
 public void setBackground (Color color) {
 	checkWidget();
 	if (color == null) {
+		state &= ~BACKGROUND;
 		setBackgroundPixel (defaultBackground ());
 	} else {
 		if (color.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+		state |= BACKGROUND;
 		setBackgroundPixel (color.handle.pixel);
 	}
+	if ((state & PARENT_BACKGROUND) != 0 && (state & BACKGROUND) == 0 && backgroundImage == null) {
+		setParentBackground ();
+		redrawWidget (0, 0, 0, 0, true, false, false);
+	}
+	redrawChildren ();
+}
+/**
+ * Sets the receiver's background image to the image specified
+ * by the argument, or to the default system color for the control
+ * if the argument is null.  The background image is tiled to fill
+ * the available space.
+ *
+ * @param image the new image (or null)
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li> 
+ *    <li>ERROR_INVALID_ARGUMENT - if the argument is not a bitmap</li> 
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public void setBackgroundImage (Image image) {
+	checkWidget ();
+	if (image != null && image.isDisposed ()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+	if (image == backgroundImage) return;
+	this.backgroundImage = image;
+	int pixmap = image != null ? image.pixmap : OS.XmUNSPECIFIED_PIXMAP;
+	int [] argList = {OS.XmNbackgroundPixmap, pixmap};
+	OS.XtSetValues (handle, argList, argList.length / 2);
+	if ((state & PARENT_BACKGROUND) != 0 && (state & BACKGROUND) == 0 && backgroundImage == null) {
+		setParentBackground ();
+		redrawWidget (0, 0, 0, 0, true, false, false);
+	}
+	redrawChildren ();
 }
 void setBackgroundPixel (int pixel) {
 	int [] argList = {OS.XmNforeground, 0, OS.XmNhighlightColor, 0};
@@ -1863,7 +1992,13 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
 		}
 		OS.XtConfigureWidget (topHandle, x, y, width, height, argList [9]);
 		updateIM ();
-		if (!sameOrigin) sendEvent (SWT.Move);
+		if (!sameOrigin) {
+			Control control = findBackgroundControl ();
+			if (control != null && control.backgroundImage != null) {
+				if (isVisible ()) redrawWidget (0, 0, 0, 0, true, true, true);
+			}
+			sendEvent (SWT.Move);
+		}
 		if (!sameExtent) sendEvent (SWT.Resize);
 		return true;
 	}
@@ -1872,6 +2007,10 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
 		OS.XtGetValues (topHandle, argList, argList.length / 2);
 		if (x == (short) argList [1] && y == (short) argList [3]) return false;
 		OS.XtMoveWidget (topHandle, x, y);
+		Control control = findBackgroundControl ();
+		if (control != null && control.backgroundImage != null) {
+			if (isVisible ()) redrawWidget (0, 0, 0, 0, true, true, true);
+		}
 		sendEvent (SWT.Move);
 		return true;
 	}
@@ -2129,9 +2268,11 @@ public void setFont (Font font) {
 public void setForeground (Color color) {
 	checkWidget();
 	if (color == null) {
+		state &= ~FOREGROUND;
 		setForegroundPixel (defaultForeground ());
 	} else {
 		if (color.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+		state |= FOREGROUND;
 		setForegroundPixel (color.handle.pixel);
 	}
 }
@@ -2198,6 +2339,11 @@ public void setLocation (Point location) {
  * the control. The sequence of key strokes, button presses
  * and/or button releases that are used to request a pop up
  * menu is platform specific.
+ * <p>
+ * Note: Disposing of a control that has a pop up menu will
+ * dispose of the menu.  To avoid this behavior, set the
+ * menu to null before the control is disposed.
+ * </p>
  *
  * @param menu the new pop up menu
  *
@@ -2227,7 +2373,7 @@ public void setMenu (Menu menu) {
 /**
  * Changes the parent of the widget to be the one provided if
  * the underlying operating system supports this feature.
- * Answers <code>true</code> if the parent is successfully changed.
+ * Returns <code>true</code> if the parent is successfully changed.
  *
  * @param parent the new parent for the control.
  * @return <code>true</code> if the parent is changed and <code>false</code> otherwise.
@@ -2245,6 +2391,16 @@ public boolean setParent (Composite parent) {
 	checkWidget();
 	if (parent.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	return false;
+}
+void setParentBackground () {
+	setParentBackground (handle);
+}
+void setParentBackground (int widget) {
+	int xDisplay = OS.XtDisplay (widget);
+	if (xDisplay == 0) return;
+	int xWindow = OS.XtWindow (widget);
+	if (xWindow == 0) return;
+	OS.XSetWindowBackgroundPixmap (xDisplay, xWindow, OS.ParentRelative);
 }
 void setParentTraversal () {
 	/*
@@ -2458,7 +2614,7 @@ void setZOrder (Control control, boolean above, boolean fixChildren) {
 	int window1 = OS.XtWindow (topHandle1);
 	if (window1 == 0) return;
 	int redrawWindow = fixChildren ? parent.redrawWindow : 0;
-	if (control == null && redrawWindow == 0) {
+	if (control == null && (!above || redrawWindow == 0)) {
 		if (above) {
 			OS.XRaiseWindow (display, window1);
 			if (fixChildren) parent.moveAbove (topHandle1, 0);
@@ -2838,6 +2994,13 @@ void update (boolean all) {
 		OS.XtFree (event);
 	}
 }
+void updateBackgroundMode () {
+	int oldState = state & PARENT_BACKGROUND;
+	checkBackground ();
+	if (oldState != (state & PARENT_BACKGROUND)) {
+		setBackground ();
+	}
+}
 void updateIM () {
 	if (!OS.IsDBLocale) return;
 	if (!hasFocus ()) return;
@@ -2891,43 +3054,50 @@ void updateLayout (boolean all) {
 	/* Do nothing */
 }
 int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatch) {
-	Shell shell = getShell ();
+	Display display = this.display;
 	display.hideToolTip ();
+	Shell shell = getShell ();
+	/*
+	* When a shell is created with SWT.ON_TOP and SWT.NO_FOCUS,
+	* do not activate the shell when the user clicks on the
+	* the client area or on the border or a control within the
+	* shell that does not take focus.
+	*/
+	if (((shell.style & SWT.ON_TOP) != SWT.NONE) && (((shell.style & SWT.NO_FOCUS) == SWT.NONE) || ((style & SWT.NO_FOCUS) == SWT.NONE))) {
+		shell.forceActive();
+	}
 	XButtonEvent xEvent = new XButtonEvent ();
 	OS.memmove (xEvent, call_data, XButtonEvent.sizeof);
-	if (!sendMouseEvent (SWT.MouseDown, xEvent)) {
-		OS.memmove (continue_to_dispatch, new int [1], 4);
-		return 1;
-	}
-	if (xEvent.button == 2 && hooks (SWT.DragDetect)) {
-		Event event = new Event ();
-		event.x = xEvent.x;
-		event.y = xEvent.y;
-		postEvent (SWT.DragDetect, event);
+	boolean dispatch = sendMouseEvent (SWT.MouseDown, xEvent);
+	if (isDisposed ()) return 1;
+	if (xEvent.button == 2) {
+		boolean dragDetect = dragDetect (xEvent.x, xEvent.y);
+		if (dragDetect) {
+			sendDragEvent (xEvent.x, xEvent.y);
+			if (isDisposed ()) return 1;
+		}
+		if (dragOverride () && dragDetect) return 1;
 	}
 	if (xEvent.button == 3) {
 		if (menu != null || hooks (SWT.MenuDetect)) {
 			if (!isFocusControl ()) setFocus ();
 		}
 		showMenu (xEvent.x_root, xEvent.y_root);
+		if (isDisposed ()) return 1;
 	}
 	int clickTime = display.getDoubleClickTime ();
 	int lastTime = display.lastTime, eventTime = xEvent.time;
 	int lastButton = display.lastButton, eventButton = xEvent.button;
 	if (lastButton == eventButton && lastTime != 0 && Math.abs (lastTime - eventTime) <= clickTime) {
-		sendMouseEvent (SWT.MouseDoubleClick, xEvent);
+		dispatch = sendMouseEvent (SWT.MouseDoubleClick, xEvent);
+		// widget could be disposed at this point
 	}
 	display.lastTime = eventTime == 0 ? 1 : eventTime;
 	display.lastButton = eventButton;
-	
-	/* 
-	* It is possible that the shell may be
-	* disposed at this point.  If this happens
-	* don't send the activate and deactivate
-	* events.
-	*/	
-	if (!shell.isDisposed ()) {
-		shell.setActiveControl (this);
+	if (!shell.isDisposed ()) shell.setActiveControl (this);
+	if (!dispatch) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
 	}
 	return 0;
 }
@@ -2947,7 +3117,10 @@ int XEnterWindow (int w, int client_data, int call_data, int continue_to_dispatc
 	if (xEvent.mode != OS.NotifyNormal && xEvent.mode != OS.NotifyUngrab) return 0;
 	if ((xEvent.state & (OS.Button1Mask | OS.Button2Mask | OS.Button3Mask)) != 0) return 0;
 	if (xEvent.subwindow != 0) return 0;
-	sendMouseEvent (SWT.MouseEnter, xEvent);
+	if (!sendMouseEvent (SWT.MouseEnter, xEvent)) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
+	}
 	return 0;
 }
 int XExposure (int w, int client_data, int call_data, int continue_to_dispatch) {
@@ -3120,7 +3293,10 @@ int XLeaveWindow (int w, int client_data, int call_data, int continue_to_dispatc
 	if (xEvent.mode != OS.NotifyNormal && xEvent.mode != OS.NotifyUngrab) return 0;
 	if ((xEvent.state & (OS.Button1Mask | OS.Button2Mask | OS.Button3Mask)) != 0) return 0;
 	if (xEvent.subwindow != 0) return 0;
-	sendMouseEvent (SWT.MouseExit, xEvent);
+	if (!sendMouseEvent (SWT.MouseExit, xEvent)) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
+	}
 	return 0;
 }
 int XmNhelpCallback (int w, int client_data, int call_data) {
@@ -3131,7 +3307,10 @@ int XPointerMotion (int w, int client_data, int call_data, int continue_to_dispa
 	display.addMouseHoverTimeOut (handle);
 	XMotionEvent xEvent = new XMotionEvent ();
 	OS.memmove (xEvent, call_data, XMotionEvent.sizeof);
-	sendMouseEvent (SWT.MouseMove, xEvent);
+	if (!sendMouseEvent (SWT.MouseMove, xEvent)) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
+	}
 	return 0;
 }
 }

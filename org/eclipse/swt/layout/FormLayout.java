@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -280,7 +280,7 @@ protected void layout (Composite composite, boolean flushCache) {
 	int x = rect.x + marginLeft + marginWidth;
 	int y = rect.y + marginTop + marginHeight;
 	int width = Math.max (0, rect.width - marginLeft - 2 * marginWidth - marginRight);
-	int height = Math.max (0, rect.height - marginLeft - 2 * marginHeight - marginBottom);
+	int height = Math.max (0, rect.height - marginTop - 2 * marginHeight - marginBottom);
 	layout (composite, true, x, y, width, height, flushCache);
 }
 
@@ -365,7 +365,7 @@ Point layout (Composite composite, boolean move, int x, int y, int width, int he
  * Returns a string containing a concise, human-readable
  * description of the receiver.
  *
- * @return a string representation of the event
+ * @return a string representation of the layout
  */
 public String toString () {
  	String string =  getName ()+" {";

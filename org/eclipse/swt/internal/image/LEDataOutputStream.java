@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -18,9 +18,10 @@ final class LEDataOutputStream extends OutputStream {
 public LEDataOutputStream(OutputStream output) {
 	this.out = output;
 }
-public void close() throws IOException {
-	out.close();
-}
+/**
+ * Write the specified number of bytes of the given byte array,
+ * starting at the specified offset, to the output stream.
+ */
 public void write(byte b[], int off, int len) throws IOException {
 	out.write(b, off, len);
 }

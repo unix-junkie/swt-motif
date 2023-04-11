@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -28,7 +28,7 @@ import org.eclipse.swt.events.*;
  * <dt><b>Events:</b></dt>
  * <dd>Selection, Modify</dd>
  * </dl>
- * <p>
+ * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
  * 
@@ -243,7 +243,6 @@ public void copy () {
 	OS.XmTextCopy (argList [1], OS.XtLastTimestampProcessed (xDisplay));
 }
 void createHandle (int index) {
-	state |= HANDLE;
 	int [] argList1 = {
 		OS.XmNcolumns, 2,
 		OS.XmNdecimalPoints, 0,
@@ -279,6 +278,12 @@ void createHandle (int index) {
 		};
 		OS.XtSetValues (textHandle, argList4, argList4.length / 2);
 	}
+	/*
+	* Feature in Motif.  The Spinner widget is created with a default
+	* drop target.  This is inconsistent with other platforms.
+	* To be consistent, disable the default drop target.
+	*/
+	OS.XmDropSiteUnregister (textHandle);
 }
 /**
  * Cuts the selected text.
@@ -559,7 +564,7 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
 		int textHeight = Math.max (height - 2 * argList1 [7], 0);
 		if (textWidth != argList2 [1] || textHeight != argList2 [3]) {
 			OS.XtResizeWidget (argList1 [1], textWidth, textHeight, argList2 [5]);
-		};
+		}
 	}
 	return super.setBounds (x, y, width, height, move, resize);
 }
@@ -571,6 +576,7 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
  * a value of 2 and setSelection() with a value of 137. Similarly, if getDigits() has a value
  * of 2 and getSelection() returns 137 this should be interpreted as 1.37. This applies to all
  * numeric APIs. 
+ * </p>
  * 
  * @param value the new digits (must be greater than or equal to zero)
  * 
@@ -694,9 +700,53 @@ public void setPageIncrement (int value) {
  */
 public void setSelection (int value) {
 	checkWidget ();
-	int [] argList = {OS.XmNposition, value};
+	int [] argList = {OS.XmNmaximumValue, 0, OS.XmNminimumValue, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	value = Math.min (Math.max (argList [3], value), argList [1]);
+	int [] argList1 = {OS.XmNposition, value};
+	OS.XtSetValues (handle, argList1, argList1.length / 2);
+}
+
+/**
+ * Sets the receiver's selection, minimum value, maximum
+ * value, digits, increment and page increment all at once.
+ * <p>
+ * Note: This is similar to setting the values individually
+ * using the appropriate methods, but may be implemented in a 
+ * more efficient fashion on some platforms.
+ * </p>
+ *
+ * @param selection the new selection value
+ * @param minimum the new minimum value
+ * @param maximum the new maximum value
+ * @param digits the new digits value
+ * @param increment the new increment value
+ * @param pageIncrement the new pageIncrement value
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public void setValues (int selection, int minimum, int maximum, int digits, int increment, int pageIncrement) {
+	checkWidget ();
+	if (minimum < 0) return;
+	if (maximum <= minimum) return;
+	if (digits < 0) return;
+	if (increment < 1) return;
+	if (pageIncrement < 1) return;
+	selection = Math.min (Math.max (minimum, selection), maximum);
+	int [] argList = {
+			OS.XmNposition, selection, 
+			OS.XmNmaximumValue, maximum,
+			OS.XmNminimumValue, minimum,
+			OS.XmNincrementValue, increment,
+			OS.XmNdecimalPoints, digits};
 	OS.XtSetValues (handle, argList, argList.length / 2);	
 }
+
 void updateText () {
 	int [] argList = {
 			OS.XmNtextField, 0,		/* 1 */

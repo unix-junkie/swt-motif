@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -201,7 +201,8 @@ int unloadData(ImageData image, OutputStream out) {
  * Unload a DeviceIndependentImage using Windows .BMP format into the given
  * byte stream.
  */
-void unloadIntoByteStream(ImageData image) {
+void unloadIntoByteStream(ImageLoader loader) {
+	ImageData image = loader.data[0];
 	byte[] rgbs;
 	int numCols;
 	if (!((image.depth == 1) || (image.depth == 4) || (image.depth == 8) ||

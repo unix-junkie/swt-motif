@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -17,7 +17,7 @@ import org.eclipse.swt.*;
 import org.eclipse.swt.graphics.*;
 
 /**
- * Instances of this class are used used to inform or warn the user.
+ * Instances of this class are used to inform or warn the user.
  * <dl>
  * <dt><b>Styles:</b></dt>
  * <dd>ICON_ERROR, ICON_INFORMATION, ICON_QUESTION, ICON_WARNING, ICON_WORKING</dd>
@@ -160,14 +160,16 @@ public int open () {
 	if ((style & SWT.PRIMARY_MODAL) != 0) dialogStyle = OS.XmDIALOG_PRIMARY_APPLICATION_MODAL;
 	if ((style & SWT.APPLICATION_MODAL) != 0) dialogStyle = OS.XmDIALOG_FULL_APPLICATION_MODAL;
 	if ((style & SWT.SYSTEM_MODAL) != 0) dialogStyle = OS.XmDIALOG_SYSTEM_MODAL;
-	if (parent != null && dialogStyle == OS.XmDIALOG_MODELESS) {
+	if (dialogStyle == OS.XmDIALOG_MODELESS) {
 		dialogStyle = OS.XmDIALOG_PRIMARY_APPLICATION_MODAL;
 	}
+	boolean defaultPos = parent.isVisible ();
 	int [] argList = {
 		OS.XmNnoResize, 1,
 		OS.XmNresizePolicy, OS.XmRESIZE_NONE,
 		OS.XmNdialogStyle, dialogStyle,
 		OS.XmNdialogTitle, xmStringPtr,
+		OS.XmNdefaultPosition, defaultPos ? 1 : 0,
 	};
 	int parentHandle = parent.shellHandle;
 	int dialog = createHandle (parentHandle, argList);
@@ -185,8 +187,25 @@ public int open () {
 	OS.XtAddCallback (dialog, OS.XmNhelpCallback, address, OS.XmDIALOG_HELP_BUTTON);
 
 	/* Open the dialog and dispatch events. */
+	if (!defaultPos) {
+		OS.XtRealizeWidget (dialog);
+		int[] argList1 = new int[] {
+			OS.XmNwidth, 0,
+			OS.XmNheight, 0,
+		};
+		OS.XtGetValues (dialog, argList1, argList1.length / 2);
+		Monitor monitor = parent.getMonitor ();
+		Rectangle bounds = monitor.getBounds ();
+		int x = bounds.x + (bounds.width - argList1 [1]) / 2;
+		int y = bounds.y + (bounds.height - argList1 [3]) / 2;
+		int[] argList2 = new int[] {
+			OS.XmNx, x,
+			OS.XmNy, y,
+		};
+		OS.XtSetValues (dialog, argList2, argList2.length / 2);
+	}
 	OS.XtManageChild (dialog);
-	
+
 	// Should be a pure OS message loop (no SWT AppContext)
 	Display display = parent.display;
 	while (OS.XtIsRealized (dialog) && OS.XtIsManaged (dialog))

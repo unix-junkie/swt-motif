@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -81,6 +81,7 @@ import org.eclipse.swt.events.*;
  */
 public class ScrollBar extends Widget {
 	Scrollable parent;
+	boolean dragSent = false;
 ScrollBar () {
 	/* Do Nothing */
 }
@@ -132,7 +133,6 @@ static int checkStyle (int style) {
 	return checkBits (style, SWT.HORIZONTAL, SWT.VERTICAL, 0, 0, 0, 0);
 }
 void createHandle (int index) {
-	state |= HANDLE;
 	int [] argList = {
 		OS.XmNancestorSensitive, 1,
 		OS.XmNborderWidth, (style & SWT.BORDER) != 0 ? 1 : 0,
@@ -283,7 +283,7 @@ public Point getSize () {
 	return new Point (argList [1] + borders, argList [3] + borders);
 }
 /**
- * Answers the size of the receiver's thumb relative to the
+ * Returns the size of the receiver's thumb relative to the
  * difference between its maximum and minimum values.
  *
  * @return the thumb value
@@ -332,6 +332,7 @@ void hookEvents () {
 	OS.XtAddCallback (handle, OS.XmNdecrementCallback, windowProc, DECREMENT_CALLBACK);
 	OS.XtAddCallback (handle, OS.XmNpageIncrementCallback, windowProc, PAGE_INCREMENT_CALLBACK);
 	OS.XtAddCallback (handle, OS.XmNpageDecrementCallback, windowProc, PAGE_DECREMENT_CALLBACK);
+	OS.XtAddEventHandler (handle, OS.ButtonPressMask, false, windowProc, BUTTON_PRESS);
 }
 /**
  * Returns <code>true</code> if the receiver is enabled and all
@@ -395,8 +396,8 @@ void manageChildren () {
 void propagateWidget (boolean enabled) {
 	propagateHandle (enabled, handle, OS.None);
 }
-void releaseChild () {
-	super.releaseChild ();
+void releaseParent () {
+	super.releaseParent ();
 	if (parent.horizontalBar == this) parent.horizontalBar = null;
 	if (parent.verticalBar == this) parent.verticalBar = null;
 }
@@ -609,7 +610,7 @@ public void setThumb (int value) {
  * Sets the receiver's selection, minimum value, maximum
  * value, thumb, increment and page increment all at once.
  * <p>
- * Note: This is equivalent to setting the values individually
+ * Note: This is similar to setting the values individually
  * using the appropriate methods, but may be implemented in a 
  * more efficient fashion on some platforms.
  * </p>
@@ -667,11 +668,18 @@ public void setVisible (boolean visible) {
 	checkWidget();
 	parent.setScrollBarVisible (this, visible);
 }
+int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatch) {
+	int result = super.XButtonPress (w, client_data, call_data, continue_to_dispatch);
+	if (result != 0) return result;
+	dragSent = false;
+	return result;
+}
 int XmNdecrementCallback (int w, int client_data, int call_data) {
 	sendScrollEvent (SWT.ARROW_UP);
 	return 0;
 }
 int XmNdragCallback (int w, int client_data, int call_data) {
+	dragSent = true;
 	sendScrollEvent (SWT.DRAG);
 	return 0;
 }
@@ -696,6 +704,10 @@ int XmNtoTopCallback (int w, int client_data, int call_data) {
 	return 0;
 }
 int XmNvalueChangedCallback (int w, int client_data, int call_data) {
+	if (!dragSent){
+		sendScrollEvent (SWT.DRAG);
+		dragSent = false;
+	}
 	sendScrollEvent (SWT.NONE);
 	return 0;
 }

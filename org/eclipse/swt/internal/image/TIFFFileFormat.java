@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -64,7 +64,10 @@ ImageData[] loadFromByteStream() {
 	return images;
 }
 
-void unloadIntoByteStream(ImageData image) {
+void unloadIntoByteStream(ImageLoader loader) {
+	/* We do not currently support writing multi-page tiff,
+	 * so we use the first image data in the loader's array. */
+	ImageData image = loader.data[0];
 	TIFFDirectory directory = new TIFFDirectory(image);
 	try {
 		directory.writeToStream(outputStream);

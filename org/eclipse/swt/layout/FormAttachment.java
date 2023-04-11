@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -128,8 +128,17 @@ public final class FormAttachment {
 	 * </ul>
 	 */
 	public int alignment;
-	
-FormAttachment () {
+
+/**
+ * Constructs a new instance of this class.
+ * Since no numerator, denominator or offset is specified,
+ * the attachment is treated as a percentage of the form.
+ * The numerator is zero, the denominator is 100 and the
+ * offset is zero.
+ * 
+ * @since 3.2
+ */
+public FormAttachment () {
 }
 
 /**
@@ -281,7 +290,7 @@ int solveY (int value) {
  * Returns a string containing a concise, human-readable
  * description of the receiver.
  *
- * @return a string representation of the event
+ * @return a string representation of the FormAttachment
  */
 public String toString () {
  	String string = control != null ? control.toString () : numerator + "/" + denominator;

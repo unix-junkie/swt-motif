@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -125,20 +125,22 @@ public TrayItem [] getItems () {
 	return result;
 }
 
-void releaseChild () {
-	super.releaseChild ();
-	if (display.tray == this) display.tray = null;
+void releaseChildren (boolean destroy) {
+	if (items != null) {
+		for (int i=0; i<items.length; i++) {
+			TrayItem item = items [i];
+			if (item != null && !item.isDisposed ()) {
+				item.release (false);
+			}
+		}
+		items = null;
+	}
+	super.releaseChildren (destroy);
 }
 
-void releaseWidget () {
-	for (int i=0; i<items.length; i++) {
-		TrayItem item = items [i];
-		if (item != null && !item.isDisposed ()) {
-			item.releaseResources ();
-		}
-	}
-	items = null;
-	super.releaseWidget ();
+void releaseParent () {
+	super.releaseParent ();
+	if (display.tray == this) display.tray = null;
 }
 
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -222,19 +222,19 @@ public TableCursor(Table parent, int style) {
 		public void handleEvent(Event event) {
 			row = null;
 			column = null;
-			resize();
+			_resize();
 		}
 	};
 	disposeColumnListener = new Listener() {
 		public void handleEvent(Event event) {
 			row = null;
 			column = null;
-			resize();
+			_resize();
 		}
 	};
 	resizeListener = new Listener() {
 		public void handleEvent(Event event) {
-			resize();
+			_resize();
 		}
 	};
 	ScrollBar hBar = table.getHorizontalBar();
@@ -254,7 +254,7 @@ public TableCursor(Table parent, int style) {
  * interface.
  * <p>
  * When <code>widgetSelected</code> is called, the item field of the event object is valid.
- * If the reciever has <code>SWT.CHECK</code> style set and the check selection changes,
+ * If the receiver has <code>SWT.CHECK</code> style set and the check selection changes,
  * the event object detail field contains the value <code>SWT.CHECK</code>.
  * <code>widgetDefaultSelected</code> is typically called when an item is double-clicked.
  * </p>
@@ -464,23 +464,44 @@ void tableFocusIn(Event event) {
 void tableMouseDown(Event event) {
 	if (isDisposed() || !isVisible()) return;
 	Point pt = new Point(event.x, event.y);
-	Rectangle clientRect = table.getClientArea();
-	int columnCount = table.getColumnCount();
-	int maxColumnIndex =  columnCount == 0 ? 0 : columnCount - 1;
-	int start = table.getTopIndex();
-	int end = table.getItemCount();
-	for (int i = start; i < end; i++) {
-		TableItem item = table.getItem(i);
-		for (int j = 0; j <= maxColumnIndex; j++) {
-			Rectangle rect = item.getBounds(j);
+	int lineWidth = table.getLinesVisible() ? table.getGridLineWidth() : 0;
+	TableItem item = table.getItem(pt);
+	if ((table.getStyle() & SWT.FULL_SELECTION) != 0) {
+		if (item == null) return;
+	} else {
+		int start = item != null ? table.indexOf(item) : table.getTopIndex();
+		int end = table.getItemCount();
+		Rectangle clientRect = table.getClientArea();
+		for (int i = start; i < end; i++) {
+			TableItem nextItem = table.getItem(i);
+			Rectangle rect = nextItem.getBounds(0);
+			if (pt.y >= rect.y && pt.y < rect.y + rect.height + lineWidth) {
+				item = nextItem;
+				break;
+			}
 			if (rect.y > clientRect.y + clientRect.height) 	return;
+		}
+		if (item == null) return;
+	}
+	TableColumn newColumn = null;
+	int columnCount = table.getColumnCount();
+	if (columnCount > 0) {
+		for (int i = 0; i < columnCount; i++) {
+			Rectangle rect = item.getBounds(i);
+			rect.width += lineWidth;
+			rect.height += lineWidth;
 			if (rect.contains(pt)) {
-				setRowColumn(i, j, true);
-				setFocus();
-				return;
+				newColumn = table.getColumn(i);
+				break;
 			}
 		}
+		if (newColumn == null) {
+			newColumn = table.getColumn(0);
+		}
 	}
+	setRowColumn(item, newColumn, true);
+	setFocus();
+	return;
 }
 
 void traverse(Event event) {
@@ -536,7 +557,7 @@ void setRowColumn(TableItem row, TableColumn column, boolean notify) {
 
 public void setVisible(boolean visible) {
 	checkWidget();
-	if (visible) resize();
+	if (visible) _resize();
 	super.setVisible(visible);
 }
 
@@ -568,7 +589,7 @@ public void removeSelectionListener(SelectionListener listener) {
 	removeListener(SWT.DefaultSelection, listener);	
 }
 
-void resize() {
+void _resize() {
 	if (row == null) {
 		setBounds(-200, -200, 0, 0);
 	} else {

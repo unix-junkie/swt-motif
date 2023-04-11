@@ -18,10 +18,10 @@ package org.eclipse.swt.graphics;
  * 
  * @since 3.1
  */
-public class PathData {
+public final class PathData {
 	
 	/**
-	 * The type of each points. 
+	 * The type of each point. 
 	 */
 	public byte[] types;
 	

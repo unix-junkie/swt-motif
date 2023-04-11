@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -32,6 +32,12 @@ import org.eclipse.swt.graphics.*;
  * behavior is undefined if they are used with subclasses of <code>Composite</code> other
  * than <code>Canvas</code>.
  * </p><p>
+ * Note: The <code>CENTER</code> style, although undefined for composites, has the
+ * same value as <code>EMBEDDED</code> (which is used to embed widgets from other
+ * widget toolkits into SWT).  On some operating systems (GTK, Motif), this may cause
+ * the children of this composite to be obscured.  The <code>EMBEDDED</code> style
+ * is for use by other widget toolkits and should normally never be used.
+ * </p><p>
  * This class may be subclassed by custom control implementors
  * who are building controls that are constructed from aggregates
  * of other controls.
@@ -44,7 +50,7 @@ public class Composite extends Scrollable {
 	public int embeddedHandle;
 	int focusHandle, damagedRegion, clientWindow;
 	Control [] tabList;
-	int layoutCount = 0;
+	int layoutCount, backgroundMode;
 	
 	static byte [] _XEMBED_INFO = Converter.wcsToMbcs (null, "_XEMBED_INFO", true);
 	static byte[] _XEMBED = Converter.wcsToMbcs (null, "_XEMBED", true);
@@ -221,8 +227,9 @@ protected void checkSubclass () {
 	/* Do nothing - Subclassing is allowed */
 }
 void createHandle (int index) {
-	state |= HANDLE | CANVAS;
+	state |= CANVAS;
 	boolean scroll = (style & (SWT.H_SCROLL | SWT.V_SCROLL)) != 0;
+	if (!scroll) state |= THEME_BACKGROUND;
 	createHandle (index, parent.handle, scroll);
 }
 void createHandle (int index, int parentHandle, boolean scrolled) {
@@ -283,6 +290,39 @@ int defaultForeground () {
 void deregister () {
 	super.deregister ();
 	if (focusHandle != 0) display.removeWidget (focusHandle);
+}
+void drawBackground (GC gc, int x, int y, int width, int height) {
+	Control control = findBackgroundControl ();
+	if (control != null) {
+		int xDisplay = OS.XtDisplay (handle);
+		if (xDisplay == 0) return;
+		int xGC = gc.handle;
+		XGCValues values = new XGCValues();
+		if (control.backgroundImage != null) {
+			OS.XGetGCValues (xDisplay, xGC, OS.GCFillStyle | OS.GCTile | OS.GCTileStipXOrigin | OS.GCTileStipYOrigin, values);
+			short [] root_x = new short [1], root_y = new short [1];
+			OS.XtTranslateCoords (handle, (short) 0, (short) 0, root_x, root_y);
+			short [] control_x = new short [1], control_y = new short [1];
+			OS.XtTranslateCoords (control.handle, (short) 0, (short) 0, control_x, control_y);
+			int tileX = root_x[0] - control_x[0], tileY = root_y[0] - control_y[0];
+			OS.XSetFillStyle (xDisplay, xGC, OS.FillTiled);
+			OS.XSetTSOrigin (xDisplay, xGC, -tileX, -tileY);
+			OS.XSetTile (xDisplay, xGC, control.backgroundImage.pixmap);
+			gc.fillRectangle (x, y, width, height);
+			OS.XSetFillStyle (xDisplay, xGC, values.fill_style);
+			OS.XSetTSOrigin (xDisplay, xGC, values.ts_x_origin, values.ts_y_origin);
+		} else {
+			OS.XGetGCValues (xDisplay, xGC, OS.GCBackground, values);
+			gc.setBackground (control.getBackground ());
+			gc.fillRectangle (x, y, width, height);
+			OS.XSetBackground (xDisplay, xGC, values.background);
+		}
+	} else {
+		gc.fillRectangle (x, y, width, height);
+	}
+}
+Composite findDeferredControl () {
+	return layoutCount > 0 ? this : parent.findDeferredControl ();
 }
 void fixTabList (Control control) {
 	if (tabList == null) return;
@@ -349,8 +389,32 @@ boolean fowardKeyEvent (int event) {
 	return true;
 }
 /**
+ * Returns the receiver's background drawing mode. This
+ * will be one of the following constants defined in class
+ * <code>SWT</code>:
+ * <code>INHERIT_NONE</code>, <code>INHERIT_DEFAULT</code>,
+ * <code>INHERTIT_FORCE</code>.
+ *
+ * @return the background mode
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @see SWT
+ * 
+ * @since 3.2
+ */
+public int getBackgroundMode () {
+	checkWidget ();
+	return backgroundMode;
+}
+/**
  * Returns a (possibly empty) array containing the receiver's children.
- * Children are returned in the order that they are drawn.
+ * Children are returned in the order that they are drawn.  The topmost
+ * control appears at the beginning of the array.  Subsequent controls
+ * draw beneath this control and appear later in the array.
  * <p>
  * Note: This is not the actual structure used by the receiver
  * to maintain its list of children, so modifying the array will
@@ -502,7 +566,7 @@ boolean hooksKeys () {
  */
 public boolean isLayoutDeferred () {
 	checkWidget ();
-	return layoutCount > 0 || parent.isLayoutDeferred ();
+	return findDeferredControl () != null;
 }
 boolean isTabGroup () {
 	if ((state & CANVAS) != 0) return true;
@@ -795,32 +859,32 @@ void realizeChildren () {
 		}
 	}
 }
+void redrawChildren () {
+	super.redrawChildren ();
+	Control [] children = _getChildren ();
+	for (int i = 0; i < children.length; i++) {
+		Control child = children [i];
+		if ((child.state & PARENT_BACKGROUND) != 0) {
+			child.redrawWidget (0, 0, 0, 0, true, false, true);
+			child.redrawChildren ();
+		}
+	}
+}
 void register () {
 	super.register ();
 	if (focusHandle != 0) display.addWidget (focusHandle, this);
 }
-void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren) {
-	super.redrawWidget (x, y, width, height, redrawAll, allChildren);
+void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren, boolean trim) {
+	super.redrawWidget (x, y, width, height, redrawAll, allChildren, trim);
 	if (!allChildren) return;
 	Control [] children = _getChildren ();
 	for (int i = 0; i < children.length; i++) {
 		Control child = children [i];
 		Point location = child.getClientLocation ();
-		child.redrawWidget (x - location.x, y - location.y, width, height, redrawAll, allChildren);
+		child.redrawWidget (x - location.x, y - location.y, width, height, redrawAll, allChildren, true);
 	}
 }
-void releaseChildren () {
-	Control [] children = _getChildren ();
-	for (int i=0; i<children.length; i++) {
-		Control child = children [i];
-		if (!child.isDisposed ()) child.releaseResources ();
-	}
-}
-void releaseHandle () {
-	super.releaseHandle ();
-	focusHandle = 0;
-}
-void releaseWidget () {
+void release (boolean destroy) {
 	if ((state & CANVAS) != 0 && (style & SWT.EMBEDDED) != 0) {
 		Shell shell = getShell ();
 		int focusProc = display.focusProc;
@@ -836,7 +900,23 @@ void releaseWidget () {
 		}
 		setClientWindow (0);
 	}
-	releaseChildren ();
+	super.release (destroy);
+}
+void releaseChildren (boolean destroy) {
+	Control [] children = _getChildren ();
+	for (int i=0; i<children.length; i++) {
+		Control child = children [i];
+		if (child != null && !child.isDisposed ()) {
+			child.release (false);
+		}
+	}
+	super.releaseChildren (destroy);
+}
+void releaseHandle () {
+	super.releaseHandle ();
+	focusHandle = embeddedHandle = 0;
+}
+void releaseWidget () {
 	super.releaseWidget ();
 	layout = null;
 	tabList = null;
@@ -877,6 +957,31 @@ void sendClientEvent (int time, int message, int detail, int data1, int data2) {
 	OS.XSync (xDisplay, false);
 	OS.XtFree (event);
 	display.setWarnings (warnings);
+}
+/**
+ * Sets the background drawing mode to the argument which should
+ * be one of the following constants defined in class <code>SWT</code>:
+ * <code>INHERIT_NONE</code>, <code>INHERIT_DEFAULT</code>,
+ * <code>INHERIT_FORCE</code>.
+ *
+ * @param mode the new background mode
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @see SWT
+ * 
+ * @since 3.2
+ */
+public void setBackgroundMode (int mode) {
+	checkWidget ();
+	backgroundMode = mode;
+	Control[] children = _getChildren ();
+	for (int i = 0; i < children.length; i++) {
+		children [i].updateBackgroundMode ();
+	}
 }
 void setBackgroundPixel (int pixel) {
 	super.setBackgroundPixel (pixel);
@@ -949,6 +1054,17 @@ public boolean setFocus () {
 	}
 	return super.setFocus ();
 }
+public void setFont (Font font) {
+	checkWidget();
+	super.setFont (font);
+	if ((state & CANVAS) != 0) {
+		int xDisplay = OS.XtDisplay (handle);
+		if (xDisplay == 0) return;
+		int xWindow = OS.XtWindow (handle);
+		if (xWindow == 0) return;
+		OS.XClearArea (xDisplay, xWindow, 0, 0, 0, 0, true);
+	}
+}
 void setForegroundPixel (int pixel) {
 	super.setForegroundPixel (pixel);
 	if ((state & CANVAS) != 0) {
@@ -999,7 +1115,9 @@ public void setLayout (Layout layout) {
 public void setLayoutDeferred (boolean defer) {
 	if (!defer) {
 		if (--layoutCount == 0) {
-			if (!isLayoutDeferred ()) updateLayout (true);
+			if ((state & LAYOUT_CHILD) != 0 || (state & LAYOUT_NEEDED) != 0) {
+				updateLayout (true);
+			}
 		}
 	} else {
 		layoutCount++;
@@ -1034,6 +1152,11 @@ public void setTabList (Control [] tabList) {
 		tabList = newList;
 	} 
 	this.tabList = tabList;
+}
+void setParentBackground () {
+	super.setParentBackground ();	
+	if (scrolledHandle != 0) setParentBackground (scrolledHandle);
+	if (formHandle != 0) setParentBackground (formHandle);
 }
 boolean setScrollBarVisible (ScrollBar bar, boolean visible) {
 	boolean changed = super.setScrollBarVisible (bar, visible);
@@ -1090,14 +1213,26 @@ boolean translateTraversal (int key, XKeyEvent xEvent) {
 	if ((state & CANVAS) != 0 && (style & SWT.EMBEDDED) != 0) return false;
 	return super.translateTraversal (key, xEvent);
 }
+void updateBackgroundMode () {
+	super.updateBackgroundMode ();
+	Control [] children = _getChildren ();
+	for (int i = 0; i < children.length; i++) {
+		children [i].updateBackgroundMode ();
+	}
+}
 void updateLayout (boolean all) {
-	if (isLayoutDeferred ()) return;
+	Composite parent = findDeferredControl ();
+	if (parent != null) {
+		parent.state |= LAYOUT_CHILD;
+		return;
+	}
 	if ((state & LAYOUT_NEEDED) != 0) {
 		boolean changed = (state & LAYOUT_CHANGED) != 0;
 		state &= ~(LAYOUT_NEEDED | LAYOUT_CHANGED);
 		layout.layout (this, changed);
 	}
 	if (all) {
+		state &= ~LAYOUT_CHILD;
 		Control [] children = _getChildren ();
 		for (int i=0; i<children.length; i++) {
 			children [i].updateLayout (all);
@@ -1106,6 +1241,7 @@ void updateLayout (boolean all) {
 }
 int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatch) {
 	int result = super.XButtonPress (w, client_data, call_data, continue_to_dispatch);
+	if (result != 0) return result;
 
 	/* Set focus for a canvas with no children */
 	if ((state & CANVAS) != 0) {
@@ -1184,9 +1320,10 @@ int XExposure (int w, int client_data, int call_data, int continue_to_dispatch) 
 		gc.setBackground (getBackground ());
 		gc.setFont (getFont ());
 		if ((style & SWT.NO_BACKGROUND) != 0) {
-			paintGC.copyArea(image, 0, 0);
+			/* This code is intentionaly commented because it is too slow to copy bits from the screen */
+//			paintGC.copyArea(image, 0, 0);
 		} else {
-			gc.fillRectangle(0, 0, width, height);
+			drawBackground (gc, 0, 0, width, height);
 		}
 	}
 	Event event = new Event ();

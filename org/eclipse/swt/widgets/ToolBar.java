@@ -406,18 +406,44 @@ void propagateWidget (boolean enabled) {
 		items [i].propagateWidget (enabled);
 	}
 }
+void realizeChildren () {
+	super.realizeChildren ();
+	if (items != null) {
+		for (int i=0; i<itemCount; i++) {
+			ToolItem item = items [i];
+			if (item != null && !item.isDisposed ()) {
+				item.realizeChildren ();
+			}
+		}
+	}
+}
+void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren, boolean trim) {
+	super.redrawWidget (x, y, width, height, redrawAll, allChildren, trim);
+	if (items != null) {
+		for (int i=0; i<itemCount; i++) {
+			ToolItem item = items [i];
+			if (item != null && !item.isDisposed ()) {
+				item.redrawWidget (x, y, width, height, redrawAll, allChildren, true);
+			}
+		}
+	}
+}
 void relayout () {
 	if (drawCount > 0) return;
 	Rectangle rect = getClientArea ();
 	layout (rect.width, rect.height, true);
 }
-void releaseWidget () {
-	for (int i=0; i<itemCount; i++) {
-		ToolItem item = items [i];
-		if (!item.isDisposed ()) item.releaseResources ();
+void releaseChildren (boolean destroy) {
+	if (items != null) {
+		for (int i=0; i<itemCount; i++) {
+			ToolItem item = items [i];
+			if (item != null && !item.isDisposed ()) {
+				item.release (false);
+			}
+		}
+		items = null;
 	}
-	items = null;
-	super.releaseWidget ();
+	super.releaseChildren (destroy);
 }
 void removeControl (Control control) {
 	super.removeControl (control);

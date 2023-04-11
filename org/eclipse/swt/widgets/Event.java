@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -61,6 +61,13 @@ public class Event {
 	 * the item that the event occurred in (can be null)
 	 */
 	public Widget item;
+	
+	/**
+	 * the index of the item where the event occurred
+	 * 
+	 * @since 3.2
+	 */
+	public int index;
 	
 	/**
 	 * the graphics context to use when painting
@@ -207,6 +214,6 @@ public void setBounds (Rectangle rect) {
  * @return a string representation of the event
  */
 public String toString () {
-	return "Event {type=" + type + ",widget=" + widget + ",x=" + x + ",y=" + y + ",width=" + width + ",height=" + height + "}";  //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$ //$NON-NLS-6$ //$NON-NLS-7$
+	return "Event {type=" + type + " " + widget + " time=" + time + " data=" + data + " x=" + x + " y=" + y + " width=" + width + " height=" + height + " detail=" + detail + "}";  //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$ //$NON-NLS-6$ //$NON-NLS-7$
 }
 }

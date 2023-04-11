@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -11,6 +11,7 @@
 package org.eclipse.swt.widgets;
 
  
+import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.internal.*;
 import org.eclipse.swt.internal.motif.*;
 import org.eclipse.swt.*;
@@ -386,6 +387,7 @@ public String open () {
 		0);
 
 	/* Create the dialog */
+	boolean defaultPos = parent.isVisible ();
 	Display display = parent.display;
 	int [] argList1 = {
 		OS.XmNresizePolicy, OS.XmRESIZE_NONE,
@@ -395,10 +397,11 @@ public String open () {
 		OS.XmNdialogTitle, xmStringPtr1,
 		OS.XmNpattern, xmStringPtr2,
 		OS.XmNdirMask, xmStringPtr3,
+		OS.XmNdefaultPosition, defaultPos ? 1 : 0,
 	};
 	/*
-	* Bug in AIX. The dialog does not responde to input, if the parent
-	* is not realized.  The fix is to realized the parent.  
+	* Bug in AIX. The dialog does not respond to input, if the parent
+	* is not realized.  The fix is to realize the parent.  
 	*/
 	if (OS.IsAIX) parent.realizeWidget ();
 	int parentHandle = parent.shellHandle;
@@ -464,6 +467,23 @@ public String open () {
 		}
 	}
 
+	if (!defaultPos) {
+		OS.XtRealizeWidget (dialog);
+		int[] argList4 = new int[] {
+			OS.XmNwidth, 0,
+			OS.XmNheight, 0,
+		};
+		OS.XtGetValues (dialog, argList4, argList4.length / 2);
+		Monitor monitor = parent.getMonitor ();
+		Rectangle bounds = monitor.getBounds ();
+		int x = bounds.x + (bounds.width - argList4 [1]) / 2;
+		int y = bounds.y + (bounds.height - argList4 [3]) / 2;
+		int[] argList5 = new int[] {
+			OS.XmNx, x,
+			OS.XmNy, y,
+		};
+		OS.XtSetValues (dialog, argList5, argList5.length / 2);
+	}
 	OS.XtManageChild (dialog);
 
 	// Should be a pure OS message loop (no SWT AppContext)
@@ -501,6 +521,9 @@ public void setFileName (String string) {
  * </p>
  *
  * @param extensions the file extension filter
+ * 
+ * @see #setFilterNames to specify the user-friendly
+ * names corresponding to the extensions
  */
 public void setFilterExtensions (String [] extensions) {
 	filterExtensions = extensions;
@@ -510,8 +533,15 @@ public void setFilterExtensions (String [] extensions) {
  * Sets the the names that describe the filter extensions
  * which the dialog will use to filter the files it shows
  * to the argument, which may be null.
+ * <p>
+ * Each name is a user-friendly short description shown for
+ * its corresponding filter. The <code>names</code> array must
+ * be the same length as the <code>extensions</code> array.
+ * </p>
  *
- * @param names the list of filter names
+ * @param names the list of filter names, or null for no filter names
+ * 
+ * @see #setFilterExtensions
  */
 public void setFilterNames (String [] names) {
 	filterNames = names;

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -152,7 +152,7 @@ int addItem(TableTreeItem item, int index) {
  * interface.
  * <p>
  * When <code>widgetSelected</code> is called, the item field of the event object is valid.
- * If the reciever has <code>SWT.CHECK</code> style set and the check selection changes,
+ * If the receiver has <code>SWT.CHECK</code> style set and the check selection changes,
  * the event object detail field contains the value <code>SWT.CHECK</code>.
  * <code>widgetDefaultSelected</code> is typically called when an item is double-clicked.
  * The item field of the event object is valid for default selection, but the detail field is not used.
@@ -661,7 +661,7 @@ public void removeSelectionListener (SelectionListener listener) {
 
 /**
  * Removes the listener from the collection of listeners who will
- * be notified when items in the receiver are expanded or collapsed..
+ * be notified when items in the receiver are expanded or collapsed.
  *
  * @param listener the listener which should no longer be notified
  *

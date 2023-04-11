@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -52,9 +52,18 @@ import org.eclipse.swt.events.*;
  * of these changes are also possible.
  * </li>
  * </ul>
- * </p>
- * <p>
- * Note: The styles supported by this class must be treated
+ * </p><p>
+ * The <em>modality</em> of an instance may be specified using
+ * style bits. The modality style bits are used to determine
+ * whether input is blocked for other shells on the display.
+ * The <code>PRIMARY_MODAL</code> style allows an instance to block
+ * input to its parent. The <code>APPLICATION_MODAL</code> style
+ * allows an instance to block input to every other shell in the
+ * display. The <code>SYSTEM_MODAL</code> style allows an instance
+ * to block input to all shells, including shells belonging to
+ * different applications.
+ * </p><p>
+ * Note: The styles supported by this class are treated
  * as <em>HINT</em>s, since the window manager for the
  * desktop on which the instance is visible has ultimate
  * control over the appearance and behavior of decorations
@@ -65,6 +74,11 @@ import org.eclipse.swt.events.*;
  * more restrictive modality style that is supported. For
  * example, if <code>PRIMARY_MODAL</code> is not supported,
  * it would be upgraded to <code>APPLICATION_MODAL</code>.
+ * A modality style may also be "downgraded" to a less
+ * restrictive style. For example, most operating systems
+ * no longer support <code>SYSTEM_MODAL</code> because
+ * it can freeze up the desktop, so this is typically
+ * downgraded to <code>APPLICATION_MODAL</code>.
  * <dl>
  * <dt><b>Styles:</b></dt>
  * <dd>BORDER, CLOSE, MIN, MAX, NO_TRIM, RESIZE, TITLE, ON_TOP, TOOL</dd>
@@ -567,7 +581,7 @@ void createFocusProxy () {
 	OS.XtSetMappedWhenManaged (focusProxy, true);
 }
 void createHandle (int index) {
-	state |= HANDLE | CANVAS;
+	state |= CANVAS;
 	int decorations = 0;
 	if ((style & SWT.NO_TRIM) == 0) {
 		if ((style & SWT.MIN) != 0) decorations |= OS.MWM_DECOR_MINIMIZE;
@@ -618,9 +632,8 @@ void createHandle (int index) {
 	* resource.  The fix is to treat the window as if it has been
 	* reparented by the Window Manager despite the fact that this
 	* has not really happened.
-	*/
-	int orientations = SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT;
-	if ((style & ~orientations) == SWT.NONE || (style & (SWT.NO_TRIM | SWT.ON_TOP)) != 0) {
+	*/	
+	if (isUndecorated ()) {
 		reparented = true;
 	} 
 	
@@ -756,6 +769,12 @@ public void dispose () {
 void enableWidget (boolean enabled) {
 	super.enableWidget (enabled);
 	enableHandle (enabled, shellHandle);
+}
+Control findBackgroundControl () {
+	return (state & BACKGROUND) != 0 || backgroundImage != null ? this : null;
+}
+Composite findDeferredControl () {
+	return layoutCount > 0 ? this : null;
 }
 /**
  * If the receiver is visible, moves it to the top of the 
@@ -1040,9 +1059,10 @@ boolean isModal () {
 	OS.XtGetValues (shellHandle, argList, argList.length / 2);
 	return (argList [1] != -1 && argList [1] != OS.MWM_INPUT_MODELESS);
 }
-public boolean isLayoutDeferred () {
-	checkWidget ();
-	return layoutCount > 0;
+boolean isUndecorated () {
+	return
+		(style & (SWT.SHELL_TRIM | SWT.BORDER)) == SWT.NONE ||
+		(style & (SWT.NO_TRIM | SWT.ON_TOP)) != 0;
 }
 public boolean isVisible () {
 	checkWidget();
@@ -1109,22 +1129,24 @@ void register () {
 	super.register ();
 	display.addWidget (shellHandle, this);
 }
-void releaseChild () {
-	/* Do nothing */
+void releaseChildren (boolean destroy) {
+	Shell [] shells = getShells ();
+	for (int i=0; i<shells.length; i++) {
+		Shell shell = shells [i];
+		if (shell != null && !shell.isDisposed ()) {
+			shell.release (false);
+		}
+	}
+	super.releaseChildren (destroy);
 }
 void releaseHandle () {
 	super.releaseHandle ();
 	shellHandle = 0;
 }
-void releaseShells () {
-	Shell [] shells = getShells ();
-	for (int i=0; i<shells.length; i++) {
-		Shell shell = shells [i];
-		if (!shell.isDisposed ()) shell.releaseResources ();
-	}
+void releaseParent () {
+	/* Do nothing */
 }
 void releaseWidget () {
-	releaseShells ();
 	super.releaseWidget ();
 	lastActive = null;
 	region = null;

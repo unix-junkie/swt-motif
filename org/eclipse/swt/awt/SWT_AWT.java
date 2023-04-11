@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -31,11 +31,12 @@ import java.awt.Canvas;
 import java.awt.Frame;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.event.WindowEvent;
 
 
 /**
  * This class provides a bridge between SWT and AWT, so that it
- * is possible to embedded AWT components in SWT and vice versa.
+ * is possible to embed AWT components in SWT and vice versa.
  * 
  * @since 3.0
  */
@@ -46,6 +47,12 @@ public class SWT_AWT {
 	 * for the platform will be used if <code>null</code>. 
 	 */
 	public static String embeddedFrameClass;
+
+	/**
+	 * Key for looking up the embedded frame for a Composite using
+	 * getData(). 
+	 */
+	static String EMBEDDED_FRAME_KEY = "org.eclipse.swt.awt.SWT_AWT.embeddedFrame";
 
 static boolean loaded, swingInitialized;
 
@@ -78,6 +85,25 @@ static synchronized void initializeSwing() {
 		Method method = clazz.getMethod("getDefaults", emptyClass);
 		if (method != null) method.invoke(clazz, emptyObject);
 	} catch (Throwable e) {}
+}
+
+/**
+ * Returns a <code>java.awt.Frame</code> which is the embedded frame
+ * associated with the specified composite.
+ * 
+ * @param parent the parent <code>Composite</code> of the <code>java.awt.Frame</code>
+ * @return a <code>java.awt.Frame</code> the embedded frame or <code>null</code>.
+ * 
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
+ * </ul>
+ * 
+ * @since 3.2
+ */
+public static Frame getFrame (Composite parent) {
+	if (parent == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
+	if ((parent.getStyle () & SWT.EMBEDDED) == 0) return null;
+	return (Frame)parent.getData(EMBEDDED_FRAME_KEY);
 }
 
 /**
@@ -125,17 +151,18 @@ public static Frame new_Frame (final Composite parent) {
 	Object value = null;
 	Constructor constructor = null;
 	try {
-		constructor = clazz.getConstructor (new Class [] {int.class});
-		value = constructor.newInstance (new Object [] {new Integer ((int)/*64*/handle)});
+		constructor = clazz.getConstructor (new Class [] {int.class, boolean.class});
+		value = constructor.newInstance (new Object [] {new Integer ((int)/*64*/handle), Boolean.TRUE});
 	} catch (Throwable e1) {
 		try {
-			constructor = clazz.getConstructor (new Class [] {long.class});
-			value = constructor.newInstance (new Object [] {new Long (handle)});
+			constructor = clazz.getConstructor (new Class [] {long.class, boolean.class});
+			value = constructor.newInstance (new Object [] {new Long (handle), Boolean.TRUE});
 		} catch (Throwable e2) {
 			SWT.error (SWT.ERROR_NOT_IMPLEMENTED, e2);
 		}
 	}
 	final Frame frame = (Frame) value;
+	parent.setData(EMBEDDED_FRAME_KEY, frame);
 	if (Device.DEBUG) {
 		loadLibrary();
 		setDebug(frame, true);
@@ -145,8 +172,34 @@ public static Frame new_Frame (final Composite parent) {
 		Method method = clazz.getMethod("registerListeners", null);
 		if (method != null) method.invoke(value, null);
 	} catch (Throwable e) {}
+	final Listener shellListener = new Listener () {
+		public void handleEvent (Event e) {
+			switch (e.type) {
+				case SWT.Deiconify:
+					EventQueue.invokeLater(new Runnable () {
+						public void run () {
+							frame.dispatchEvent (new WindowEvent (frame, WindowEvent.WINDOW_DEICONIFIED));
+						}
+					});
+					break;
+				case SWT.Iconify:
+					EventQueue.invokeLater(new Runnable () {
+						public void run () {
+							frame.dispatchEvent (new WindowEvent (frame, WindowEvent.WINDOW_ICONIFIED));
+						}
+					});
+					break;
+			}
+		}
+	};
+	Shell shell = parent.getShell ();
+	shell.addListener (SWT.Deiconify, shellListener);
+	shell.addListener (SWT.Iconify, shellListener);
 	parent.addListener (SWT.Dispose, new Listener () {
 		public void handleEvent (Event event) {
+			Shell shell = parent.getShell ();
+			shell.removeListener (SWT.Deiconify, shellListener);
+			shell.removeListener (SWT.Iconify, shellListener);
 			parent.setVisible(false);
 			EventQueue.invokeLater(new Runnable () {
 				public void run () {

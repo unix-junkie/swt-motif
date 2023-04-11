@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others. All rights reserved.
+ * Copyright (c) 2000, 2006 IBM Corporation and others. All rights reserved.
  * The contents of this file are made available under the terms
  * of the GNU Lesser General Public License (LGPL) Version 2.1 that
  * accompanies this distribution (lgpl-v21.txt).  The LGPL is also
@@ -8,6 +8,9 @@
  * the LGPL accompanying this distribution and there is any conflict
  * between the two license versions, the terms of the LGPL accompanying
  * this distribution shall govern.
+ * 
+ * Contributors:
+ *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 package org.eclipse.swt.internal.gnome;
 
@@ -31,33 +34,6 @@ public static final int GNOME_VFS_MAKE_URI_DIR_CURRENT = 1<<1;
 public static final native int GnomeVFSMimeApplication_sizeof();
 
 /** Natives */
-public static final native int _dlclose(int /*long*/ handle);
-public static final int dlclose(int /*long*/ handle) {
-	lock.lock();
-	try {
-		return _dlclose(handle);
-	} finally {
-		lock.unlock();
-	}
-}
-public static final native int /*long*/ _dlopen(byte[] filename, int flag);
-public static final int /*long*/ dlopen(byte[] filename, int flag) {
-	lock.lock();
-	try {
-		return _dlopen(filename, flag);
-	} finally {
-		lock.unlock();
-	}
-}
-public static final native int /*long*/ _dlsym(int /*long*/ handle, byte[] symbol);
-public static final int /*long*/ dlsym(int /*long*/ handle, byte[] symbol) {
-	lock.lock();
-	try {
-		return _dlsym(handle, symbol);
-	} finally {
-		lock.unlock();
-	}
-}
 public static final native void _g_free(int /*long*/ mem);
 public static final void g_free(int /*long*/ mem) {
 	lock.lock();

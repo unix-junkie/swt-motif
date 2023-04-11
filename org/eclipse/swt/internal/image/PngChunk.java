@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -12,7 +12,6 @@ package org.eclipse.swt.internal.image;
 
 
 import org.eclipse.swt.*;
-import org.eclipse.swt.internal.Compatibility;
 import java.io.*;
 
 class PngChunk extends Object {
@@ -56,6 +55,8 @@ class PngChunk extends Object {
 		}	
 	}
 	
+	int length;
+	
 /**
  * Construct a PngChunk using the reference bytes
  * given.
@@ -63,6 +64,17 @@ class PngChunk extends Object {
 PngChunk(byte[] reference) {
 	super();
 	setReference(reference);
+	if (reference.length < LENGTH_OFFSET + LENGTH_FIELD_LENGTH) SWT.error(SWT.ERROR_INVALID_IMAGE);
+	length = getInt32(LENGTH_OFFSET);
+}
+
+/**
+ * Construct a PngChunk with the specified number of
+ * data bytes.
+ */	
+PngChunk(int dataLength) {
+	this(new byte[MIN_LENGTH + dataLength]);
+	setLength(dataLength);
 }
 
 /**
@@ -77,6 +89,26 @@ byte[] getReference() {
  */	
 void setReference(byte[] reference) {
 	this.reference = reference;
+}
+
+/**
+ * Get the 16-bit integer from the reference byte
+ * array at the given offset.
+ */	
+int getInt16(int offset) {
+	int answer = 0;
+	answer |= (reference[offset] & 0xFF) << 8;
+	answer |= (reference[offset + 1] & 0xFF);
+	return answer;	
+}
+
+/**
+ * Set the 16-bit integer in the reference byte
+ * array at the given offset.
+ */	
+void setInt16(int offset, int value) {
+	reference[offset] = (byte) ((value >> 8) & 0xFF);
+	reference[offset + 1] = (byte) (value & 0xFF);
 }
 
 /**
@@ -108,7 +140,7 @@ void setInt32(int offset, int value) {
  * This is not the length of the entire chunk.
  */	
 int getLength() {
-	return getInt32(LENGTH_OFFSET);
+	return length;
 }
 
 /**
@@ -117,6 +149,7 @@ int getLength() {
  */	
 void setLength(int value) {
 	setInt32(LENGTH_OFFSET, value);
+	length = value;
 }
 
 /**
@@ -239,7 +272,8 @@ boolean typeMatchesArray(byte[] array) {
 }
 
 boolean isCritical() {
-	return Character.isUpperCase((char) getTypeBytes()[0]);
+	char c = (char) getTypeBytes()[0]; 
+	return 'A' <= c && c <= 'Z';
 }
 
 int getChunkType() {
@@ -298,11 +332,15 @@ void validate(PngFileReadState readState, PngIhdrChunk headerChunk) {
 	byte[] type = getTypeBytes();
 	
 	// The third character MUST be upper case.
-	if (!Character.isUpperCase((char) type[2])) SWT.error(SWT.ERROR_INVALID_IMAGE);
+	char c = (char) type[2];
+	if (!('A' <= c && c <= 'Z')) SWT.error(SWT.ERROR_INVALID_IMAGE);
 	
 	// All characters must be letters.
 	for (int i = 0; i < TYPE_FIELD_LENGTH; i++) {
-		if (!Compatibility.isLetter((char) type[i])) SWT.error(SWT.ERROR_INVALID_IMAGE);
+		c = (char) type[i];
+		if (!(('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z'))) {
+			SWT.error(SWT.ERROR_INVALID_IMAGE);
+		}
 	}
 	
 	// The stored CRC must match the data's computed CRC.

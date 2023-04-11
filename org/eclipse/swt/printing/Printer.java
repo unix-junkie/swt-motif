@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -220,7 +220,7 @@ static String[] getXPServerList() {
 		while (i < buffer2.length) {
 			if (buffer2[i] != ' ') {
 				int start = i;
-				while (++i < buffer2.length && buffer2[i] != ' ');
+				while (++i < buffer2.length && buffer2[i] != ' ') {/*empty*/}
 				String server = new String(buffer2, start, i - start);
 				String[] newServerList = new String[serversList.length + 1];
 				System.arraycopy(serversList, 0, newServerList, 0, serversList.length);

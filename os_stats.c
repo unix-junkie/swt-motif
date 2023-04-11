@@ -1,21 +1,21 @@
 /*******************************************************************************
-* Copyright (c) 2000, 2005 IBM Corporation and others.
-* All rights reserved. This program and the accompanying materials
-* are made available under the terms of the Eclipse Public License v1.0
-* which accompanies this distribution, and is available at
-* http://www.eclipse.org/legal/epl-v10.html
-*
-* Contributors:
-*     IBM Corporation - initial API and implementation
-*******************************************************************************/
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *    IBM Corporation - initial API and implementation
+ *******************************************************************************/
 
 #include "swt.h"
 #include "os_stats.h"
 
 #ifdef NATIVE_STATS
 
-int OS_nativeFunctionCount = 449;
-int OS_nativeFunctionCallCount[449];
+int OS_nativeFunctionCount = 469;
+int OS_nativeFunctionCallCount[469];
 char * OS_nativeFunctionNames[] = {
 	"CODESET",
 	"FD_1ISSET",
@@ -25,6 +25,7 @@ char * OS_nativeFunctionNames[] = {
 	"MB_1CUR_1MAX",
 	"MonitorEnter",
 	"MonitorExit",
+	"XRenderPictureAttributes_1sizeof",
 	"_1Call",
 	"_1ConnectionNumber",
 	"_1XAllocColor",
@@ -42,6 +43,7 @@ char * OS_nativeFunctionNames[] = {
 	"_1XCopyArea",
 	"_1XCopyPlane",
 	"_1XCreateBitmapFromData",
+	"_1XCreateColormap",
 	"_1XCreateFontCursor",
 	"_1XCreateGC",
 	"_1XCreateImage",
@@ -79,6 +81,7 @@ char * OS_nativeFunctionNames[] = {
 	"_1XFlush",
 	"_1XFontsOfFontSet",
 	"_1XFree",
+	"_1XFreeColormap",
 	"_1XFreeColors",
 	"_1XFreeCursor",
 	"_1XFreeFont",
@@ -121,6 +124,16 @@ char * OS_nativeFunctionNames[] = {
 	"_1XRaiseWindow",
 	"_1XReconfigureWMWindow",
 	"_1XRectInRegion",
+	"_1XRenderComposite",
+	"_1XRenderCreatePicture",
+	"_1XRenderFindStandardFormat",
+	"_1XRenderFindVisualFormat",
+	"_1XRenderFreePicture",
+	"_1XRenderQueryExtension",
+	"_1XRenderQueryVersion",
+	"_1XRenderSetPictureClipRectangles",
+	"_1XRenderSetPictureClipRegion",
+	"_1XRenderSetPictureTransform",
 	"_1XReparentWindow",
 	"_1XResizeWindow",
 	"_1XRootWindowOfScreen",
@@ -142,7 +155,10 @@ char * OS_nativeFunctionNames[] = {
 	"_1XSetRegion",
 	"_1XSetStipple",
 	"_1XSetSubwindowMode",
+	"_1XSetTSOrigin",
+	"_1XSetTile",
 	"_1XSetWMNormalHints",
+	"_1XSetWindowBackgroundPixmap",
 	"_1XShapeCombineMask",
 	"_1XShapeCombineRegion",
 	"_1XSubtractRegion",
@@ -313,6 +329,7 @@ char * OS_nativeFunctionNames[] = {
 	"_1XmTextSetSelection",
 	"_1XmTextSetString",
 	"_1XmTextShowPosition",
+	"_1XmTextXYToPos",
 	"_1XmUpdateDisplay",
 	"_1XmWidgetGetDisplayRect",
 	"_1XmbTextListToTextProperty",
@@ -401,6 +418,9 @@ char * OS_nativeFunctionNames[] = {
 	"_1XtWindowToWidget",
 	"_1_1XmSetMenuTraversal",
 	"_1applicationShellWidgetClass",
+	"_1dlclose",
+	"_1dlopen",
+	"_1dlsym",
 	"_1overrideShellWidgetClass",
 	"_1shellWidgetClass",
 	"_1topLevelShellWidgetClass",

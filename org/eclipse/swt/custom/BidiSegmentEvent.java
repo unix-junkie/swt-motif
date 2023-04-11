@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -58,11 +58,20 @@ import org.eclipse.swt.events.*;
  * </pre>
  */
 public class BidiSegmentEvent extends TypedEvent {
-	/** line start offset */
+	
+	/** 
+	 * line start offset 
+	 */
 	public int lineOffset;
-	/** line text */			
+	
+	/** 
+	 * line text 
+	 */			
 	public String lineText;
-	/** bidi segments, see above */
+	
+	/** 
+	 * bidi segments, see above 
+	 */
 	public int[] segments;
 		
 	static final long serialVersionUID = 3257846571587547957L;

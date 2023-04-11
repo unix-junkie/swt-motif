@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -35,7 +35,7 @@ import org.eclipse.swt.events.*;
 public class Link extends Control {
 	String text;
 	TextLayout layout;
-	Color linkColor, linkDisabledColor;
+	Color linkColor, disabledColor;
 	Point [] offsets;
 	Point selection;
 	String [] ids;
@@ -133,7 +133,7 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 	return new Point (width, height);
 }
 void createHandle (int index) {
-	state |= HANDLE;
+	state |= THEME_BACKGROUND;
 	int [] argList = {
 		OS.XmNancestorSensitive, 1,
 		OS.XmNborderWidth, (style & SWT.BORDER) != 0 ? 1 : 0,
@@ -146,7 +146,7 @@ void createHandle (int index) {
 	if (handle == 0) error (SWT.ERROR_NO_HANDLES);
 	layout = new TextLayout (display);
 	linkColor = new Color (display, LINK_FOREGROUND);
-	linkDisabledColor = new Color (display, LINK_DISABLED_FOREGROUND);
+	disabledColor = new Color (display, LINK_DISABLED_FOREGROUND);
 	offsets = new Point [0];
 	ids = new String [0];
 	mnemonics = new int [0];
@@ -160,7 +160,7 @@ void createWidget (int index) {
 }
 void enableWidget (boolean enabled) {
 	super.enableWidget (enabled);
-	TextStyle linkStyle = new TextStyle (null, enabled ? linkColor : linkDisabledColor, null);
+	TextStyle linkStyle = new TextStyle (null, enabled ? linkColor : disabledColor, null);
 	linkStyle.underline = true;
 	for (int i = 0; i < offsets.length; i++) {
 		Point point = offsets [i];
@@ -201,8 +201,7 @@ Rectangle [] getRectangles (int linkIndex) {
 }
 /**
  * Returns the receiver's text, which will be an empty
- * string if it has never been set or if the receiver is
- * a <code>SEPARATOR</code> label.
+ * string if it has never been set.
  *
  * @return the receiver's text
  *
@@ -221,8 +220,8 @@ void releaseWidget () {
 	layout = null;
 	if (linkColor != null) linkColor.dispose ();
 	linkColor = null;
-	if (linkDisabledColor != null) linkDisabledColor.dispose ();
-	linkDisabledColor = null;
+	if (disabledColor != null) disabledColor.dispose ();
+	disabledColor = null;
 	offsets = null;	
 	ids = null;
 	mnemonics = null;
@@ -410,6 +409,11 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
 public void setFont (Font font) {
 	super.setFont (font);
 	layout.setFont (this.font);
+	int xDisplay = OS.XtDisplay (handle);
+	if (xDisplay == 0) return;
+	int xWindow = OS.XtWindow (handle);
+	if (xWindow == 0) return;
+	OS.XClearArea (xDisplay, xWindow, 0, 0, 0, 0, true);
 }
 void setForegroundPixel (int pixel) {
 	super.setForegroundPixel (pixel);
@@ -455,7 +459,7 @@ public void setText (String string) {
 	int [] argList1 = {OS.XmNsensitive, 0};
 	OS.XtGetValues (handle, argList1, argList1.length / 2);
 	boolean enabled = argList1 [1] != 0;
-	TextStyle linkStyle = new TextStyle (null, enabled ? linkColor : linkDisabledColor, null);
+	TextStyle linkStyle = new TextStyle (null, enabled ? linkColor : disabledColor, null);
 	linkStyle.underline = true;
 	for (int i = 0; i < offsets.length; i++) {
 		Point point = offsets [i];
@@ -487,6 +491,7 @@ int traversalCode (int key, XKeyEvent event) {
 }
 int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatch) {
 	int result = super.XButtonPress (w, client_data, call_data, continue_to_dispatch);
+	if (result != 0) return result;
 	XButtonEvent xEvent = new XButtonEvent ();
 	OS.memmove (xEvent, call_data, XButtonEvent.sizeof);
 	if (xEvent.button == 1) {
@@ -519,7 +524,8 @@ int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatc
 	return result;
 }
 int XButtonRelease (int w, int client_data, int call_data, int continue_to_dispatch) {
-	int result = super.XButtonRelease(w, client_data, call_data, continue_to_dispatch);
+	int result = super.XButtonRelease (w, client_data, call_data, continue_to_dispatch);
+	if (result != 0) return result;
 	if (focusIndex == -1) return result;
 	XButtonEvent xEvent = new XButtonEvent ();
 	OS.memmove (xEvent, call_data, XButtonEvent.sizeof);
@@ -561,6 +567,9 @@ int XExposure (int w, int client_data, int call_data, int continue_to_dispatch) 
 	}
 	// temporary code to disable text selection
 	selStart = selEnd = -1;
+	int [] argList = {OS.XmNsensitive, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	if (argList [1] == 0) gc.setForeground (disabledColor);	
 	layout.draw (gc, 0, 0, selStart, selEnd, null, null);
 	if (hasFocus () && focusIndex != -1) {
 		Rectangle [] rects = getRectangles (focusIndex);
@@ -627,6 +636,7 @@ int XKeyPress (int w, int client_data, int call_data, int continue_to_dispatch) 
 }
 int XPointerMotion (int w, int client_data, int call_data, int continue_to_dispatch) {
 	int result = super.XPointerMotion (w, client_data, call_data, continue_to_dispatch);
+	if (result != 0) return result;
 	XMotionEvent xEvent = new XMotionEvent ();
 	OS.memmove (xEvent, call_data, XMotionEvent.sizeof);
 	if ((xEvent.state & OS.Button1Mask) != 0) {

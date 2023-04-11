@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -426,9 +426,10 @@ String getListSelection (List list) {
 }
 
 /**
- * Returns the currently selected color in the receiver.
+ * Returns an RGB describing the color that was selected
+ * in the dialog, or null if none is available.
  *
- * @return the RGB value for the selected color, may be null
+ * @return the RGB value for the selected color, or null
  *
  * @see PaletteData#getRGBs
  * 
@@ -910,9 +911,16 @@ void openDialog () {
 		pt = shell.computeSize (widthLimit, SWT.DEFAULT, false);
 	}
 	
-	// centre the dialog on its parent, and ensure that the
-	// whole dialog appears within the screen bounds
-	Rectangle parentBounds = getParent ().getBounds ();
+	/*
+	 * If the parent is visible then center this dialog on it,
+	 * otherwise center this dialog on the parent's monitor
+	 */
+	Rectangle parentBounds = null;
+	if (parent.isVisible ()) {
+		parentBounds = getParent ().getBounds ();
+	} else {
+		parentBounds = parent.getMonitor ().getBounds ();
+	}
 	int originX = (parentBounds.width - pt.x) / 2 + parentBounds.x;
 	originX = Math.max (originX, 0);
 	originX = Math.min (originX, widthLimit - pt.x);
@@ -987,11 +995,15 @@ public void setFontData (FontData fontData) {
 }
 
 /**
- * Sets a set of FontData objects describing the font to
+ * Sets the set of FontData objects describing the font to
  * be selected by default in the dialog, or null to let
  * the platform choose one.
  * 
  * @param fontData the set of FontData objects to use initially, or null
+ *        to let the platform select a default when open() is called
+ *
+ * @see Font#getFontData
+ * 
  * @since 2.1.1
  */
 public void setFontList (FontData [] fontData) {
@@ -1021,11 +1033,11 @@ void setItemsSorted (List list, Hashtable items) {
 }
 
 /**
- * Sets the receiver's selected color to be the argument.
+ * Sets the RGB describing the color to be selected by default
+ * in the dialog, or null to let the platform choose one.
  *
- * @param rgb the new RGB value for the selected color, may be
- *        null to let the platform to select a default when
- *        open() is called
+ * @param rgb the RGB value to use initially, or null to let
+ *        the platform select a default when open() is called
  *
  * @see PaletteData#getRGBs
  * 

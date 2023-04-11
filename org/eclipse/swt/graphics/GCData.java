@@ -31,6 +31,7 @@ public final class GCData {
 	public int drawable;
 	public int foreground = -1;
 	public int background = -1;
+	public Image backgroundImage;
 	public Pattern foregroundPattern;
 	public Pattern backgroundPattern;
 	public Font font;
@@ -40,12 +41,10 @@ public final class GCData {
 	public int lineWidth;
 	public int[] dashes;
 	public int renderTable;
-    public int antialias = SWT.DEFAULT;
-    public int textAntialias = SWT.DEFAULT;
+	public int alpha = 0xFF;
 	public int interpolation = SWT.DEFAULT;
 
 	public int /*long*/ cairo;
-	public int /*long*/ matrix, inverseMatrix;
 
 	public String string;
 	public int stringWidth = -1;
