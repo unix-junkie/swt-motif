@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -20,7 +20,7 @@ import org.eclipse.swt.internal.motif.*;
  *
  * Class <code>DropTarget</code> defines the target object for a drag and drop transfer.
  *
- * IMPORTANT: This class is <em>not</em> intended to be subclassed.
+ * <p>IMPORTANT: This class is <em>not</em> intended to be subclassed.</p>
  *
  * <p>This class identifies the <code>Control</code> over which the user must position the cursor
  * in order to drop the data being transferred.  It also specifies what data types can be dropped on 
@@ -70,6 +70,7 @@ import org.eclipse.swt.internal.motif.*;
  * @see <a href="http://www.eclipse.org/swt/snippets/#dnd">Drag and Drop snippets</a>
  * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: DNDExample</a>
  * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ * @noextend This class is not intended to be subclassed by clients.
  */
 public class DropTarget extends Widget {
 	
@@ -103,9 +104,11 @@ public class DropTarget extends Widget {
 	// not visible.
 	boolean registered = false;
 	
+	int deleteAtom, nullAtom;
+	
 	static final String DEFAULT_DROP_TARGET_EFFECT = "DEFAULT_DROP_TARGET_EFFECT"; //$NON-NLS-1$
-	static int DELETE_TYPE = Transfer.registerType("DELETE\0"); //$NON-NLS-1$
-	static int NULL_TYPE = Transfer.registerType("NULL\0"); //$NON-NLS-1$
+	static byte [] DELETE = Converter.wcsToMbcs (null, "DELETE", true); //$NON-NLS-1$
+	static byte [] NULL = Converter.wcsToMbcs (null, "NULL", true); //$NON-NLS-1$
 	static final int DRAGOVER_HYSTERESIS = 50;
 	
 	static Callback DropProc;
@@ -162,6 +165,9 @@ public DropTarget(Control control, int style) {
 		DND.error(DND.ERROR_CANNOT_INIT_DROP);
 	}
 	control.setData(DND.DROP_TARGET_KEY, this);
+	int xDisplay = Display.getDefault().xDisplay;
+	deleteAtom = OS.XmInternAtom (xDisplay, DELETE, false);
+	nullAtom = OS.XmInternAtom (xDisplay, NULL, false);
 
 	controlListener = new Listener () {
 		public void handleEvent (Event event) {
@@ -858,7 +864,7 @@ void transferProcCallback(int widget, int client_data, int pSelection, int pType
 	
 	int[] type = new int[1];
 	OS.memmove(type, pType, 4);
-	if (type[0] == NULL_TYPE) {
+	if (type[0] == nullAtom) {
 		return;
 	}
 	
@@ -908,7 +914,7 @@ void transferProcCallback(int widget, int client_data, int pSelection, int pType
 	
 	//notify source of action taken
 	if ((selectedOperation & DND.DROP_MOVE) == DND.DROP_MOVE) {
-		int[] args = new int[]{control.handle, DELETE_TYPE};
+		int[] args = new int[]{control.handle, deleteAtom};
 		OS.XmDropTransferAdd(dropTransferObject, args, args.length / 2);
 	}
 }

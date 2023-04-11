@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -92,6 +92,7 @@ import org.eclipse.swt.graphics.*;
  * @see Device#dispose
  * @see <a href="http://www.eclipse.org/swt/snippets/#display">Display snippets</a>
  * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ * @noextend This class is not intended to be subclassed by clients.
  */
 public class Display extends Device {
 
@@ -2682,6 +2683,13 @@ int mouseHoverProc (int handle, int id) {
  * <li>(in) x the x coordinate to move the mouse pointer to in screen coordinates
  * <li>(in) y the y coordinate to move the mouse pointer to in screen coordinates
  * </ul>
+ * <p>MouseWheel</p>
+ * <p>The following fields in the <code>Event</code> apply:
+ * <ul>
+ * <li>(in) type MouseWheel
+ * <li>(in) detail either SWT.SCROLL_LINE or SWT.SCROLL_PAGE
+ * <li>(in) count the number of lines or pages to scroll
+ * </ul>
  * </dl>
  * 
  * @param event the event to be generated
@@ -2699,49 +2707,61 @@ int mouseHoverProc (int handle, int id) {
  * 
  */
 public boolean post (Event event) {
-	synchronized (Device.class) {
-		if (isDisposed ()) error (SWT.ERROR_DEVICE_DISPOSED);
-		if (event == null) error (SWT.ERROR_NULL_ARGUMENT);
-		int type = event.type;
-		switch (type) {
-			case SWT.KeyDown :
-			case SWT.KeyUp : {
-				int keyCode = 0;
-				int keysym = untranslateKey (event.keyCode);
-				if (keysym != 0) keyCode = OS.XKeysymToKeycode (xDisplay, keysym);
-				if (keyCode == 0) {
-					char key = event.character;
-					switch (key) {
-						case SWT.BS: keysym = OS.XK_BackSpace; break;
-						case SWT.CR: keysym = OS.XK_Return; break;
-						case SWT.DEL: keysym = OS.XK_Delete; break;
-						case SWT.ESC: keysym = OS.XK_Escape; break;
-						case SWT.TAB: keysym = OS.XK_Tab; break;
-						case SWT.LF: keysym = OS.XK_Linefeed; break;
-						default:
-							keysym = key;
+	/*
+	* Get the operating system lock before synchronizing on the device
+	* lock so that the device lock will not be held should another
+	* thread already be in the operating system.  This avoids deadlock
+	* should the other thread need the device lock.
+	*/
+	Lock lock = OS.lock;
+	lock.lock();
+	try {
+		synchronized (Device.class) {
+			if (isDisposed ()) error (SWT.ERROR_DEVICE_DISPOSED);
+			if (event == null) error (SWT.ERROR_NULL_ARGUMENT);
+			int type = event.type;
+			switch (type) {
+				case SWT.KeyDown :
+				case SWT.KeyUp : {
+					int keyCode = 0;
+					int keysym = untranslateKey (event.keyCode);
+					if (keysym != 0) keyCode = OS.XKeysymToKeycode (xDisplay, keysym);
+					if (keyCode == 0) {
+						char key = event.character;
+						switch (key) {
+							case SWT.BS: keysym = OS.XK_BackSpace; break;
+							case SWT.CR: keysym = OS.XK_Return; break;
+							case SWT.DEL: keysym = OS.XK_Delete; break;
+							case SWT.ESC: keysym = OS.XK_Escape; break;
+							case SWT.TAB: keysym = OS.XK_Tab; break;
+							case SWT.LF: keysym = OS.XK_Linefeed; break;
+							default:
+								keysym = key;
+						}
+						keyCode = OS.XKeysymToKeycode (xDisplay, keysym);
+						if (keyCode == 0) return false;
 					}
-					keyCode = OS.XKeysymToKeycode (xDisplay, keysym);
-					if (keyCode == 0) return false;
-				}
-				OS.XTestFakeKeyEvent (xDisplay, keyCode, type == SWT.KeyDown, 0);
-				return true;
-			}
-			case SWT.MouseDown :
-			case SWT.MouseMove : 
-			case SWT.MouseUp : {
-				if (type == SWT.MouseMove) {
-					OS.XTestFakeMotionEvent (xDisplay, -1, event.x, event.y, 0);
+					OS.XTestFakeKeyEvent (xDisplay, keyCode, type == SWT.KeyDown, 0);
 					return true;
-				} else {
-					int button = event.button;
-					if (button < 1 || button > 3) return false;
-					OS.XTestFakeButtonEvent (xDisplay, button, type == SWT.MouseDown, 0);
-				    return true;
+				}
+				case SWT.MouseDown :
+				case SWT.MouseMove : 
+				case SWT.MouseUp : {
+					if (type == SWT.MouseMove) {
+						OS.XTestFakeMotionEvent (xDisplay, -1, event.x, event.y, 0);
+						return true;
+					} else {
+						int button = event.button;
+						if (button < 1 || button > 3) return false;
+						OS.XTestFakeButtonEvent (xDisplay, button, type == SWT.MouseDown, 0);
+					    return true;
+					}
 				}
 			}
+			return false;
 		}
-		return false;
+	} finally {
+		lock.unlock();
 	}
 }
 void postEvent (Event event) {
@@ -2813,7 +2833,7 @@ public boolean readAndDispatch () {
 		runDeferredEvents ();
 		return true;
 	}
-	return runAsyncMessages (false);
+	return isDisposed () || runAsyncMessages (false);
 }
 static void register (Display display) {
 	synchronized (Device.class) {
@@ -3118,6 +3138,7 @@ boolean runAsyncMessages (boolean all) {
 	return synchronizer.runAsyncMessages (all);
 }
 boolean runDeferredEvents () {
+	boolean run = false;
 	/*
 	* Run deferred events.  This code is always
 	* called in the Display's thread so it must
@@ -3137,6 +3158,7 @@ boolean runDeferredEvents () {
 		if (widget != null && !widget.isDisposed ()) {
 			Widget item = event.item;
 			if (item == null || !item.isDisposed ()) {
+				run = true;
 				widget.sendEvent (event);
 			}
 		}
@@ -3150,7 +3172,7 @@ boolean runDeferredEvents () {
 
 	/* Clear the queue */
 	eventQueue = null;
-	return true;
+	return run;
 }
 boolean runFocusOutEvents () {
 	if (eventQueue == null) return false;

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -81,7 +81,7 @@ import org.eclipse.swt.events.*;
  * downgraded to <code>APPLICATION_MODAL</code>.
  * <dl>
  * <dt><b>Styles:</b></dt>
- * <dd>BORDER, CLOSE, MIN, MAX, NO_TRIM, RESIZE, TITLE, ON_TOP, TOOL</dd>
+ * <dd>BORDER, CLOSE, MIN, MAX, NO_TRIM, RESIZE, TITLE, ON_TOP, TOOL, SHEET</dd>
  * <dd>APPLICATION_MODAL, MODELESS, PRIMARY_MODAL, SYSTEM_MODAL</dd>
  * <dt><b>Events:</b></dt>
  * <dd>Activate, Close, Deactivate, Deiconify, Iconify</dd>
@@ -118,7 +118,7 @@ import org.eclipse.swt.events.*;
  */
 public class Shell extends Decorations {
 	int shellHandle, focusProxy;
-	boolean reparented, realized, moved, resized, opened;
+	boolean reparented, realized, moved, resized, opened, modified, center;
 	int oldX, oldY, oldWidth, oldHeight;
 	Control lastActive;
 
@@ -167,13 +167,16 @@ public Shell () {
  * @see SWT#MAX
  * @see SWT#RESIZE
  * @see SWT#TITLE
+ * @see SWT#TOOL
  * @see SWT#NO_TRIM
  * @see SWT#SHELL_TRIM
  * @see SWT#DIALOG_TRIM
+ * @see SWT#ON_TOP
  * @see SWT#MODELESS
  * @see SWT#PRIMARY_MODAL
  * @see SWT#APPLICATION_MODAL
  * @see SWT#SYSTEM_MODAL
+ * @see SWT#SHEET
  */
 public Shell (int style) {
 	this ((Display) null, style);
@@ -235,13 +238,16 @@ public Shell (Display display) {
  * @see SWT#MAX
  * @see SWT#RESIZE
  * @see SWT#TITLE
+ * @see SWT#TOOL
  * @see SWT#NO_TRIM
  * @see SWT#SHELL_TRIM
  * @see SWT#DIALOG_TRIM
+ * @see SWT#ON_TOP
  * @see SWT#MODELESS
  * @see SWT#PRIMARY_MODAL
  * @see SWT#APPLICATION_MODAL
  * @see SWT#SYSTEM_MODAL
+ * @see SWT#SHEET
  */
 public Shell (Display display, int style) {
 	this (display, null, style, 0, false);
@@ -257,7 +263,8 @@ Shell (Display display, Shell parent, int style, int handle, boolean embedded) {
 	if (parent != null && parent.isDisposed ()) {
 		error (SWT.ERROR_INVALID_ARGUMENT);	
 	}
-	this.style = checkStyle (style);
+	this.center = parent != null && (style & SWT.SHEET) != 0;
+	this.style = checkStyle (parent, style);
 	this.parent = parent;
 	this.display = display;
 	if (handle != 0) {
@@ -341,16 +348,24 @@ public Shell (Shell parent) {
  * @see SWT#PRIMARY_MODAL
  * @see SWT#APPLICATION_MODAL
  * @see SWT#SYSTEM_MODAL
+ * @see SWT#SHEET
  */
 public Shell (Shell parent, int style) {
 	this (parent != null ? parent.display : null, parent, style, 0, false);
 }
 
-static int checkStyle (int style) {
+static int checkStyle (Shell parent, int style) {
 	style = Decorations.checkStyle (style);
 	style &= ~SWT.TRANSPARENT;
 	if ((style & SWT.ON_TOP) != 0) style &= ~SWT.SHELL_TRIM;
 	int mask = SWT.SYSTEM_MODAL | SWT.APPLICATION_MODAL | SWT.PRIMARY_MODAL;
+	if ((style & SWT.SHEET) != 0) {
+		style &= ~SWT.SHEET;
+		style |= parent == null ? SWT.SHELL_TRIM : SWT.DIALOG_TRIM;
+		if ((style & mask) == 0) {
+			style |= parent == null ? SWT.APPLICATION_MODAL : SWT.PRIMARY_MODAL;
+		}
+	}
 	int bits = style & ~mask;
 	if ((style & SWT.SYSTEM_MODAL) != 0) return bits | SWT.SYSTEM_MODAL;
 	if ((style & SWT.APPLICATION_MODAL) != 0) return bits | SWT.APPLICATION_MODAL;
@@ -553,6 +568,25 @@ void bringToTop (boolean force) {
 	int shellWindow = OS.XtWindow (shellHandle);
 	if (shellWindow != 0) OS.XRaiseWindow (xDisplay, shellWindow);
 	OS.XSetInputFocus (xDisplay, xWindow, OS.RevertToParent, OS.CurrentTime);
+}
+void center () {
+	if (parent == null) return;
+	Rectangle rect = getBounds ();
+	Rectangle parentRect = display.map (parent, null, parent.getClientArea());
+	int x = Math.max (parentRect.x, parentRect.x + (parentRect.width - rect.width) / 2);
+	int y = Math.max (parentRect.y, parentRect.y + (parentRect.height - rect.height) / 2);
+	Rectangle monitorRect = parent.getMonitor ().getClientArea();
+	if (x + rect.width > monitorRect.x + monitorRect.width) {
+		x = Math.max (monitorRect.x, monitorRect.x + monitorRect.width - rect.width);
+	} else {
+		x = Math.max (x, monitorRect.x);
+	}
+	if (y + rect.height > monitorRect.y + monitorRect.height) {
+		y = Math.max (monitorRect.y, monitorRect.y + monitorRect.height - rect.height);
+	} else {
+		y = Math.max (y, monitorRect.y);
+	}
+	setLocation (x, y);
 }
 void checkOpen () {
 	if (!opened) resized = false;
@@ -1054,6 +1088,21 @@ public Point getMinimumSize () {
 	int height = Math.max (1, Math.max (0, argList [3]) + trimHeight ());
 	return new Point (width, height);
 }
+/**
+ * Gets the receiver's modified state.
+ *
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.5
+ */
+public boolean getModified () {
+	checkWidget ();
+	return modified;
+}
 /** 
  * Returns the region that defines the shape of the shell,
  * or null if the shell has the default shape.
@@ -1472,7 +1521,7 @@ public void setEnabled (boolean enabled) {
  * to switch to the full screen state, and if the argument is
  * <code>false</code> and the receiver was previously switched
  * into full screen state, causes the receiver to switch back
- * to either the maximmized or normal states.
+ * to either the maximized or normal states.
  * <p>
  * Note: The result of intermixing calls to <code>setFullScreen(true)</code>, 
  * <code>setMaximized(true)</code> and <code>setMinimized(true)</code> will 
@@ -1640,6 +1689,23 @@ public void setMinimumSize (Point size) {
 	if (size == null) error (SWT.ERROR_NULL_ARGUMENT);
 	setMinimumSize (size.x, size.y);	
 }
+/**
+ * Sets the receiver's modified state as specified by the argument.
+ *
+ * @param modified the new modified state for the receiver
+ *
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.5
+ */
+public void setModified (boolean modified) {
+	checkWidget ();
+	this.modified = modified;
+}
 void setParentTraversal () {
 	/* Do nothing - Child shells do not affect the traversal of their parent shell */
 }
@@ -1709,6 +1775,10 @@ public void setVisible (boolean visible) {
 
 	/* Show the shell */
 	if (visible) {
+		if (center && !moved) {
+			center ();
+			if (isDisposed ()) return;
+		}
 		sendEvent (SWT.Show);
 		if (isDisposed ()) return;
 

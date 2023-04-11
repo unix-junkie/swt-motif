@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -30,26 +30,37 @@ import org.eclipse.swt.events.*;
  * <p>
  * <dl>
  * <dt><b>Styles:</b></dt>
- * <dd>CANCEL, CENTER, LEFT, MULTI, PASSWORD, SEARCH, SINGLE, RIGHT, READ_ONLY, WRAP</dd>
+ * <dd>CENTER, ICON_CANCEL, ICON_SEARCH, LEFT, MULTI, PASSWORD, SEARCH, SINGLE, RIGHT, READ_ONLY, WRAP</dd>
  * <dt><b>Events:</b></dt>
  * <dd>DefaultSelection, Modify, Verify</dd>
  * </dl>
  * <p>
  * Note: Only one of the styles MULTI and SINGLE may be specified,
  * and only one of the styles LEFT, CENTER, and RIGHT may be specified.
- * </p><p>
+ * </p>
+ * <p>
+ * Note: The styles ICON_CANCEL and ICON_SEARCH are hints used in combination with SEARCH.
+ * When the platform supports the hint, the text control shows these icons.  When an icon
+ * is selected, a default selection event is sent with the detail field set to one of
+ * ICON_CANCEL or ICON_SEARCH.  Normally, application code does not need to check the
+ * detail.  In the case of ICON_CANCEL, the text is cleared before the default selection
+ * event is sent causing the application to search for an empty string.
+ * </p>
+ * <p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
  *
  * @see <a href="http://www.eclipse.org/swt/snippets/#text">Text snippets</a>
  * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
  * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ * @noextend This class is not intended to be subclassed by clients.
  */
 public class Text extends Scrollable {
 	char echoCharacter;
 	boolean ignoreChange;
 	String hiddenText, message;
 	int drawCount;
+	Color disabledColor;
 	
 	static final boolean IsGB18030;
 	/**
@@ -67,6 +78,8 @@ public class Text extends Scrollable {
 	* this delimiter.
 	*/
 	public static final String DELIMITER;
+	
+	static final RGB MSG_FOREGROUND = new RGB (172, 168, 153);
 	
 	/*
 	* These values can be different on different platforms.
@@ -107,6 +120,13 @@ public class Text extends Scrollable {
  * @see SWT#MULTI
  * @see SWT#READ_ONLY
  * @see SWT#WRAP
+ * @see SWT#LEFT
+ * @see SWT#RIGHT
+ * @see SWT#CENTER
+ * @see SWT#PASSWORD
+ * @see SWT#SEARCH
+ * @see SWT#ICON_SEARCH
+ * @see SWT#ICON_CANCEL
  * @see Widget#checkSubclass
  * @see Widget#getStyle
  */
@@ -231,8 +251,12 @@ static int checkStyle (int style) {
 	if ((style & SWT.SEARCH) != 0) {
 		style |= SWT.SINGLE | SWT.BORDER;
 		style &= ~SWT.PASSWORD;
+		/* 
+		* NOTE: ICON_CANCEL has the same value as H_SCROLL and
+		* ICON_SEARCH has the same value as V_SCROLL so they are
+		* cleared because SWT.SINGLE is set. 
+		*/
 	}
-	style &= ~SWT.SEARCH;
 	if ((style & SWT.SINGLE) != 0 && (style & SWT.MULTI) != 0) {
 		style &= ~SWT.MULTI;
 	}
@@ -315,18 +339,24 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 					height = OS.XmStringHeight (fontList, xmString);
 				}
 			}
-			if (wHint == SWT.DEFAULT) width = OS.XmStringWidth(fontList, xmString);
+			if (wHint == SWT.DEFAULT) width = OS.XmStringWidth (fontList, xmString);
 			OS.XmStringFree (xmString);
 		}
 		OS.XtFree (ptr);
+		if ((style & SWT.SINGLE) != 0 && message.length () > 0) {
+			if (wHint == SWT.DEFAULT) {
+				byte [] buffer = Converter.wcsToMbcs (getCodePage (), message, true);
+				int xmString = OS.XmStringGenerate (
+						buffer,
+						OS.XmFONTLIST_DEFAULT_TAG,
+						OS.XmCHARSET_TEXT,
+						null);
+				int fontList = font.handle;
+				width = Math.max (width, OS.XmStringWidth (fontList, xmString));
+				OS.XmStringFree (xmString);
+			}
+		}
 	}
-	//This code is intentionally commented
-//	if ((style & SWT.SEARCH) != 0 && message.length () != 0) {
-//		GC gc = new GC (this);
-//		Point size = gc.stringExtent (message);
-//		width = Math.max (width, size.x);
-//		gc.dispose ();
-//	}
 	Rectangle trim = computeTrim (0, 0, width, height);
 	return new Point (trim.width, trim.height);
 }
@@ -434,6 +464,9 @@ void createWidget (int index) {
 	super.createWidget (index);	
 	hiddenText = message = "";
 	if ((style & SWT.PASSWORD) != 0) setEchoChar ('*');
+	if ((style & SWT.SINGLE) != 0) {
+		disabledColor = new Color (display, MSG_FOREGROUND);
+	}
 }
 /**
  * Cuts the selected text.
@@ -696,13 +729,10 @@ int getLineNumber (int position) {
 	return count;
 }
 /**
- * Returns the widget message. When the widget is created
- * with the style <code>SWT.SEARCH</code>, the message text
- * is displayed as a hint for the user, indicating the
- * purpose of the field.
+ * Returns the widget message.  The message text is displayed
+ * as a hint for the user, indicating the purpose of the field.
  * <p>
- * Note: This operation is a <em>HINT</em> and is not
- * supported on platforms that do not have this concept.
+ * Typically this is used in conjunction with <code>SWT.SEARCH</code>.
  * </p>
  * 
  * @return the widget message
@@ -895,8 +925,9 @@ public String getText (int start, int end) {
 	boolean hasEcho = echoCharacter != '\0';
 	int length = hasEcho ? hiddenText.length () : OS.XmTextGetLastPosition (handle);
 	if (length == 0) return "";
-	start = Math.max (0, start);
 	end = Math.min (end, length - 1);
+	if (start > end) return "";
+	start = Math.max (0, start);
 	if (hasEcho) return hiddenText.substring (start, end + 1);
 	int numChars = end - start + 1;
 	int bufLength = numChars * OS.MB_CUR_MAX () + 1;
@@ -1062,6 +1093,8 @@ public void paste () {
 void releaseWidget () {
 	super.releaseWidget ();
 	hiddenText = message = null;
+	if (disabledColor != null) disabledColor.dispose ();
+	disabledColor = null;
 }
 /**
  * Removes the listener from the collection of listeners who will
@@ -1267,13 +1300,10 @@ public void setEditable (boolean editable) {
 	OS.XtSetValues (handle, argList, argList.length / 2);
 }
 /**
- * Sets the widget message. When the widget is created
- * with the style <code>SWT.SEARCH</code>, the message text
- * is displayed as a hint for the user, indicating the
- * purpose of the field.
+ * Sets the widget message. The message text is displayed
+ * as a hint for the user, indicating the purpose of the field.
  * <p>
- * Note: This operation is a <em>HINT</em> and is not
- * supported on platforms that do not have this concept.
+ * Typically this is used in conjunction with <code>SWT.SEARCH</code>.
  * </p>
  * 
  * @param message the new message
@@ -1292,6 +1322,7 @@ public void setMessage (String message) {
 	checkWidget ();
 	if (message == null) error (SWT.ERROR_NULL_ARGUMENT);
 	this.message = message;
+	redrawHandle (0, 0, 0, 0, true, handle);
 }
 /**
  * Sets the orientation of the receiver, which must be one
@@ -1586,6 +1617,37 @@ int traversalCode (int key, XKeyEvent xEvent) {
 	}
 	return bits;
 }
+int XExposure (int w, int client_data, int call_data, int continue_to_dispatch) {
+	if ((style & SWT.SINGLE) != 0 && message.length () > 0) { 
+		if (!hasFocus () && OS.XmTextGetLastPosition (handle) == 0) {
+			/* 
+			* Feature in Motif. XmText fills its background during exposure 
+			* without respecting the damage clipping. This erases all previous
+			* paints. The fix is always to draw the entire content ignoring
+			* the damage.
+			*/
+			int [] argList = new int [] {
+				OS.XmNmarginWidth, 0,
+				OS.XmNmarginHeight, 0,
+				OS.XmNshadowThickness, 0,
+				OS.XmNhighlightThickness, 0,
+				OS.XmNwidth, 0,
+				OS.XmNheight, 0,
+			};
+			OS.XtGetValues (handle, argList, argList.length / 2);
+			int marginWidth = argList [1] + argList[5] + argList[7];
+			int marginHeight = argList [3] + argList[5] + argList[7];
+			Rectangle rect = new Rectangle (marginWidth, marginHeight, argList [9] - 2 * marginWidth, argList [11] - 2 * marginHeight);
+			GCData data = new GCData ();
+			GC gc = GC.motif_new (this, data);
+			gc.setForeground (disabledColor);
+			gc.setClipping (rect);
+			gc.drawString (message, rect.x, rect.y, true);
+			gc.dispose ();
+		}
+	}
+	return super.XExposure (w, client_data, call_data, continue_to_dispatch);
+}
 int xFocusIn (XFocusChangeEvent xEvent) {
 	super.xFocusIn (xEvent);
 	// widget could be disposed at this point
@@ -1593,6 +1655,9 @@ int xFocusIn (XFocusChangeEvent xEvent) {
 	if ((style & (SWT.READ_ONLY | SWT.SINGLE)) != 0) {
 		int [] argList = {OS.XmNcursorPositionVisible, 1};
 		OS.XtSetValues (handle, argList, argList.length / 2);
+	}
+	if ((style & SWT.SEARCH) != 0) {
+		redrawHandle (0, 0, 0, 0, true, handle);
 	}
 	return 0;
 }
@@ -1603,7 +1668,9 @@ int xFocusOut (XFocusChangeEvent xEvent) {
 	if ((style & (SWT.READ_ONLY | SWT.SINGLE)) != 0) {
 		int [] argList = {OS.XmNcursorPositionVisible, 0};
 		OS.XtSetValues (handle, argList, argList.length / 2);
-		return 0;
+	}
+	if ((style & SWT.SEARCH) != 0) {
+		redrawHandle (0, 0, 0, 0, true, handle);
 	}
 	return 0;
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -38,6 +38,7 @@ import org.eclipse.swt.events.*;
  * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 3.2
+ * @noextend This class is not intended to be subclassed by clients.
  */
 public class ToolTip extends Widget {
 	Shell parent, tip;
@@ -45,7 +46,7 @@ public class ToolTip extends Widget {
 	int x, y;
 	int [] borderPolygon;
 	boolean spikeAbove, autohide;
-	Listener listener;
+	Listener listener, parentListener;
 	TextLayout layoutText, layoutMessage;
 	Region region;
 	Font boldFont;
@@ -82,6 +83,7 @@ public class ToolTip extends Widget {
  *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
  * </ul>
  *
+ * @see SWT#BALLOON
  * @see SWT#ICON_ERROR
  * @see SWT#ICON_INFORMATION
  * @see SWT#ICON_WARNING
@@ -109,6 +111,12 @@ public ToolTip (Shell parent, int style) {
 	addListener (SWT.Dispose, listener);
 	tip.addListener (SWT.Paint, listener);
 	tip.addListener (SWT.MouseDown, listener);
+	parentListener = new Listener () {
+		public void handleEvent (Event event) {
+			dispose ();
+		}
+	};
+	parent.addListener(SWT.Dispose, parentListener);
 }
 
 static int checkStyle (int style) {
@@ -154,7 +162,12 @@ void configure () {
 	int x = this.x;
 	int y = this.y;
 	if (x == -1 || y == -1) {
-		Point point = display.getCursorLocation ();
+		Point point;
+		if (item != null) {
+			point = item.getLocation ();
+		} else {
+			point = display.getCursorLocation ();
+		}
 		x = point.x;
 		y = point.y;
 	}
@@ -379,6 +392,8 @@ public boolean isVisible () {
 }
 
 void onDispose (Event event) {
+	Control parent = getParent ();
+	parent.removeListener (SWT.Dispose, parentListener);
 	removeListener (SWT.Dispose, listener);
 	notifyListeners (SWT.Dispose, event);
 	event.type = SWT.None;
@@ -610,6 +625,7 @@ public void setText (String string) {
  * </ul>
  */
 public void setVisible (boolean visible) {
+	checkWidget ();
 	if (visible) configure ();
 	tip.setVisible (visible);
 	Display display = getDisplay ();

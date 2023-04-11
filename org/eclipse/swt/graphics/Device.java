@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -125,15 +125,13 @@ public abstract class Device implements Drawable {
 	* fix is to remove this feature. Unfortunately,
 	* too many application programs rely on this
 	* feature.
-	*
-	* This code will be removed in the future.
 	*/
 	protected static Device CurrentDevice;
 	protected static Runnable DeviceFinder;
 	static {
 		try {
 			Class.forName ("org.eclipse.swt.widgets.Display");
-		} catch (Throwable e) {}
+		} catch (ClassNotFoundException e) {}
 	}	
 
 /* 
@@ -772,35 +770,35 @@ public boolean loadFont (String path) {
 	checkDevice();
 	if (path == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
 	//TEMPORARY CODE
-	if (true) return false;
-	int index = path.lastIndexOf ("/");
-	if (index != -1) path = path.substring (0, index);
-	int [] ndirs = new int [1];
-	int dirs = OS.XGetFontPath (xDisplay, ndirs);
-	int [] ptr = new int [1];
-	for (int i = 0; i < ndirs [0]; i++) {
-		OS.memmove (ptr, dirs + (i * 4), 4);
-		int length = OS.strlen (ptr [0]);
-		byte [] buffer = new byte [length];
-		OS.memmove (buffer, ptr [0], length);
-		if (Converter.mbcsToWcs (null, buffer).equals (path)) {
-			OS.XFreeFontPath (dirs);
-			return true;
-		}
-	}
-	int newDirs = OS.XtMalloc ((ndirs [0] + 1) * 4);
-	int[] dirsBuffer = new int [ndirs [0] + 1];
-	OS.memmove (dirsBuffer, dirs, ndirs [0] * 4);
-	byte[] buffer = Converter.wcsToMbcs (null, path, true);
-	int pathPtr = OS.XtMalloc (buffer.length);
-	OS.memmove (pathPtr, buffer, buffer.length);
-	dirsBuffer [dirsBuffer.length - 1] = pathPtr;
-	OS.memmove (newDirs, dirsBuffer, dirsBuffer.length * 4);
-	OS.XSetFontPath (xDisplay, newDirs, dirsBuffer.length);
-	OS.XFreeFontPath (dirs);
-	OS.XFree (newDirs);
-	OS.XFree (pathPtr);
-	return true;
+	/*if (true)*/ return false;
+//	int index = path.lastIndexOf ("/");
+//	if (index != -1) path = path.substring (0, index);
+//	int [] ndirs = new int [1];
+//	int dirs = OS.XGetFontPath (xDisplay, ndirs);
+//	int [] ptr = new int [1];
+//	for (int i = 0; i < ndirs [0]; i++) {
+//		OS.memmove (ptr, dirs + (i * 4), 4);
+//		int length = OS.strlen (ptr [0]);
+//		byte [] buffer = new byte [length];
+//		OS.memmove (buffer, ptr [0], length);
+//		if (Converter.mbcsToWcs (null, buffer).equals (path)) {
+//			OS.XFreeFontPath (dirs);
+//			return true;
+//		}
+//	}
+//	int newDirs = OS.XtMalloc ((ndirs [0] + 1) * 4);
+//	int[] dirsBuffer = new int [ndirs [0] + 1];
+//	OS.memmove (dirsBuffer, dirs, ndirs [0] * 4);
+//	byte[] buffer = Converter.wcsToMbcs (null, path, true);
+//	int pathPtr = OS.XtMalloc (buffer.length);
+//	OS.memmove (pathPtr, buffer, buffer.length);
+//	dirsBuffer [dirsBuffer.length - 1] = pathPtr;
+//	OS.memmove (newDirs, dirsBuffer, dirsBuffer.length * 4);
+//	OS.XSetFontPath (xDisplay, newDirs, dirsBuffer.length);
+//	OS.XFreeFontPath (dirs);
+//	OS.XFree (newDirs);
+//	OS.XFree (pathPtr);
+//	return true;
 }
 	
 void new_Object (Object object) {
@@ -892,6 +890,22 @@ protected void release () {
 	xcolors = null;
 	colorRefCount = null;
 	
+	if (COLOR_BLACK != null) COLOR_BLACK.dispose();
+	if (COLOR_DARK_RED != null) COLOR_DARK_RED.dispose();
+	if (COLOR_DARK_GREEN != null) COLOR_DARK_GREEN.dispose();
+	if (COLOR_DARK_YELLOW != null) COLOR_DARK_YELLOW.dispose();
+	if (COLOR_DARK_BLUE != null) COLOR_DARK_BLUE.dispose();
+	if (COLOR_DARK_MAGENTA != null) COLOR_DARK_MAGENTA.dispose();
+	if (COLOR_DARK_CYAN != null) COLOR_DARK_CYAN.dispose();
+	if (COLOR_GRAY != null) COLOR_GRAY.dispose();
+	if (COLOR_DARK_GRAY != null) COLOR_DARK_GRAY.dispose();
+	if (COLOR_RED != null) COLOR_RED.dispose();
+	if (COLOR_GREEN != null) COLOR_GREEN.dispose();
+	if (COLOR_YELLOW != null) COLOR_YELLOW.dispose();
+	if (COLOR_BLUE != null) COLOR_BLUE.dispose();
+	if (COLOR_MAGENTA != null) COLOR_MAGENTA.dispose();
+	if (COLOR_CYAN != null) COLOR_CYAN.dispose();
+	if (COLOR_WHITE != null) COLOR_WHITE.dispose();
 	COLOR_BLACK = COLOR_DARK_RED = COLOR_DARK_GREEN = COLOR_DARK_YELLOW =
 	COLOR_DARK_BLUE = COLOR_DARK_MAGENTA = COLOR_DARK_CYAN = COLOR_GRAY = COLOR_DARK_GRAY = COLOR_RED =
 	COLOR_GREEN = COLOR_YELLOW = COLOR_BLUE = COLOR_MAGENTA = COLOR_CYAN = COLOR_WHITE = null;

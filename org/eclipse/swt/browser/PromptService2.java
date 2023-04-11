@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2003, 2008 IBM Corporation and others.
+ * Copyright (c) 2003, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -20,6 +20,17 @@ class PromptService2 {
 	XPCOMObject promptService;
 	XPCOMObject promptService2;
 	int refCount = 0;
+
+	static final String[] certErrorCodes = new String[] {
+		"ssl_error_bad_cert_domain",
+		"sec_error_ca_cert_invalid",
+		"sec_error_expired_certificate",
+		"sec_error_expired_issuer_certificate",
+		"sec_error_inadequate_key_usage",
+		"sec_error_unknown_issuer",
+		"sec_error_untrusted_cert",
+		"sec_error_untrusted_issuer",
+	};	//$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$ //$NON-NLS-6$ //$NON-NLS-7$ //$NON-NLS-8$
 
 PromptService2 () {
 	createCOMInterfaces ();
@@ -123,49 +134,8 @@ int Release () {
 
 Browser getBrowser (int /*long*/ aDOMWindow) {
 	if (aDOMWindow == 0) return null;
-
-	int /*long*/[] result = new int /*long*/[1];
-	int rc = XPCOM.NS_GetServiceManager (result);
-	if (rc != XPCOM.NS_OK) Mozilla.error (rc);
-	if (result[0] == 0) Mozilla.error (XPCOM.NS_NOINTERFACE);
-	
-	nsIServiceManager serviceManager = new nsIServiceManager (result[0]);
-	result[0] = 0;
-	byte[] aContractID = MozillaDelegate.wcsToMbcs (null, XPCOM.NS_WINDOWWATCHER_CONTRACTID, true);
-	rc = serviceManager.GetServiceByContractID (aContractID, nsIWindowWatcher.NS_IWINDOWWATCHER_IID, result);
-	if (rc != XPCOM.NS_OK) Mozilla.error(rc);
-	if (result[0] == 0) Mozilla.error (XPCOM.NS_NOINTERFACE);		
-	serviceManager.Release ();
-	
-	nsIWindowWatcher windowWatcher = new nsIWindowWatcher (result[0]);
-	result[0] = 0;
-	/* the chrome will only be answered for the top-level nsIDOMWindow */
 	nsIDOMWindow window = new nsIDOMWindow (aDOMWindow);
-	rc = window.GetTop (result);
-	if (rc != XPCOM.NS_OK) Mozilla.error (rc);
-	if (result[0] == 0) Mozilla.error (XPCOM.NS_NOINTERFACE);
-	aDOMWindow = result[0];
-	result[0] = 0;
-	rc = windowWatcher.GetChromeForWindow (aDOMWindow, result);
-	if (rc != XPCOM.NS_OK) Mozilla.error (rc);
-	if (result[0] == 0) Mozilla.error (XPCOM.NS_NOINTERFACE);		
-	windowWatcher.Release ();	
-	
-	nsIWebBrowserChrome webBrowserChrome = new nsIWebBrowserChrome (result[0]);
-	result[0] = 0;
-	rc = webBrowserChrome.QueryInterface (nsIEmbeddingSiteWindow.NS_IEMBEDDINGSITEWINDOW_IID, result);
-	if (rc != XPCOM.NS_OK) Mozilla.error (rc);
-	if (result[0] == 0) Mozilla.error (XPCOM.NS_NOINTERFACE);		
-	webBrowserChrome.Release ();
-	
-	nsIEmbeddingSiteWindow embeddingSiteWindow = new nsIEmbeddingSiteWindow (result[0]);
-	result[0] = 0;
-	rc = embeddingSiteWindow.GetSiteWindow (result);
-	if (rc != XPCOM.NS_OK) Mozilla.error (rc);
-	if (result[0] == 0) Mozilla.error (XPCOM.NS_NOINTERFACE);		
-	embeddingSiteWindow.Release ();
-	
-	return Mozilla.findBrowser (result[0]); 
+	return Mozilla.findBrowser (window);
 }
 
 String getLabel (int buttonFlag, int index, int /*long*/ buttonTitle) {
@@ -190,7 +160,7 @@ String getLabel (int buttonFlag, int index, int /*long*/ buttonTitle) {
 /* nsIPromptService */
 
 int Alert (int /*long*/ aParent, int /*long*/ aDialogTitle, int /*long*/ aText) {
-	Browser browser = getBrowser (aParent);
+	final Browser browser = getBrowser (aParent);
 	
 	int length = XPCOM.strlen_PRUnichar (aDialogTitle);
 	char[] dest = new char[length];
@@ -201,6 +171,25 @@ int Alert (int /*long*/ aParent, int /*long*/ aDialogTitle, int /*long*/ aText) 
 	dest = new char[length];
 	XPCOM.memmove (dest, aText, length * 2);
 	String textLabel = new String (dest);
+
+	/*
+	* If mozilla is showing its errors with dialogs (as opposed to pages) then the only
+	* opportunity to detect that a page has an invalid certificate, without receiving
+	* all notification callbacks on the channel, is to detect the displaying of an alert
+	* whose message contains an internal cert error code.  If a such a message is
+	* detected then instead of showing it, re-navigate to the page with the invalid
+	* certificate so that the browser's nsIBadCertListener2 will be invoked.
+	*/
+	if (browser != null) {
+		for (int i = 0; i < certErrorCodes.length; i++) {
+			if (textLabel.indexOf (certErrorCodes[i]) != -1) {
+				Mozilla mozilla = (Mozilla)browser.webBrowser;
+				mozilla.isRetrievingBadCert = true;
+				browser.setUrl (mozilla.lastNavigateURL);
+				return XPCOM.NS_OK;
+			}
+		}
+	}
 
 	Shell shell = browser == null ? new Shell () : browser.getShell (); 
 	MessageBox messageBox = new MessageBox (shell, SWT.OK | SWT.ICON_WARNING);
@@ -358,37 +347,35 @@ int Prompt (int /*long*/ aParent, int /*long*/ aDialogTitle, int /*long*/ aText,
 		* User selected OK. User name and password are returned as PRUnichar values. Any default
 		* value that we override must be freed using the nsIMemory service.
 		*/
-		int cnt, size;
-		int /*long*/ ptr;
-		char[] buffer;
-		int /*long*/[] result2 = new int /*long*/[1];
 		if (valueLabel[0] != null) {
-			cnt = valueLabel[0].length ();
-			buffer = new char[cnt + 1];
+			int /*long*/[] result2 = new int /*long*/[1];
+			int rc = XPCOM.NS_GetServiceManager (result2);
+			if (rc != XPCOM.NS_OK) SWT.error (rc);
+			if (result2[0] == 0) SWT.error (XPCOM.NS_NOINTERFACE);
+
+			nsIServiceManager serviceManager = new nsIServiceManager (result2[0]);
+			result2[0] = 0;
+			byte[] aContractID = MozillaDelegate.wcsToMbcs (null, XPCOM.NS_MEMORY_CONTRACTID, true);
+			rc = serviceManager.GetServiceByContractID (aContractID, nsIMemory.NS_IMEMORY_IID, result2);
+			if (rc != XPCOM.NS_OK) SWT.error (rc);
+			if (result2[0] == 0) SWT.error (XPCOM.NS_NOINTERFACE);		
+			serviceManager.Release ();
+
+			nsIMemory memory = new nsIMemory (result2[0]);
+			result2[0] = 0;
+
+			int cnt = valueLabel[0].length ();
+			char[] buffer = new char[cnt + 1];
 			valueLabel[0].getChars (0, cnt, buffer, 0);
-			size = buffer.length * 2;
-			ptr = C.malloc (size);
+			int size = buffer.length * 2;
+			int /*long*/ ptr = memory.Alloc (size);
 			XPCOM.memmove (ptr, buffer, size);
 			XPCOM.memmove (aValue, new int /*long*/[] {ptr}, C.PTR_SIZEOF);
 
 			if (valueAddr[0] != 0) {
-				int rc = XPCOM.NS_GetServiceManager (result2);
-				if (rc != XPCOM.NS_OK) SWT.error (rc);
-				if (result2[0] == 0) SWT.error (XPCOM.NS_NOINTERFACE);
-			
-				nsIServiceManager serviceManager = new nsIServiceManager (result2[0]);
-				result2[0] = 0;
-				byte[] aContractID = MozillaDelegate.wcsToMbcs (null, XPCOM.NS_MEMORY_CONTRACTID, true);
-				rc = serviceManager.GetServiceByContractID (aContractID, nsIMemory.NS_IMEMORY_IID, result2);
-				if (rc != XPCOM.NS_OK) SWT.error (rc);
-				if (result2[0] == 0) SWT.error (XPCOM.NS_NOINTERFACE);		
-				serviceManager.Release ();
-				
-				nsIMemory memory = new nsIMemory (result2[0]);
-				result2[0] = 0;
 				memory.Free (valueAddr[0]);
-				memory.Release ();
 			}
+			memory.Release ();
 		}
 	}
 	if (aCheckState != 0) XPCOM.memmove (aCheckState, check, 4);
@@ -396,7 +383,43 @@ int Prompt (int /*long*/ aParent, int /*long*/ aDialogTitle, int /*long*/ aText,
 }
 
 int PromptAuth(int /*long*/ aParent, int /*long*/ aChannel, int level, int /*long*/ authInfo, int /*long*/ checkboxLabel, int /*long*/ checkboxValue, int /*long*/ _retval) {
+	nsIAuthInformation auth = new nsIAuthInformation (authInfo);
+
 	Browser browser = getBrowser (aParent);
+	if (browser != null) {
+		Mozilla mozilla = (Mozilla)browser.webBrowser;
+		/*
+		 * Do not invoke the listeners if this challenge has been failed too many
+		 * times because a listener is likely giving incorrect credentials repeatedly
+		 * and will do so indefinitely.
+		 */
+		if (mozilla.authCount++ < 3) {
+			for (int i = 0; i < mozilla.authenticationListeners.length; i++) {
+				AuthenticationEvent event = new AuthenticationEvent (browser);
+				event.location = mozilla.lastNavigateURL;
+				mozilla.authenticationListeners[i].authenticate (event);
+				if (!event.doit) {
+					XPCOM.memmove (_retval, new int[] {0}, 4);	/* PRBool */
+					return XPCOM.NS_OK;
+				}
+				if (event.user != null && event.password != null) {
+					nsEmbedString string = new nsEmbedString (event.user);
+					int rc = auth.SetUsername (string.getAddress ());
+					if (rc != XPCOM.NS_OK) SWT.error (rc);
+					string.dispose ();
+					string = new nsEmbedString (event.password);
+					rc = auth.SetPassword (string.getAddress ());
+					if (rc != XPCOM.NS_OK) SWT.error (rc);
+					string.dispose ();
+					XPCOM.memmove (_retval, new int[] {1}, 4);	/* PRBool */
+					return XPCOM.NS_OK;
+				}
+			}
+		}
+	}
+
+	/* no listener handled the challenge, so show an authentication dialog */
+
 	String checkLabel = null;
 	int[] checkValue = new int[1];
 	String[] userLabel = new String[1], passLabel = new String[1];
@@ -412,8 +435,6 @@ int PromptAuth(int /*long*/ aParent, int /*long*/ aChannel, int level, int /*lon
 	}
 
 	/* get initial username and password values */
-
-	nsIAuthInformation auth = new nsIAuthInformation (authInfo);
 
 	int /*long*/ ptr = XPCOM.nsEmbedString_new ();
 	int rc = auth.GetUsername (ptr);
@@ -454,20 +475,20 @@ int PromptAuth(int /*long*/ aParent, int /*long*/ aChannel, int level, int /*lon
 	if (uri[0] == 0) Mozilla.error (XPCOM.NS_NOINTERFACE);
 
 	nsIURI nsURI = new nsIURI (uri[0]);
-	int /*long*/ aSpec = XPCOM.nsEmbedCString_new ();
-	rc = nsURI.GetHost (aSpec);
+	int /*long*/ host = XPCOM.nsEmbedCString_new ();
+	rc = nsURI.GetHost (host);
 	if (rc != XPCOM.NS_OK) SWT.error (rc);
-	length = XPCOM.nsEmbedCString_Length (aSpec);
-	buffer = XPCOM.nsEmbedCString_get (aSpec);
+	length = XPCOM.nsEmbedCString_Length (host);
+	buffer = XPCOM.nsEmbedCString_get (host);
 	byte[] bytes = new byte[length];
 	XPCOM.memmove (bytes, buffer, length);
-	XPCOM.nsEmbedCString_delete (aSpec);
-	String host = new String (bytes);
+	String hostString = new String (bytes);
+	XPCOM.nsEmbedCString_delete (host);
 	nsURI.Release ();
 
 	String message;
-	if (realm.length () > 0 && host.length () > 0) {
-		message = Compatibility.getMessage ("SWT_Enter_Username_and_Password", new String[] {realm, host}); //$NON-NLS-1$
+	if (realm.length () > 0 && hostString.length () > 0) {
+		message = Compatibility.getMessage ("SWT_Enter_Username_and_Password", new String[] {realm, hostString}); //$NON-NLS-1$
 	} else {
 		message = ""; //$NON-NLS-1$
 	}
@@ -497,125 +518,145 @@ int PromptAuth(int /*long*/ aParent, int /*long*/ aChannel, int level, int /*lon
 
 int PromptUsernameAndPassword (int /*long*/ aParent, int /*long*/ aDialogTitle, int /*long*/ aText, int /*long*/ aUsername, int /*long*/ aPassword, int /*long*/ aCheckMsg, int /*long*/ aCheckState, int /*long*/ _retval) {
 	Browser browser = getBrowser (aParent);
-	String titleLabel, textLabel, checkLabel = null;
-	String[] userLabel = new String[1], passLabel = new String[1];
-	char[] dest;
-	int length;
-	if (aDialogTitle != 0) {
-		length = XPCOM.strlen_PRUnichar (aDialogTitle);
-		dest = new char[length];
-		XPCOM.memmove (dest, aDialogTitle, length * 2);
-		titleLabel = new String (dest);
-	} else {
-		titleLabel = SWT.getMessage ("SWT_Authentication_Required");	//$NON-NLS-1$
-	}
-	
-	length = XPCOM.strlen_PRUnichar (aText);
-	dest = new char[length];
-	XPCOM.memmove (dest, aText, length * 2);
-	textLabel = new String (dest);
-	
-	int /*long*/[] userAddr = new int /*long*/[1];
-	XPCOM.memmove (userAddr, aUsername, C.PTR_SIZEOF);
-	if (userAddr[0] != 0) {
-		length = XPCOM.strlen_PRUnichar (userAddr[0]);
-		dest = new char[length];
-		XPCOM.memmove (dest, userAddr[0], length * 2);
-		userLabel[0] = new String (dest);		
-	}
-	
-	int /*long*/[] passAddr = new int /*long*/[1];
-	XPCOM.memmove (passAddr, aPassword, C.PTR_SIZEOF);
-	if (passAddr[0] != 0) {
-		length = XPCOM.strlen_PRUnichar (passAddr[0]);
-		dest = new char[length];
-		XPCOM.memmove (dest, passAddr[0], length * 2);
-		passLabel[0] = new String (dest);		
-	}
-	
-	if (aCheckMsg != 0) {
-		length = XPCOM.strlen_PRUnichar (aCheckMsg);
-		if (length > 0) {
-			dest = new char[length];
-			XPCOM.memmove (dest, aCheckMsg, length * 2);
-			checkLabel = new String (dest);
+	String user = null, password = null;
+
+	if (browser != null) {
+		Mozilla mozilla = (Mozilla)browser.webBrowser;
+		/*
+		 * Do not invoke the listeners if this challenge has been failed too many
+		 * times because a listener is likely giving incorrect credentials repeatedly
+		 * and will do so indefinitely.
+		 */
+		if (mozilla.authCount++ < 3) {
+			for (int i = 0; i < mozilla.authenticationListeners.length; i++) {
+				AuthenticationEvent event = new AuthenticationEvent (browser);
+				event.location = mozilla.lastNavigateURL;
+				mozilla.authenticationListeners[i].authenticate (event);
+				if (!event.doit) {
+					XPCOM.memmove (_retval, new int[] {0}, 4);	/* PRBool */
+					return XPCOM.NS_OK;
+				}
+				if (event.user != null && event.password != null) {
+					user = event.user;
+					password = event.password;
+					XPCOM.memmove (_retval, new int[] {1}, 4);	/* PRBool */
+					break;
+				}
+			}
 		}
 	}
 
-	Shell shell = browser == null ? new Shell () : browser.getShell ();
-	PromptDialog dialog = new PromptDialog (shell);
-	int[] check = new int[1], result = new int[1];
-	if (aCheckState != 0) XPCOM.memmove (check, aCheckState, 4);	/* PRBool */
-	dialog.promptUsernameAndPassword (titleLabel, textLabel, checkLabel, userLabel, passLabel, check, result);
+	if (user == null) {
+		/* no listener handled the challenge, so show an authentication dialog */
 
-	XPCOM.memmove (_retval, result, 4);	/* PRBool */
-	if (result[0] == 1) {
+		String titleLabel, textLabel, checkLabel = null;
+		String[] userLabel = new String[1], passLabel = new String[1];
+		char[] dest;
+		int length;
+		if (aDialogTitle != 0) {
+			length = XPCOM.strlen_PRUnichar (aDialogTitle);
+			dest = new char[length];
+			XPCOM.memmove (dest, aDialogTitle, length * 2);
+			titleLabel = new String (dest);
+		} else {
+			titleLabel = SWT.getMessage ("SWT_Authentication_Required");	//$NON-NLS-1$
+		}
+		
+		length = XPCOM.strlen_PRUnichar (aText);
+		dest = new char[length];
+		XPCOM.memmove (dest, aText, length * 2);
+		textLabel = new String (dest);
+
+		int /*long*/[] userAddr = new int /*long*/[1];
+		XPCOM.memmove (userAddr, aUsername, C.PTR_SIZEOF);
+		if (userAddr[0] != 0) {
+			length = XPCOM.strlen_PRUnichar (userAddr[0]);
+			dest = new char[length];
+			XPCOM.memmove (dest, userAddr[0], length * 2);
+			userLabel[0] = new String (dest);		
+		}
+
+		int /*long*/[] passAddr = new int /*long*/[1];
+		XPCOM.memmove (passAddr, aPassword, C.PTR_SIZEOF);
+		if (passAddr[0] != 0) {
+			length = XPCOM.strlen_PRUnichar (passAddr[0]);
+			dest = new char[length];
+			XPCOM.memmove (dest, passAddr[0], length * 2);
+			passLabel[0] = new String (dest);		
+		}
+		
+		if (aCheckMsg != 0) {
+			length = XPCOM.strlen_PRUnichar (aCheckMsg);
+			if (length > 0) {
+				dest = new char[length];
+				XPCOM.memmove (dest, aCheckMsg, length * 2);
+				checkLabel = new String (dest);
+			}
+		}
+	
+		Shell shell = browser == null ? new Shell () : browser.getShell ();
+		PromptDialog dialog = new PromptDialog (shell);
+		int[] check = new int[1], result = new int[1];
+		if (aCheckState != 0) XPCOM.memmove (check, aCheckState, 4);	/* PRBool */
+		dialog.promptUsernameAndPassword (titleLabel, textLabel, checkLabel, userLabel, passLabel, check, result);
+	
+		XPCOM.memmove (_retval, result, 4);	/* PRBool */
+		if (result[0] == 1) {
+			/* User selected OK */
+			user = userLabel[0];
+			password = passLabel[0];
+		}
+		if (aCheckState != 0) XPCOM.memmove (aCheckState, check, 4); /* PRBool */
+	}
+
+	if (user != null) {
 		/* 
-		* User selected OK. User name and password are returned as PRUnichar values. Any default
+		* User name and password are returned as PRUnichar values. Any default
 		* value that we override must be freed using the nsIMemory service.
 		*/
-		int cnt, size;
-		int /*long*/ ptr;
-		char[] buffer;
-		int /*long*/[] result2 = new int /*long*/[1];
-		if (userLabel[0] != null) {
-			cnt = userLabel[0].length ();
-			buffer = new char[cnt + 1];
-			userLabel[0].getChars (0, cnt, buffer, 0);
-			size = buffer.length * 2;
-			ptr = C.malloc (size);
-			XPCOM.memmove (ptr, buffer, size);
-			XPCOM.memmove (aUsername, new int /*long*/[] {ptr}, C.PTR_SIZEOF);
+		int /*long*/[] userAddr = new int /*long*/[1];
+		XPCOM.memmove (userAddr, aUsername, C.PTR_SIZEOF);
+		int /*long*/[] passAddr = new int /*long*/[1];
+		XPCOM.memmove (passAddr, aPassword, C.PTR_SIZEOF);
 
-			if (userAddr[0] != 0) {
-				int rc = XPCOM.NS_GetServiceManager (result2);
-				if (rc != XPCOM.NS_OK) SWT.error (rc);
-				if (result2[0] == 0) SWT.error (XPCOM.NS_NOINTERFACE);
-			
-				nsIServiceManager serviceManager = new nsIServiceManager (result2[0]);
-				result2[0] = 0;
-				byte[] aContractID = MozillaDelegate.wcsToMbcs (null, XPCOM.NS_MEMORY_CONTRACTID, true);
-				rc = serviceManager.GetServiceByContractID (aContractID, nsIMemory.NS_IMEMORY_IID, result2);
-				if (rc != XPCOM.NS_OK) SWT.error (rc);
-				if (result[0] == 0) SWT.error (XPCOM.NS_NOINTERFACE);		
-				serviceManager.Release ();
-				
-				nsIMemory memory = new nsIMemory (result2[0]);
-				result2[0] = 0;
-				memory.Free (userAddr[0]);
-				memory.Release ();
-			}
-		}
-		if (passLabel[0] != null) {
-			cnt = passLabel[0].length ();
-			buffer = new char[cnt + 1];
-			passLabel[0].getChars (0, cnt, buffer, 0);
-			size = buffer.length * 2;
-			ptr = C.malloc (size);
-			XPCOM.memmove (ptr, buffer, size);
-			XPCOM.memmove (aPassword, new int /*long*/[] {ptr}, C.PTR_SIZEOF);
-			
-			if (passAddr[0] != 0) {
-				int rc = XPCOM.NS_GetServiceManager (result2);
-				if (rc != XPCOM.NS_OK) SWT.error (rc);
-				if (result2[0] == 0) SWT.error (XPCOM.NS_NOINTERFACE);
+		int /*long*/[] result = new int /*long*/[1];
+		int rc = XPCOM.NS_GetServiceManager (result);
+		if (rc != XPCOM.NS_OK) SWT.error (rc);
+		if (result[0] == 0) SWT.error (XPCOM.NS_NOINTERFACE);
 
-				nsIServiceManager serviceManager = new nsIServiceManager (result2[0]);
-				result2[0] = 0;
-				byte[] aContractID = MozillaDelegate.wcsToMbcs (null, XPCOM.NS_MEMORY_CONTRACTID, true);
-				rc = serviceManager.GetServiceByContractID (aContractID, nsIMemory.NS_IMEMORY_IID, result2);
-				if (rc != XPCOM.NS_OK) SWT.error (rc);
-				if (result2[0] == 0) SWT.error (XPCOM.NS_NOINTERFACE);		
-				serviceManager.Release ();
+		nsIServiceManager serviceManager = new nsIServiceManager (result[0]);
+		result[0] = 0;
+		byte[] aContractID = MozillaDelegate.wcsToMbcs (null, XPCOM.NS_MEMORY_CONTRACTID, true);
+		rc = serviceManager.GetServiceByContractID (aContractID, nsIMemory.NS_IMEMORY_IID, result);
+		if (rc != XPCOM.NS_OK) SWT.error (rc);
+		if (result[0] == 0) SWT.error (XPCOM.NS_NOINTERFACE);		
+		serviceManager.Release ();
 
-				nsIMemory memory = new nsIMemory (result2[0]);
-				result2[0] = 0;
-				memory.Free (passAddr[0]);
-				memory.Release ();
-			}
-		}
+		nsIMemory memory = new nsIMemory (result[0]);
+		result[0] = 0;
+		if (userAddr[0] != 0) memory.Free (userAddr[0]);
+		if (passAddr[0] != 0) memory.Free (passAddr[0]);
+		memory.Release ();
+
+		/* write the name and password values */
+
+		int cnt = user.length ();
+		char[] buffer = new char[cnt + 1];
+		user.getChars (0, cnt, buffer, 0);
+		int size = buffer.length * 2;
+		int /*long*/ ptr = C.malloc (size);
+		XPCOM.memmove (ptr, buffer, size);
+		XPCOM.memmove (aUsername, new int /*long*/[] {ptr}, C.PTR_SIZEOF);
+
+		cnt = password.length ();
+		buffer = new char[cnt + 1];
+		password.getChars (0, cnt, buffer, 0);
+		size = buffer.length * 2;
+		ptr = C.malloc (size);
+		XPCOM.memmove (ptr, buffer, size);
+		XPCOM.memmove (aPassword, new int /*long*/[] {ptr}, C.PTR_SIZEOF);
 	}
-	if (aCheckState != 0) XPCOM.memmove (aCheckState, check, 4); /* PRBool */
+
 	return XPCOM.NS_OK;
 }
 

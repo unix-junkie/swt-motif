@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -24,7 +24,7 @@
 #endif
 
 #ifndef RETURN_TYPE
-#define RETURN_TYPE SWT_PTR
+#define RETURN_TYPE jintLong
 #endif
 
 #ifndef RETURN_CAST
@@ -57,7 +57,7 @@ typedef struct CALLBACK_DATA {
 	jboolean isStatic;
 	jboolean isArrayBased; 
 	jint argCount;
-	SWT_PTR errorResult;
+	jintLong errorResult;
 } CALLBACK_DATA;
 
 #endif /* ifndef INC_callback_H */

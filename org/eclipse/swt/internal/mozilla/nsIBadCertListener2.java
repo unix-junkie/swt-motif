@@ -22,18 +22,26 @@
  *
  * IBM
  * -  Binding to permit interfacing between Mozilla and SWT
- * -  Copyright (C) 2003, 2006 IBM Corp.  All Rights Reserved.
+ * -  Copyright (C) 2003, 2009 IBM Corp.  All Rights Reserved.
  *
  * ***** END LICENSE BLOCK ***** */
 package org.eclipse.swt.internal.mozilla;
 
-import org.eclipse.swt.internal.Platform;
+public class nsIBadCertListener2 extends nsISupports {
 
-public class XPCOMInit extends Platform {
-	public static final int PATH_MAX = 4096;
-	
-public static final native int GREVersionRange_sizeof ();
-public static final native int GRE_GetGREPathWithProperties (GREVersionRange versions, int versionsLength, int /*long*/ properties, int propertiesLength, int /*long*/ buffer, int buflen);
-public static final native int XPCOMGlueStartup (byte[] place);
-public static final native int XPCOMGlueShutdown ();
+	static final int LAST_METHOD_ID = nsISupports.LAST_METHOD_ID + 1;
+
+	public static final String NS_IBADCERTLISTENER2_IID_STR =
+		"2c3d268c-ad82-49f3-99aa-e9ffddd7a0dc";
+
+	public static final nsID NS_IBADCERTLISTENER2_IID =
+		new nsID(NS_IBADCERTLISTENER2_IID_STR);
+
+	public  nsIBadCertListener2(int /*long*/ address) {
+		super(address);
+	}
+
+	public int NotifyCertProblem(int /*long*/ socketInfo, int /*long*/ status, int /*long*/ targetSite, int[] _retval) {
+		return XPCOM.VtblCall(nsISupports.LAST_METHOD_ID + 1, getAddress(), socketInfo, status, targetSite, _retval);
+	}
 }

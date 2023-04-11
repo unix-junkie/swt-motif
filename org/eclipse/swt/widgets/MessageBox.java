@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -38,6 +38,7 @@ import org.eclipse.swt.graphics.*;
  *
  * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample, Dialog tab</a>
  * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ * @noextend This class is not intended to be subclassed by clients.
  */
 public class MessageBox extends Dialog {
 	int button;
@@ -82,6 +83,19 @@ public MessageBox (Shell parent) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
  *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
  * </ul>
+ * 
+ * @see SWT#ICON_ERROR
+ * @see SWT#ICON_INFORMATION
+ * @see SWT#ICON_QUESTION
+ * @see SWT#ICON_WARNING
+ * @see SWT#ICON_WORKING
+ * @see SWT#OK
+ * @see SWT#CANCEL
+ * @see SWT#YES
+ * @see SWT#NO
+ * @see SWT#ABORT
+ * @see SWT#RETRY
+ * @see SWT#IGNORE
  */
 public MessageBox (Shell parent, int style) {
 	super (parent, checkStyle (parent, checkStyle (style)));

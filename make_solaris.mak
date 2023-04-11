@@ -1,5 +1,5 @@
 #*******************************************************************************
-# Copyright (c) 2000, 2007 IBM Corporation and others.
+# Copyright (c) 2000, 2009 IBM Corporation and others.
 # All rights reserved. This program and the accompanying materials
 # are made available under the terms of the Eclipse Public License v1.0
 # which accompanies this distribution, and is available at
@@ -64,13 +64,14 @@ CAIRO_LIBS = -G `pkg-config --libs-only-L cairo` -lcairo
 CFLAGS = -O -s \
 	-DSWT_VERSION=$(SWT_VERSION) $(NATIVE_STATS) \
 	-DNO_XINERAMA_EXTENSIONS \
+	-DDTACTION_WARNING_DISABLED \
 	-DSOLARIS -DMOTIF -DCDE \
 	-I./ \
 	-I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/solaris \
 	-I$(MOTIF_HOME)/include \
 	-I$(CDE_HOME)/include
 
-all: make_swt make_awt make_glx make_cde make_cairo
+all: make_swt make_awt make_glx make_cde
 
 make_swt: $(SWT_LIB)
 

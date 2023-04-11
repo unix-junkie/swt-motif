@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -27,6 +27,7 @@ import org.eclipse.swt.widgets.*;
  * @see <a href="http://www.eclipse.org/swt/snippets/#printing">Printing snippets</a>
  * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample, Dialog tab</a>
  * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ * @noextend This class is not intended to be subclassed by clients.
  */
 public class PrintDialog extends Dialog {
 	PrinterData printerData;
@@ -83,14 +84,28 @@ public PrintDialog (Shell parent) {
  * @see Widget#getStyle
  */
 public PrintDialog (Shell parent, int style) {
-	super (parent, style);
+	super (parent, checkStyle (parent, style));
 	checkSubclass ();
+}
+static int checkStyle (Shell parent, int style) {
+	int mask = SWT.PRIMARY_MODAL | SWT.APPLICATION_MODAL | SWT.SYSTEM_MODAL;
+	if ((style & SWT.SHEET) != 0) {
+		style &= ~SWT.SHEET;
+		if ((style & mask) == 0) {
+			style |= parent == null ? SWT.APPLICATION_MODAL : SWT.PRIMARY_MODAL;
+		}
+	}
+	return style;
 }
 /**
  * Sets the printer data that will be used when the dialog
  * is opened.
+ * <p>
+ * Setting the printer data to null is equivalent to
+ * resetting all data fields to their default values.
+ * </p>
  * 
- * @param data the data that will be used when the dialog is opened
+ * @param data the data that will be used when the dialog is opened or null to use default data
  * 
  * @since 3.4
  */
@@ -112,7 +127,8 @@ public PrinterData getPrinterData() {
  * Makes the receiver visible and brings it to the front
  * of the display.
  *
- * @return a printer data object describing the desired print job parameters
+ * @return a printer data object describing the desired print job parameters,
+ *         or null if the dialog was canceled, no printers were found, or an error occurred
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>

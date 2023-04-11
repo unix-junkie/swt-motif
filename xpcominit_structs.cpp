@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -25,9 +25,9 @@ void cacheGREVersionRangeFields(JNIEnv *env, jobject lpObject)
 {
 	if (GREVersionRangeFc.cached) return;
 	GREVersionRangeFc.clazz = env->GetObjectClass(lpObject);
-	GREVersionRangeFc.lower = env->GetFieldID(GREVersionRangeFc.clazz, "lower", "I");
+	GREVersionRangeFc.lower = env->GetFieldID(GREVersionRangeFc.clazz, "lower", I_J);
 	GREVersionRangeFc.lowerInclusive = env->GetFieldID(GREVersionRangeFc.clazz, "lowerInclusive", "Z");
-	GREVersionRangeFc.upper = env->GetFieldID(GREVersionRangeFc.clazz, "upper", "I");
+	GREVersionRangeFc.upper = env->GetFieldID(GREVersionRangeFc.clazz, "upper", I_J);
 	GREVersionRangeFc.upperInclusive = env->GetFieldID(GREVersionRangeFc.clazz, "upperInclusive", "Z");
 	GREVersionRangeFc.cached = 1;
 }
@@ -35,9 +35,9 @@ void cacheGREVersionRangeFields(JNIEnv *env, jobject lpObject)
 GREVersionRange *getGREVersionRangeFields(JNIEnv *env, jobject lpObject, GREVersionRange *lpStruct)
 {
 	if (!GREVersionRangeFc.cached) cacheGREVersionRangeFields(env, lpObject);
-	lpStruct->lower = (const char *)env->GetIntField(lpObject, GREVersionRangeFc.lower);
+	lpStruct->lower = (const char *)env->GetIntLongField(lpObject, GREVersionRangeFc.lower);
 	lpStruct->lowerInclusive = env->GetBooleanField(lpObject, GREVersionRangeFc.lowerInclusive);
-	lpStruct->upper = (const char *)env->GetIntField(lpObject, GREVersionRangeFc.upper);
+	lpStruct->upper = (const char *)env->GetIntLongField(lpObject, GREVersionRangeFc.upper);
 	lpStruct->upperInclusive = env->GetBooleanField(lpObject, GREVersionRangeFc.upperInclusive);
 	return lpStruct;
 }
@@ -45,9 +45,9 @@ GREVersionRange *getGREVersionRangeFields(JNIEnv *env, jobject lpObject, GREVers
 void setGREVersionRangeFields(JNIEnv *env, jobject lpObject, GREVersionRange *lpStruct)
 {
 	if (!GREVersionRangeFc.cached) cacheGREVersionRangeFields(env, lpObject);
-	env->SetIntField(lpObject, GREVersionRangeFc.lower, (jint)lpStruct->lower);
+	env->SetIntLongField(lpObject, GREVersionRangeFc.lower, (jintLong)lpStruct->lower);
 	env->SetBooleanField(lpObject, GREVersionRangeFc.lowerInclusive, (jboolean)lpStruct->lowerInclusive);
-	env->SetIntField(lpObject, GREVersionRangeFc.upper, (jint)lpStruct->upper);
+	env->SetIntLongField(lpObject, GREVersionRangeFc.upper, (jintLong)lpStruct->upper);
 	env->SetBooleanField(lpObject, GREVersionRangeFc.upperInclusive, (jboolean)lpStruct->upperInclusive);
 }
 #endif

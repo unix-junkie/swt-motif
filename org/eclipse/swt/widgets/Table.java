@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -63,6 +63,7 @@ import org.eclipse.swt.internal.*;
  * @see <a href="http://www.eclipse.org/swt/snippets/#table">Table, TableItem, TableColumn snippets</a>
  * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
  * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ * @noextend This class is not intended to be subclassed by clients.
  */
 public class Table extends Composite {
 	Canvas header;
@@ -184,6 +185,7 @@ public Table (Composite parent, int style) {
 	header.addListener (SWT.MouseDoubleClick, listener);
 	header.addListener (SWT.MouseMove, listener);
 	header.addListener (SWT.MouseExit, listener);
+	header.addListener (SWT.MenuDetect, listener);
 
 	toolTipListener = new Listener () {
 		public void handleEvent (Event event) {
@@ -1103,7 +1105,8 @@ int getItemY (TableItem item) {
 }
 /**
  * Returns <code>true</code> if the receiver's lines are visible,
- * and <code>false</code> otherwise.
+ * and <code>false</code> otherwise. Note that some platforms draw 
+ * grid lines while others may draw alternating row colors.
  * <p>
  * If one of the receiver's ancestors is not visible or some
  * other condition makes the receiver not visible, this method
@@ -1282,6 +1285,10 @@ void handleEvents (Event event) {
 				onPaint (event);
 			}
 			break;
+		case SWT.MenuDetect: {
+			notifyListeners (SWT.MenuDetect, event);
+			break;
+			}
 		case SWT.MouseDown:
 			if (event.widget == header) {
 				headerOnMouseDown (event);
@@ -1360,7 +1367,7 @@ String headerGetToolTip (int x) {
 		int columnRightX = columnX + column.width;
 		if (columnRightX - x <= TOLLERANCE_COLUMNRESIZE) return null;
 	}
-	return column.toolTipText;
+	return removeMnemonics (column.toolTipText);
 }
 void headerHideToolTip() {
 	if (toolTipShell == null) return;
@@ -3082,6 +3089,23 @@ public void removeAll () {
 
 	setRedraw (true);
 }
+String removeMnemonics (String string) {
+	/* removes single ampersands and preserves double-ampersands */
+	char [] chars = new char [string.length ()];
+	string.getChars (0, chars.length, chars, 0);
+	int i = 0, j = 0;
+	for ( ; i < chars.length; i++, j++) {
+		if (chars[i] == '&') {
+			if (++i == chars.length) break;
+			if (chars[i] == '&') {
+				chars[j++] = chars[i - 1];
+			}
+		}
+		chars[j] = chars[i];
+	}
+	if (i == j) return string;
+	return new String (chars, 0, j);
+}
 void removeSelectedItem (int index) {
 	TableItem[] newSelectedItems = new TableItem [selectedItems.length - 1];
 	System.arraycopy (selectedItems, 0, newSelectedItems, 0, index);
@@ -3492,7 +3516,8 @@ boolean setItemHeight (int value) {
 }
 /**
  * Marks the receiver's lines as visible if the argument is <code>true</code>,
- * and marks it invisible otherwise. 
+ * and marks it invisible otherwise. Note that some platforms draw grid lines
+ * while others may draw alternating row colors.
  * <p>
  * If one of the receiver's ancestors is not visible or some
  * other condition makes the receiver not visible, marking
@@ -3511,6 +3536,10 @@ public void setLinesVisible (boolean value) {
 	if (linesVisible == value) return;		/* no change */
 	linesVisible = value;
 	redraw ();
+}
+public void setMenu (Menu menu) {
+	super.setMenu (menu);
+	header.setMenu (menu);
 }
 public void setRedraw (boolean value) {
 	checkWidget();

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -38,6 +38,7 @@ import org.eclipse.swt.*;
  * 
  * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
  * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ * @noextend This class is not intended to be subclassed by clients.
  */
 public class Group extends Composite {
 	int labelHandle;
@@ -125,12 +126,12 @@ public Rectangle computeTrim (int x, int y, int width, int height) {
 	int marginWidth = argList [3];
 	int marginHeight = argList [5];
 	int borderWidth = getBorderWidth ();
-	trimX = x - marginWidth + thickness - borderWidth;
-	trimY = y - marginHeight + thickness - borderWidth;
+	trimX = x - marginWidth - thickness - borderWidth;
+	trimY = y - marginHeight - thickness - borderWidth;
 	trimWidth = width + ((marginWidth + thickness + borderWidth) * 2);
 	trimHeight = height + ((marginHeight + thickness + borderWidth) * 2);
 	if (OS.XtIsManaged (labelHandle)) {
-		int [] argList2 = {OS.XmNy, 0, OS.XmNheight, 0, OS.XmNchildHorizontalSpacing, 0};
+		int [] argList2 = {OS.XmNy, 0, OS.XmNheight, 0};
 		OS.XtGetValues (labelHandle, argList2, argList2.length / 2);
 		int titleHeight = ((short) argList2 [1]) + argList2 [3];
 		trimY = y - titleHeight;
@@ -202,15 +203,16 @@ public Rectangle getClientArea () {
 	int thickness = argList [5];
 	int marginWidth = argList [7];
 	int marginHeight = argList [9];
-	int x = marginWidth + thickness;
-	int y = marginHeight + thickness;
-	int width = argList [1] - ((marginWidth + thickness) * 2) - 1;
-	int height = argList [3] - ((marginHeight + thickness) * 2) - 1;
+	int borderWidth = getBorderWidth ();
+	int x = marginWidth + thickness + borderWidth;
+	int y = marginHeight + thickness + borderWidth;
+	int width = argList [1] - ((marginWidth + thickness + borderWidth) * 2);
+	int height = argList [3] - ((marginHeight + thickness + borderWidth) * 2);
 	if (OS.XtIsManaged (labelHandle)) {
 		int [] argList2 = {OS.XmNy, 0, OS.XmNheight, 0};
 		OS.XtGetValues (labelHandle, argList2, argList2.length / 2);
 		y = ((short) argList2 [1]) + argList2 [3];
-		height = argList [3] - y - (marginHeight + thickness) - 1;
+		height = argList [3] - y - (marginHeight + thickness + borderWidth);
 	}
 	return new Rectangle (x, y, width, height);
 }

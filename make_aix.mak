@@ -1,5 +1,5 @@
 #*******************************************************************************
-# Copyright (c) 2000, 2007 IBM Corporation and others.
+# Copyright (c) 2000, 2008 IBM Corporation and others.
 # All rights reserved. This program and the accompanying materials
 # are made available under the terms of the Eclipse Public License v1.0
 # which accompanies this distribution, and is available at
@@ -29,7 +29,7 @@ SWT_PREFIX = swt
 WS_PREFIX = motif
 SWT_LIB = lib$(SWT_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).a
 SWT_OBJS = swt.o c.o c_stats.o callback.o os.o os_structs.o os_custom.o os_stats.o
-SWT_LIBS = -L$(MOTIF_HOME) -G -bnoentry -lc_r -lC_r -lm -bexpall -lXm -lMrm -lXt -lX11 -lXext -liconv -lXtst
+SWT_LIBS = -L$(MOTIF_HOME)  -bnoentry -lc_r -lC_r -lm -bexpall -lXm -lMrm -lXt -lX11 -lXext -liconv -lXtst
 
 CDE_PREFIX = swt-cde
 CDE_LIB = lib$(CDE_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).a
@@ -40,7 +40,12 @@ CAIRO_PREFIX = swt-cairo
 CAIRO_LIB = lib$(CAIRO_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).a
 CAIRO_OBJS = swt.o cairo.o cairo_structs.o cairo_stats.o
 CAIROCFLAGS = `pkg-config --cflags cairo`
-CAIRO_LIBS = -G -bnoentry -bexpall -lc `pkg-config --libs-only-L cairo` -lcairo
+CAIRO_LIBS =  -bnoentry -bexpall -lc `pkg-config --libs-only-L cairo` -lcairo
+
+AWT_PREFIX = swt-awt
+AWT_LIB = lib$(AWT_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).a
+AWT_OBJS = swt_awt.o
+AWT_LIBS = -L$(AWT_HOME) -ljawt -lX11 -bnoentry -bexpall -lc
 
 # Uncomment for Native Stats tool
 #NATIVE_STATS = -DNATIVE_STATS
@@ -58,7 +63,7 @@ CFLAGS = -O -s \
 	-I$(MOTIF_HOME)/include \
 	-I$(CDE_HOME)/include
 
-all: make_swt make_cde
+all: make_swt make_awt make_cde make_cairo
 
 make_swt: $(SWT_LIB)
 
@@ -81,6 +86,11 @@ cairo_structs.o: cairo_structs.c cairo_structs.h cairo.h swt.h
 	$(CC)  $(CAIROCFLAGS)  $(CFLAGS) -c cairo_structs.c
 cairo_stats.o: cairo_stats.c cairo_structs.h cairo.h cairo_stats.h swt.h
 	$(CC)  $(CAIROCFLAGS) $(CFLAGS) -c cairo_stats.c
+
+make_awt: $(AWT_LIB)
+
+$(AWT_LIB): $(AWT_OBJS)
+	ld -o $(AWT_LIB) $(AWT_OBJS) $(AWT_LIBS)
 
 install: all
 	cp *.a $(OUTPUT_DIR)

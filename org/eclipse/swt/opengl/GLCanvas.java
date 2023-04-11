@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -117,9 +117,8 @@ public GLCanvas (Composite parent, int style, GLData data) {
 	vinfo = new XVisualInfo ();
 	GLX.memmove (vinfo, infoPtr, XVisualInfo.sizeof);
 	OS.XFree (infoPtr);
-	//FIXME- share lists
-	//context = GLX.glXCreateContext (xdisplay, info, share == null ? 0 : share.context, true);
-	context = GLX.glXCreateContext (xDisplay, vinfo, 0, true);
+	int /*long*/ share = data.shareContext != null ? data.shareContext.context : 0;
+	context = GLX.glXCreateContext (xDisplay, vinfo, share, true);
 	if (context == 0) SWT.error (SWT.ERROR_NO_HANDLES);
 
 	int xParent = OS.XtWindow (handle);

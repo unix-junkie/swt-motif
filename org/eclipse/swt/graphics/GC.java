@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -29,6 +29,14 @@ import org.eclipse.swt.*;
  * The SWT drawing coordinate system is the two-dimensional space with the origin
  * (0,0) at the top left corner of the drawing area and with (x,y) values increasing
  * to the right and downward respectively.
+ * </p>
+ * 
+ * <p>
+ * The result of drawing on an image that was created with an indexed
+ * palette using a color that is not in the palette is platform specific.
+ * Some platforms will match to the nearest color while other will draw
+ * the color itself. This happens because the allocated image might use
+ * a direct palette on platforms that do not support indexed palette.
  * </p>
  * 
  * <p>
@@ -2328,7 +2336,7 @@ public int getAdvanceWidth(char ch) {
 							 */
 							 charWidth = fontStruct.max_bounds_width;
 						} else {
-							OS.memmove(charStruct, perCharPtr + (val - fontStruct.min_char_or_byte2 * XCharStruct.sizeof), XCharStruct.sizeof);
+							OS.memmove(charStruct, perCharPtr + ((val - fontStruct.min_char_or_byte2) * XCharStruct.sizeof), XCharStruct.sizeof);
 							charWidth = charStruct.width;
 						}
 						if (charWidth != 0) {
@@ -2367,7 +2375,7 @@ public int getAdvanceWidth(char ch) {
 		}
 	}
 	OS.XmFontListFreeFontContext(context);
-	return 0;
+	return stringExtent(new String(new char[]{ch})).x;
 }
 /**
  * Returns <code>true</code> if receiver is using the operating system's
@@ -2602,7 +2610,7 @@ public int getCharWidth(char ch) {
 							lBearing = fontStruct.min_bounds_lbearing;
 							rBearing = fontStruct.max_bounds_rbearing;
 						} else {
-							OS.memmove(charStruct, perCharPtr + (val - fontStruct.min_char_or_byte2 * XCharStruct.sizeof), XCharStruct.sizeof);
+							OS.memmove(charStruct, perCharPtr + ((val - fontStruct.min_char_or_byte2) * XCharStruct.sizeof), XCharStruct.sizeof);
 							charWidth = charStruct.width;
 							lBearing = charStruct.lbearing;
 							rBearing = charStruct.rbearing;
@@ -2649,7 +2657,7 @@ public int getCharWidth(char ch) {
 		}
 	}
 	OS.XmFontListFreeFontContext(context);
-	return 0;
+	return stringExtent(new String(new char[]{ch})).x;
 }
 /** 
  * Returns the bounding rectangle of the receiver's clipping
@@ -3094,6 +3102,7 @@ public Pattern getForegroundPattern() {
  * @see GCData
  * 
  * @since 3.2
+ * @noreference This method is not intended to be referenced by clients.
  */
 public GCData getGCData() {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
@@ -3376,7 +3385,7 @@ void initCairo() {
 	if (cairo == 0) SWT.error(SWT.ERROR_NO_HANDLES);
 	Cairo.cairo_set_fill_rule(cairo, Cairo.CAIRO_FILL_RULE_EVEN_ODD);
 	data.state &= ~(BACKGROUND | FOREGROUND | FONT | LINE_WIDTH | LINE_CAP | LINE_JOIN | LINE_STYLE | DRAW_OFFSET);
-	setCairoClip(cairo, data.clipRgn);
+	setCairoClip(data.damageRgn, data.clipRgn);
 }
 /**
  * Returns <code>true</code> if the receiver has a clipping
@@ -3659,15 +3668,11 @@ static void setCairoFont(int /*long*/ cairo, Font font) {
 	Cairo.cairo_select_font_face(cairo, buffer, slant, weight);
 	Cairo.cairo_set_font_size(cairo, fd.getHeight());
 }
-static void setCairoClip(int /*long*/ cairo, int /*long*/ clipRgn) {
-	Cairo.cairo_reset_clip(cairo);
-	if (clipRgn == 0) return;
+static void setCairoRegion(int /*long*/ cairo, int /*long*/ rgn) {
 	//TODO - get rectangles from region instead of clip box
 	XRectangle rect = new XRectangle();
-	OS.XClipBox(clipRgn, rect);
+	OS.XClipBox(rgn, rect);
 	Cairo.cairo_rectangle(cairo, rect.x, rect.y, rect.width, rect.height);
-	Cairo.cairo_clip(cairo);
-	Cairo.cairo_new_path(cairo);
 }
 static void setCairoPatternColor(int /*long*/ pattern, int offset, Color c, int alpha) {
 	XColor color = c.handle;
@@ -3676,6 +3681,22 @@ static void setCairoPatternColor(int /*long*/ pattern, int offset, Color c, int 
 	double green = ((color.green & 0xFFFF) / (double)0xFFFF);
 	double blue = ((color.blue & 0xFFFF) / (double)0xFFFF);
 	Cairo.cairo_pattern_add_color_stop_rgba(pattern, offset, red, green, blue, aa);
+}
+void setCairoClip(int /*long*/ damageRgn, int /*long*/ clipRgn) {
+	int /*long*/ cairo = data.cairo;
+	Cairo.cairo_reset_clip(cairo);
+	if (damageRgn != 0) {
+		double[] matrix = new double[6];
+		Cairo.cairo_get_matrix(cairo, matrix);
+		Cairo.cairo_identity_matrix(cairo);
+		setCairoRegion(cairo, damageRgn);
+		Cairo.cairo_clip(cairo);
+		Cairo.cairo_set_matrix(cairo, matrix);
+	}
+	if (clipRgn != 0) {
+		setCairoRegion(cairo, clipRgn);
+		Cairo.cairo_clip(cairo);
+	}
 }
 void setClipping(int clipRgn) {
 	int /*long*/ cairo = data.cairo;
@@ -3686,7 +3707,7 @@ void setClipping(int clipRgn) {
 		}
 		if (cairo != 0) {
 			data.clippingTransform = null;
-			setCairoClip(cairo, clipRgn);
+			setCairoClip(data.damageRgn, 0);
 		} else {
 			if (data.damageRgn == 0) {
 				OS.XSetClipMask (data.display, handle, OS.None);
@@ -3701,7 +3722,7 @@ void setClipping(int clipRgn) {
 		if (cairo != 0) {
 			if (data.clippingTransform == null) data.clippingTransform = new double[6];
 			Cairo.cairo_get_matrix(cairo, data.clippingTransform);
-			setCairoClip(cairo, clipRgn);
+			setCairoClip(data.damageRgn, clipRgn);
 		} else {
 			int clipping = clipRgn;
 			if (data.damageRgn != 0) {

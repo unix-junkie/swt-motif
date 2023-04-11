@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2008 IBM Corporation and others.
+ * Copyright (c) 2000, 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -50,6 +50,8 @@ public final class TextLayout extends Resource {
 	StyleItem[][] runs;
 	int[] lineOffset, lineY, lineWidth;
 	int defaultAscent, defaultDescent;
+	
+	static final RGB LINK_FOREGROUND = new RGB (0, 51, 153);
 	
 	static class StyleItem {
 		TextStyle style;
@@ -368,6 +370,7 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 	final Color foreground = gc.getForeground();
 	final Color background = gc.getBackground();
 	final Font gcFont = gc.getFont();
+	Color linkColor = null;
 	Rectangle clip = gc.getClipping();
 	for (int line=0; line<runs.length; line++) {
 		int drawX = x + getLineIndent(line);
@@ -412,27 +415,39 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 					int end = run.start + run.length - 1;
 					gc.setFont(getItemFont(run));
 					boolean fullSelection = hasSelection && selectionStart <= run.start && selectionEnd >= end;
+					TextStyle style = run.style;
 					if (fullSelection) {
 						gc.setBackground(selectionBackground);
 						gc.fillRectangle(drawX, drawY, run.width, lineHeight);
-						if (!run.tab && !(run.style != null && run.style.metrics != null)) {
+						if (!run.tab && !(style != null && style.metrics != null)) {
 							gc.setForeground(selectionForeground);
 							gc.drawString(string, drawX, drawRunY, true);
-							drawLines(gc, run, drawX, drawRunY, run.width, true);
+							drawLines(gc, run, drawX, drawRunY, run.width);
 						}
 					} else {
-						if (run.style != null && run.style.background != null) {
-							Color bg = run.style.background;
+						if (style != null && style.background != null) {
+							Color bg = style.background;
 							gc.setBackground(bg);
 							gc.fillRectangle(drawX, drawRunY, run.width, run.height);
 						}
 						if (!run.tab) {
 							Color fg = foreground;
-							if (run.style != null && run.style.foreground != null) fg = run.style.foreground;
-							if (!(run.style != null && run.style.metrics != null)) {
+							if (style != null) {
+								if (style.foreground != null) {
+									fg = style.foreground;
+								} else {
+									if (style.underline && style.underlineStyle == SWT.UNDERLINE_LINK) {
+										if (linkColor == null) {
+											linkColor = new Color(device, LINK_FOREGROUND);
+										}
+										fg = linkColor;
+									}
+								}
+							}
+							if (!(style != null && style.metrics != null)) {
 								gc.setForeground(fg);
 								gc.drawString(string, drawX, drawRunY, true);
-								drawLines(gc, run, drawX, drawRunY, run.width, false);
+								drawLines(gc, run, drawX, drawRunY, run.width);
 							}
 							boolean partialSelection = hasSelection && !(selectionStart > end || run.start > selectionEnd);
 							if (partialSelection) {
@@ -444,10 +459,10 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 								int selWidth = gc.stringExtent(string).x;
 								gc.setBackground(selectionBackground);
 								gc.fillRectangle(selX, drawY, selWidth, lineHeight);
-								if (fg != selectionForeground && !(run.style != null && run.style.metrics != null)) {
+								if (fg != selectionForeground && !(style != null && style.metrics != null)) {
 									gc.setForeground(selectionForeground);
 									gc.drawString(string, selX, drawRunY, true);
-									drawLines(gc, run, selX, drawRunY, selWidth, true);
+									drawLines(gc, run, selX, drawRunY, selWidth);
 								}
 							}
 						}
@@ -461,6 +476,7 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 	gc.setForeground(foreground);
 	gc.setBackground(background);
 	gc.setFont(gcFont);
+	if (linkColor != null) linkColor.dispose();
 }
 
 void drawBorder(GC gc, StyleItem[] line, int index, int x, int y, int lineHeight, Color color) {
@@ -505,12 +521,12 @@ void drawBorder(GC gc, StyleItem[] line, int index, int x, int y, int lineHeight
 	}
 } 
 
-void drawLines(GC gc, StyleItem run, int x, int y, int width, boolean selection) {
+void drawLines(GC gc, StyleItem run, int x, int y, int width) {
 	TextStyle style = run.style;
 	if (style == null) return;
 	if (style.underline) {
 		int underlineY = y + run.baseline + 1 - style.rise;
-		if (!selection && style.underlineColor != null) {
+		if (style.underlineColor != null) {
 			gc.setForeground(style.underlineColor);
 		}
 		switch (style.underlineStyle) {
@@ -525,13 +541,14 @@ void drawLines(GC gc, StyleItem run, int x, int y, int width, boolean selection)
 			case SWT.UNDERLINE_DOUBLE:
 				gc.drawLine (x, underlineY + 2, x + width, underlineY + 2);
 				//FALLTHROU
+			case SWT.UNDERLINE_LINK:
 			case SWT.UNDERLINE_SINGLE:	
 				gc.drawLine (x, underlineY, x + width, underlineY);
 		}
 	}
 	if (style.strikeout) {
 		int strikeoutY = y + run.height - run.height/2 - 1;
-		if (!selection && style.strikeoutColor != null) {
+		if (style.strikeoutColor != null) {
 			gc.setForeground(style.strikeoutColor);
 		}
 		gc.drawLine (x, strikeoutY, x + width, strikeoutY);
@@ -1854,7 +1871,12 @@ public void setTabs (int[] tabs) {
 
 /**
  * Sets the receiver's text.
- *
+ *<p>
+ * Note: Setting the text also clears all the styles. This method 
+ * returns without doing anything if the new text is the same as 
+ * the current text.
+ * </p>
+ * 
  * @param text the new text
  *
  * @exception IllegalArgumentException <ul>

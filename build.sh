@@ -1,6 +1,6 @@
 #!/bin/sh
 #*******************************************************************************
-# Copyright (c) 2000, 2008 IBM Corporation and others.
+# Copyright (c) 2000, 2009 IBM Corporation and others.
 # All rights reserved. This program and the accompanying materials
 # are made available under the terms of the Eclipse Public License v1.0
 # which accompanies this distribution, and is available at
@@ -64,11 +64,11 @@ case $OS in
 					export MOZILLA_LIBS
 					MAKE_MOZILLA=make_mozilla
 				elif [ x`pkg-config --exists libxul && echo YES` = "xYES" ]; then
-					MOZILLA_INCLUDES=`pkg-config --cflags libxul`
-					MOZILLA_LIBS=`pkg-config --libs libxul`
-					export MOZILLA_INCLUDES
-					export MOZILLA_LIBS
-					MAKE_MOZILLA=make_mozilla
+					XULRUNNER_INCLUDES=`pkg-config --cflags libxul`
+					XULRUNNER_LIBS=`pkg-config --libs libxul`
+					export XULRUNNER_INCLUDES
+					export XULRUNNER_LIBS
+					MAKE_MOZILLA=make_xulrunner
 				else
 					echo "None of the following libraries were found:  Mozilla/XPCOM, Firefox/XPCOM, or XULRunner/XPCOM"
 					echo "    *** Mozilla embedding support will not be compiled."
