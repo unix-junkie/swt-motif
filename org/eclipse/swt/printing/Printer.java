@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -381,8 +381,12 @@ public int internal_new_GC(GCData data) {
 		if (defaultGC != 0) {
 			XGCValues values = new XGCValues();
 			OS.XGetGCValues(xDisplay, defaultGC, OS.GCBackground | OS.GCForeground, values);
-			data.foreground = values.foreground;
-			data.background = values.background;
+			XColor foreground = new XColor ();
+			foreground.pixel = values.foreground;
+			data.foreground = foreground;
+			XColor background = new XColor ();
+			background.pixel = values.background;
+			data.background = background;
 		}
 		isGCCreated = true;
 	}
@@ -553,7 +557,7 @@ public Point getDPI() {
 
 /**
  * Returns a rectangle describing the receiver's size and location.
- * For a printer, this is the size of a page, in pixels.
+ * For a printer, this is the size of a physical page, in pixels.
  *
  * @return the bounding rectangle
  *
@@ -607,10 +611,11 @@ public Rectangle getClientArea() {
  * (that is, not covered by the "trimmings") would be the
  * rectangle described by the arguments (relative to the
  * receiver's parent).
- * </p>
+ * </p><p>
  * Note that there is no setBounds for a printer. This method
  * is usually used by passing in the client area (the 'printable
  * area') of the printer. It can also be useful to pass in 0, 0, 0, 0.
+ * </p>
  * 
  * @param x the desired x coordinate of the client area
  * @param y the desired y coordinate of the client area

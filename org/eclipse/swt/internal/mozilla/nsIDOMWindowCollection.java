@@ -22,16 +22,34 @@
  *
  * IBM
  * -  Binding to permit interfacing between Mozilla and SWT
- * -  Copyright (C) 2003, 2006 IBM Corp.  All Rights Reserved.
+ * -  Copyright (C) 2003 IBM Corp.  All Rights Reserved.
  *
  * ***** END LICENSE BLOCK ***** */
 package org.eclipse.swt.internal.mozilla;
 
-import org.eclipse.swt.internal.*;
+public class nsIDOMWindowCollection extends nsISupports {
 
-public class XPCOM_PROFILE extends Platform {
-	public static final native int NS_NewProfileDirServiceProvider (boolean aNotifyObservers, int /*long*/[] result);
-	public static final native int ProfileDirServiceProvider_Register(int /*long*/ ptr);
-	public static final native int ProfileDirServiceProvider_SetProfileDir(int /*long*/ ptr, int /*long*/ aProfileDir);
-	public static final native int ProfileDirServiceProvider_Shutdown(int /*long*/ ptr);
+	static final int LAST_METHOD_ID = nsISupports.LAST_METHOD_ID + 3;
+
+	public static final String NS_IDOMWINDOWCOLLECTION_IID_STR =
+		"a6cf906f-15b3-11d2-932e-00805f8add32";
+
+	public static final nsID NS_IDOMWINDOWCOLLECTION_IID =
+		new nsID(NS_IDOMWINDOWCOLLECTION_IID_STR);
+
+	public nsIDOMWindowCollection(int /*long*/ address) {
+		super(address);
+	}
+
+	public int GetLength(int[] aLength) {
+		return XPCOM.VtblCall(nsISupports.LAST_METHOD_ID + 1, getAddress(), aLength);
+	}
+
+	public int Item(int index, int /*long*/[] _retval) {
+		return XPCOM.VtblCall(nsISupports.LAST_METHOD_ID + 2, getAddress(), index, _retval);
+	}
+
+	public int NamedItem(int /*long*/ name, int /*long*/[] _retval) {
+		return XPCOM.VtblCall(nsISupports.LAST_METHOD_ID + 3, getAddress(), name, _retval);
+	}
 }

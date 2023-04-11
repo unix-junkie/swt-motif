@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -75,6 +75,8 @@ public class TableEditor extends ControlEditor {
 	TableItem item;
 	int column = -1;
 	ControlListener columnListener;
+	Runnable timer;
+	static final int TIMEOUT = 1500;
 /**
 * Creates a TableEditor for the specified Table.
 *
@@ -87,10 +89,15 @@ public TableEditor (Table table) {
 	
 	columnListener = new ControlListener() {
 		public void controlMoved(ControlEvent e){
-			_resize ();
+			layout ();
 		}
 		public void controlResized(ControlEvent e){
-			_resize ();
+			layout ();
+		}
+	};
+	timer = new Runnable () {
+		public void run() {
+			layout ();
 		}
 	};
 	
@@ -141,15 +148,17 @@ Rectangle computeBounds () {
  * Table and the editor Control are <b>not</b> disposed.
  */
 public void dispose () {
-	if (this.column > -1 && this.column < table.getColumnCount()){
-		TableColumn tableColumn = table.getColumn(this.column);
-		tableColumn.removeControlListener(columnListener);
+	if (table != null && !table.isDisposed()) {
+		if (this.column > -1 && this.column < table.getColumnCount()){
+			TableColumn tableColumn = table.getColumn(this.column);
+			tableColumn.removeControlListener(columnListener);
+		}
 	}
 	columnListener = null;
 	table = null;
 	item = null;
 	column = -1;
-	
+	timer = null;
 	super.dispose();
 }
 /**
@@ -168,7 +177,20 @@ public int getColumn () {
 public TableItem getItem () {
 	return item;
 }
-
+void resize () {
+	layout();
+	/*
+	 * On some platforms, the table scrolls when an item that
+	 * is partially visible at the bottom of the table is
+	 * selected.  Ensure that the correct row is edited by
+	 * laying out one more time in a timerExec().
+	 */
+	if (table != null) {
+		Display display = table.getDisplay();
+		display.timerExec(-1, timer);
+		display.timerExec(TIMEOUT, timer);
+	}
+}
 /**
 * Sets the zero based index of the column of the cell being tracked by this editor.
 * 
@@ -180,7 +202,7 @@ public void setColumn(int column) {
 	// In this situation, there is a single default column.
 	if (columnCount == 0) {
 		this.column = (column == 0) ? 0 : -1;
-		_resize();
+		resize();
 		return;
 	}
 	if (this.column > -1 && this.column < columnCount){
@@ -194,13 +216,16 @@ public void setColumn(int column) {
 	this.column = column;
 	TableColumn tableColumn = table.getColumn(this.column);
 	tableColumn.addControlListener(columnListener);
-	_resize();
+	resize();
 }
 public void setItem (TableItem item) {	
 	this.item = item;
-	_resize();
+	resize();
 }
-
+public void setEditor (Control editor) {
+	super.setEditor(editor);
+	resize();
+}
 /**
 * Specify the Control that is to be displayed and the cell in the table that it is to be positioned above.
 *
@@ -216,12 +241,12 @@ public void setEditor (Control editor, TableItem item, int column) {
 	setColumn(column);
 	setEditor(editor);
 }
-void _resize () {
-	if (table.isDisposed()) return;
+public void layout () {
+	if (table == null || table.isDisposed()) return;
 	if (item == null || item.isDisposed()) return;
 	int columnCount = table.getColumnCount();
 	if (columnCount == 0 && column != 0) return;
 	if (columnCount > 0 && (column < 0 || column >= columnCount)) return;
-	super._resize();
+	super.layout();
 }
 }

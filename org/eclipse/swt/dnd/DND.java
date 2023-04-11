@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -171,7 +171,7 @@ public class DND {
 	 * select a drop target from a sub item; applies to trees (value is 16).
 	 */	
 	public static final int FEEDBACK_EXPAND = 16;
-	
+
 	/**
 	 * Error code: drag source can not be initialized (value is 2000).
 	 */

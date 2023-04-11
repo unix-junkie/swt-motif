@@ -142,8 +142,8 @@ void readNextChunk(PngChunkReader chunkReader) throws IOException {
 	}
 }
 void unloadIntoByteStream(ImageLoader loader) {
-	/* We do not currently support writing png. */
-	SWT.error(SWT.ERROR_UNSUPPORTED_FORMAT);
+	PngEncoder encoder = new PngEncoder(loader);
+	encoder.encode(outputStream);
 }
 boolean isFileFormat(LEDataInputStream stream) {
 	try {
@@ -290,6 +290,7 @@ void setImageDataValues(byte[] data, ImageData imageData) {
  */
 void readPixelData(PngIdatChunk chunk, PngChunkReader chunkReader) throws IOException {
 	InputStream stream = new PngInputStream(chunk, chunkReader);
+	//TEMPORARY CODE
 	boolean use3_2 = System.getProperty("org.eclipse.swt.internal.image.PNGFileFormat_3.2") != null;
 	InputStream inflaterStream = use3_2 ? null : Compatibility.newInflaterInputStream(stream);
 	if (inflaterStream != null) {

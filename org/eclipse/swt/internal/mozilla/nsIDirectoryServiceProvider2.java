@@ -31,11 +31,11 @@ public class nsIDirectoryServiceProvider2 extends nsIDirectoryServiceProvider {
 
 	static final int LAST_METHOD_ID = nsIDirectoryServiceProvider.LAST_METHOD_ID + 1;
 
-	public static final String NS_IDIRECTORYSERVICEPROVIDER2_IID_STR =
+	public static final String NS_IDIRECTORYSERVICEPROVIDER2_IID_STRING =
 		"2f977d4b-5485-11d4-87e2-0010a4e75ef2";
 
 	public static final nsID NS_IDIRECTORYSERVICEPROVIDER2_IID =
-		new nsID(NS_IDIRECTORYSERVICEPROVIDER2_IID_STR);
+		new nsID(NS_IDIRECTORYSERVICEPROVIDER2_IID_STRING);
 
 	public nsIDirectoryServiceProvider2(int /*long*/ address) {
 		super(address);

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -66,7 +66,7 @@ public class CTabFolder extends Composite {
 	 * A multiple of the tab height that specifies the minimum width to which a tab 
 	 * will be compressed before scrolling arrows are used to navigate the tabs.
 	 * 
-	 * NOTE This field is badly named and can not be fixed for backwards compatability.
+	 * NOTE This field is badly named and can not be fixed for backwards compatibility.
 	 * It should not be capitalized.
 	 * 
 	 * @deprecated This field is no longer used.  See setMinimumCharacters(int)
@@ -76,7 +76,7 @@ public class CTabFolder extends Composite {
 	/**
 	 * Color of innermost line of drop shadow border.
 	 * 
-	 * NOTE This field is badly named and can not be fixed for backwards compatability.
+	 * NOTE This field is badly named and can not be fixed for backwards compatibility.
 	 * It should be capitalized.
 	 * 
 	 * @deprecated drop shadow border is no longer drawn in 3.0
@@ -85,7 +85,7 @@ public class CTabFolder extends Composite {
 	/**
 	 * Color of middle line of drop shadow border.
 	 * 
-	 * NOTE This field is badly named and can not be fixed for backwards compatability.
+	 * NOTE This field is badly named and can not be fixed for backwards compatibility.
 	 * It should be capitalized.
 	 * 
 	 * @deprecated drop shadow border is no longer drawn in 3.0
@@ -94,7 +94,7 @@ public class CTabFolder extends Composite {
 	/**
 	 * Color of outermost line of drop shadow border.
 	 * 
-	 * NOTE This field is badly named and can not be fixed for backwards compatability.
+	 * NOTE This field is badly named and can not be fixed for backwards compatibility.
 	 * It should be capitalized.
 	 * 
 	 * @deprecated drop shadow border is no longer drawn in 3.0
@@ -129,7 +129,17 @@ public class CTabFolder extends Composite {
 	int[] selectionGradientPercents;
 	boolean selectionGradientVertical;
 	Color selectionForeground;
-	Color selectionBackground;
+	Color selectionBackground;  //selection fade end
+	Color selectionFadeStart;
+	
+	Color selectionHighlightGradientBegin = null;  //null == no highlight
+	//Although we are given new colours all the time to show different states (active, etc),
+	//some of which may have a highlight and some not, we'd like to retain the highlight colours
+	//as a cache so that we can reuse them if we're again told to show the highlight.
+	//We are relying on the fact that only one tab state usually gets a highlight, so only
+	//a single cache is required. If that happens to not be true, cache simply becomes less effective,
+	//but we don't leak colours.
+	Color[] selectionHighlightGradientColorsCache = null;  //null is a legal value, check on access
 	
 	/* Unselected item appearance */
 	Image bgImage;
@@ -173,6 +183,8 @@ public class CTabFolder extends Composite {
 	int highlight_header = 0;
 	
 	int[] curve;
+	int[] topCurveHighlightStart;
+	int[] topCurveHighlightEnd;
 	int curveWidth = 0;
 	int curveIndent = 0;
 	
@@ -191,6 +203,11 @@ public class CTabFolder extends Composite {
 	static final int BUTTON_SIZE = 18;
 
 	static final int[] TOP_LEFT_CORNER = new int[] {0,6, 1,5, 1,4, 4,1, 5,1, 6,0};
+
+	//TOP_LEFT_CORNER_HILITE is laid out in reverse (ie. top to bottom)
+	//so can fade in same direction as right swoop curve
+	static final int[] TOP_LEFT_CORNER_HILITE = new int[] {5,2, 4,2, 3,3, 2,4, 2,5, 1,6};
+
 	static final int[] TOP_RIGHT_CORNER = new int[] {-6,0, -5,1, -4,1, -1,4, -1,5, 0,6};
 	static final int[] BOTTOM_LEFT_CORNER = new int[] {0,-6, 1,-5, 1,-4, 4,-1, 5,-1, 6,0};
 	static final int[] BOTTOM_RIGHT_CORNER = new int[] {-6,0, -5,-1, -4,-1, -1,-4, -1,-5, 0,-6};
@@ -199,6 +216,17 @@ public class CTabFolder extends Composite {
 	static final int[] SIMPLE_TOP_RIGHT_CORNER = new int[] {-2,0, -1,1, 0,2};
 	static final int[] SIMPLE_BOTTOM_LEFT_CORNER = new int[] {0,-2, 1,-1, 2,0};
 	static final int[] SIMPLE_BOTTOM_RIGHT_CORNER = new int[] {-2,0, -1,-1, 0,-2};
+	static final int[] SIMPLE_UNSELECTED_INNER_CORNER = new int[] {0,0};
+
+	static final int[] TOP_LEFT_CORNER_BORDERLESS = new int[] {0,6, 1,5, 1,4, 4,1, 5,1, 6,0};
+	static final int[] TOP_RIGHT_CORNER_BORDERLESS = new int[] {-7,0, -6,1, -5,1, -2,4, -2,5, -1,6};
+	static final int[] BOTTOM_LEFT_CORNER_BORDERLESS = new int[] {0,-6, 1,-6, 1,-5, 2,-4, 4,-2, 5,-1, 6,-1, 6,0};
+	static final int[] BOTTOM_RIGHT_CORNER_BORDERLESS = new int[] {-7,0, -7,-1, -6,-1, -5,-2, -3,-4, -2,-5, -2,-6, -1,-6};
+
+	static final int[] SIMPLE_TOP_LEFT_CORNER_BORDERLESS = new int[] {0,2, 1,1, 2,0};
+	static final int[] SIMPLE_TOP_RIGHT_CORNER_BORDERLESS= new int[] {-3,0, -2,1, -1,2};
+	static final int[] SIMPLE_BOTTOM_LEFT_CORNER_BORDERLESS = new int[] {0,-3, 1,-2, 2,-1, 3,0};
+	static final int[] SIMPLE_BOTTOM_RIGHT_CORNER_BORDERLESS = new int[] {-4,0, -3,-1, -2,-2, -1,-3};
 
 	static final int SELECTION_FOREGROUND = SWT.COLOR_LIST_FOREGROUND;
 	static final int SELECTION_BACKGROUND = SWT.COLOR_LIST_BACKGROUND;
@@ -320,10 +348,10 @@ public CTabFolder(Composite parent, int style) {
 static int checkStyle (Composite parent, int style) {
 	int mask = SWT.CLOSE | SWT.TOP | SWT.BOTTOM | SWT.FLAT | SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT | SWT.SINGLE | SWT.MULTI;
 	style = style & mask;
-	// TOP and BOTTOM are mutually exlusive.
+	// TOP and BOTTOM are mutually exclusive.
 	// TOP is the default
 	if ((style & SWT.TOP) != 0) style = style & ~SWT.BOTTOM;
-	// SINGLE and MULTI are mutually exlusive.
+	// SINGLE and MULTI are mutually exclusive.
 	// MULTI is the default
 	if ((style & SWT.MULTI) != 0) style = style & ~SWT.SINGLE;
 	// reduce the flash by not redrawing the entire area on a Resize event
@@ -428,18 +456,28 @@ public void addCTabFolderListener(CTabFolderListener listener) {
 	}
 }
 /**	 
- * Adds the listener to receive events.
+ * Adds the listener to the collection of listeners who will
+ * be notified when the user changes the receiver's selection, by sending
+ * it one of the messages defined in the <code>SelectionListener</code>
+ * interface.
  * <p>
+ * <code>widgetSelected</code> is called when the user changes the selected tab.
+ * <code>widgetDefaultSelected</code> is not called.
+ * </p>
  *
- * @param listener the listener
+ * @param listener the listener which should be notified when the user changes the receiver's selection
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
  * </ul>
  * @exception SWTException <ul>
- *    <li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
- *    <li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ *
+ * @see SelectionListener
+ * @see #removeSelectionListener
+ * @see SelectionEvent
  */
 public void addSelectionListener(SelectionListener listener) {
 	checkWidget();
@@ -451,9 +489,9 @@ public void addSelectionListener(SelectionListener listener) {
 	addListener(SWT.DefaultSelection, typedListener);
 }
 void antialias (int[] shape, RGB lineRGB, RGB innerRGB, RGB outerRGB, GC gc){
-	// Don't perform anti-aliasing on Mac because the platform
+	// Don't perform anti-aliasing on Mac and WPF because the platform
 	// already does it.  The simple style also does not require anti-aliasing.
-	if (simple || "carbon".equals(SWT.getPlatform())) return; //$NON-NLS-1$
+	if (simple || "carbon".equals(SWT.getPlatform()) || "wpf".equals(SWT.getPlatform())) return; //$NON-NLS-1$
 	// Don't perform anti-aliasing on low resolution displays
 	if (getDisplay().getDepth() < 15) return;
 	if (outerRGB != null) {
@@ -975,6 +1013,8 @@ void drawTabArea(Event event) {
 	int[] shape = null;
 	
 	if (tabHeight == 0) {
+		int style = getStyle();
+		if ((style & SWT.FLAT) != 0 && (style & SWT.BORDER) == 0) return;
 		int x1 = borderLeft - 1;
 		int x2 = size.x - borderRight;
 		int y1 = onBottom ? size.y - borderBottom - highlight_header - 1 : borderTop + highlight_header;
@@ -1008,8 +1048,14 @@ void drawTabArea(Event event) {
 	
 	// Draw Tab Header
 	if (onBottom) {
-		int[] left = simple ? SIMPLE_BOTTOM_LEFT_CORNER : BOTTOM_LEFT_CORNER;
-		int[] right = simple ? SIMPLE_BOTTOM_RIGHT_CORNER : BOTTOM_RIGHT_CORNER;
+		int[] left, right;
+		if ((getStyle() & SWT.BORDER) != 0) {
+			left = simple ? SIMPLE_BOTTOM_LEFT_CORNER : BOTTOM_LEFT_CORNER;
+			right = simple ? SIMPLE_BOTTOM_RIGHT_CORNER : BOTTOM_RIGHT_CORNER;
+		} else {
+			left = simple ? SIMPLE_BOTTOM_LEFT_CORNER_BORDERLESS : BOTTOM_LEFT_CORNER_BORDERLESS;
+			right = simple ? SIMPLE_BOTTOM_RIGHT_CORNER_BORDERLESS : BOTTOM_RIGHT_CORNER_BORDERLESS;
+		}
 		shape = new int[left.length + right.length + 4];
 		int index = 0;
 		shape[index++] = x;
@@ -1027,8 +1073,14 @@ void drawTabArea(Event event) {
 		shape[index++] = x+width;
 		shape[index++] = y-highlight_header;
 	} else {
-		int[] left = simple ? SIMPLE_TOP_LEFT_CORNER : TOP_LEFT_CORNER;
-		int[] right = simple ? SIMPLE_TOP_RIGHT_CORNER : TOP_RIGHT_CORNER;
+		int[] left, right;
+		if ((getStyle() & SWT.BORDER) != 0) {
+			left = simple ? SIMPLE_TOP_LEFT_CORNER : TOP_LEFT_CORNER;
+			right = simple ? SIMPLE_TOP_RIGHT_CORNER : TOP_RIGHT_CORNER;
+		} else {
+			left = simple ? SIMPLE_TOP_LEFT_CORNER_BORDERLESS : TOP_LEFT_CORNER_BORDERLESS;
+			right = simple ? SIMPLE_TOP_RIGHT_CORNER_BORDERLESS : TOP_RIGHT_CORNER_BORDERLESS;
+		}
 		shape = new int[left.length + right.length + 4];
 		int index = 0;
 		shape[index++] = x;
@@ -1343,10 +1395,9 @@ int getRightItemEdge (){
 	return Math.max(0, x);
 }
 /**
- * Return the selected tab item, or an empty array if there
- * is no selection.
+ * Return the selected tab item, or null if there is no selection.
  * 
- * @return the selected tab item
+ * @return the selected tab item, or null if none has been selected
  * 
  * @exception SWTException <ul>
  *		<li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
@@ -1418,10 +1469,10 @@ public boolean getSimple() {
 	return simple;
 }
 /**
- * Returns <code>true</code> if the CTabFolder only displys the selected tab
+ * Returns <code>true</code> if the CTabFolder only displays the selected tab
  * and <code>false</code> if the CTabFolder displays multiple tabs.
  * 
- * @return <code>true</code> if the CTabFolder only displys the selected tab and <code>false</code> if the CTabFolder displays multiple tabs
+ * @return <code>true</code> if the CTabFolder only displays the selected tab and <code>false</code> if the CTabFolder displays multiple tabs
  * 
  * @since 3.0
  */
@@ -1813,6 +1864,7 @@ void onDispose(Event event) {
 
 	selectionBackground = null;
 	selectionForeground = null;
+	disposeSelectionHighlightGradientColors();	
 }
 void onDragDetect(Event event) {
 	boolean consume = false;
@@ -2183,6 +2235,7 @@ boolean onPageTraversal(Event event) {
 	return true;
 }
 void onPaint(Event event) {
+	if (inDispose) return;
 	Font font = getFont();
 	if (oldFont == null || !oldFont.equals(font)) {
 		// handle case where  default font changes
@@ -2230,7 +2283,7 @@ void onResize() {
 			redraw();
 		} else {
 			int x1 = Math.min(size.x, oldSize.x);
-			if (size.x != oldSize.x) x1 -= borderRight + highlight_margin;
+			if (size.x != oldSize.x) x1 -= borderRight + highlight_margin + 2;
 			if (!simple) x1 -= 5; // rounded top right corner
 			int y1 = Math.min(size.y, oldSize.y);
 			if (size.y != oldSize.y) y1 -= borderBottom + highlight_margin;
@@ -2347,18 +2400,21 @@ public void removeCTabFolderListener(CTabFolderListener listener) {
 	tabListeners = newTabListeners;
 }
 /**	 
- * Removes the listener.
+ * Removes the listener from the collection of listeners who will
+ * be notified when the user changes the receiver's selection.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
  * </ul>
- * 
  * @exception SWTException <ul>
- *    <li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
- *    <li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ *
+ * @see SelectionListener
+ * @see #addSelectionListener
  */
 public void removeSelectionListener(SelectionListener listener) {
 	checkWidget();
@@ -3190,6 +3246,7 @@ void setSelection(int index, boolean notify) {
  */
 public void setSelectionBackground (Color color) {
 	checkWidget();
+	setSelectionHighlightGradientColor(null);
 	if (selectionBackground == color) return;
 	if (color == null) color = getDisplay().getSystemColor(SELECTION_BACKGROUND);
 	selectionBackground = color;
@@ -3254,8 +3311,14 @@ public void setSelectionBackground(Color[] colors, int[] percents) {
  */
 public void setSelectionBackground(Color[] colors, int[] percents, boolean vertical) {
 	checkWidget();
+	int colorsLength;
+	Color highlightBeginColor = null;  //null == no highlight
+
 	if (colors != null) {
-		if (percents == null || percents.length != colors.length - 1) {
+		//The colors array can optionally have an extra entry which describes the highlight top color
+		//Thus its either one or two larger than the percents array
+		if (percents == null || 
+				! ((percents.length == colors.length - 1) || (percents.length == colors.length - 2))){
 			SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 		}
 		for (int i = 0; i < percents.length; i++) {
@@ -3266,17 +3329,28 @@ public void setSelectionBackground(Color[] colors, int[] percents, boolean verti
 				SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 			}
 		}
+		//If the colors is exactly two more than percents then last is highlight
+		//Keep track of *real* colorsLength (minus the highlight)
+		if(percents.length == colors.length - 2) {
+			highlightBeginColor = colors[colors.length - 1];
+			colorsLength = colors.length - 1;
+		} else {
+			colorsLength = colors.length;
+		}
 		if (getDisplay().getDepth() < 15) {
 			// Don't use gradients on low color displays
-			colors = new Color[] {colors[colors.length - 1]};
+			colors = new Color[] {colors[colorsLength - 1]};
+			colorsLength = colors.length;
 			percents = new int[] {};
 		}
+	} else {
+		colorsLength = 0;
 	}
 	
 	// Are these settings the same as before?
 	if (selectionBgImage == null) {
 		if ((selectionGradientColors != null) && (colors != null) && 
-			(selectionGradientColors.length == colors.length)) {
+			(selectionGradientColors.length == colorsLength)) {
 			boolean same = false;
 			for (int i = 0; i < selectionGradientColors.length; i++) {
 				if (selectionGradientColors[i] == null) {
@@ -3303,9 +3377,10 @@ public void setSelectionBackground(Color[] colors, int[] percents, boolean verti
 		selectionGradientPercents = null;
 		selectionGradientVertical = false;
 		setSelectionBackground((Color)null);
+		setSelectionHighlightGradientColor(null);
 	} else {
-		selectionGradientColors = new Color[colors.length];
-		for (int i = 0; i < colors.length; ++i) {
+		selectionGradientColors = new Color[colorsLength];
+		for (int i = 0; i < colorsLength; ++i) {
 			selectionGradientColors[i] = colors[i];
 		}
 		selectionGradientPercents = new int[percents.length];
@@ -3314,10 +3389,69 @@ public void setSelectionBackground(Color[] colors, int[] percents, boolean verti
 		}
 		selectionGradientVertical = vertical;
 		setSelectionBackground(selectionGradientColors[selectionGradientColors.length-1]);
+		setSelectionHighlightGradientColor(highlightBeginColor);
 	}
 
 	// Refresh with the new settings
 	if (selectedIndex > -1) redraw();
+}
+
+/*
+ * Set the color for the highlight start for selected tabs.
+ * Update the cache of highlight gradient colors if required.
+ */
+
+void setSelectionHighlightGradientColor(Color start) {
+	//Set to null to match all the early return cases.
+	//For early returns, don't realloc the cache, we may get a cache hit next time we're given the highlight
+	selectionHighlightGradientBegin = null;
+
+	if(start == null)
+		return;
+
+	//don't bother on low colour
+	if (getDisplay().getDepth() < 15)
+		return;
+	
+	//don't bother if we don't have a background gradient
+	if(selectionGradientColors.length < 2) 
+		return;
+
+	//OK we know its a valid gradient now
+	selectionHighlightGradientBegin = start;
+
+	if(! isSelectionHighlightColorsCacheHit(start))
+		createSelectionHighlightGradientColors(start);  //if no cache hit then compute new ones
+}
+
+/*
+ * Return true if given start color, the cache of highlight colors we have
+ * would match the highlight colors we'd compute.
+ */
+boolean isSelectionHighlightColorsCacheHit(Color start) {
+
+	if(selectionHighlightGradientColorsCache == null)
+		return false;
+	
+	//this case should never happen but check to be safe before accessing array indexes
+	if(selectionHighlightGradientColorsCache.length < 2)
+		return false;
+
+	Color highlightBegin = selectionHighlightGradientColorsCache[0];
+	Color highlightEnd = selectionHighlightGradientColorsCache[selectionHighlightGradientColorsCache.length - 1];
+
+	if(! highlightBegin.equals(start))
+		return false;	
+	
+	//Compare number of colours we have vs. we'd compute
+	if(selectionHighlightGradientColorsCache.length != tabHeight)
+		return false;
+	
+	//Compare existing highlight end to what it would be (selectionBackground)
+	if(! highlightEnd.equals(selectionBackground))
+		return false;
+	
+	return true;
 }
 
 /**
@@ -3333,10 +3467,12 @@ public void setSelectionBackground(Color[] colors, int[] percents, boolean verti
  */
 public void setSelectionBackground(Image image) {
 	checkWidget();
+	setSelectionHighlightGradientColor(null);
 	if (image == selectionBgImage) return;
 	if (image != null) {
 		selectionGradientColors = null;
 		selectionGradientPercents = null;
+		disposeSelectionHighlightGradientColors();
 	}
 	selectionBgImage = image;
 	if (selectedIndex > -1) redraw();
@@ -3358,6 +3494,60 @@ public void setSelectionForeground (Color color) {
 	selectionForeground = color;
 	if (selectedIndex > -1) redraw();
 }
+
+/*
+ * Allocate colors for the highlight line.
+ * Colours will be a gradual blend ranging from to.
+ * Blend length will be tab height.
+ * Recompute this if tab height changes.
+ * Could remain null if there'd be no gradient (start=end or low colour display)
+ */
+void createSelectionHighlightGradientColors(Color start) {
+	disposeSelectionHighlightGradientColors(); //dispose if existing
+
+	if(start == null)  //shouldn't happen but just to be safe
+		return;
+
+	//alloc colours for entire height to ensure it matches wherever we stop drawing
+	int fadeGradientSize = tabHeight;
+
+	RGB from = start.getRGB();
+	RGB to = selectionBackground.getRGB();
+
+	selectionHighlightGradientColorsCache = new Color[fadeGradientSize];
+	int denom = fadeGradientSize - 1;
+
+	for (int i = 0; i < fadeGradientSize; i++) {
+		int propFrom = denom - i;
+		int propTo = i;
+		int red = (to.red * propTo + from.red * propFrom) / denom;
+		int green = (to.green * propTo  + from.green * propFrom) / denom;
+		int blue = (to.blue * propTo  + from.blue * propFrom) / denom;
+		selectionHighlightGradientColorsCache[i] = new Color(getDisplay(), red, green, blue);
+	}
+}
+
+void disposeSelectionHighlightGradientColors() {
+	if(selectionHighlightGradientColorsCache == null)
+		return;
+	for (int i = 0; i < selectionHighlightGradientColorsCache.length; i++) {
+		selectionHighlightGradientColorsCache[i].dispose();
+	}
+	selectionHighlightGradientColorsCache = null;
+}
+
+/*
+ * Return the gradient start color for selected tabs, which is the start of the tab fade
+ * (end is selectionBackground).
+ */
+Color getSelectionBackgroundGradientBegin() {
+	if (selectionGradientColors == null)
+		return getSelectionBackground();
+	if (selectionGradientColors.length == 0)
+		return getSelectionBackground();
+	return selectionGradientColors[0];
+}
+
 /**
  * Sets the shape that the CTabFolder will use to render itself.  
  * 
@@ -3740,6 +3930,8 @@ boolean updateItems(int showIndex) {
 	return changed;
 }
 boolean updateTabHeight(boolean force){
+	int style = getStyle();
+	if (fixedTabHeight == 0 && (style & SWT.FLAT) != 0 && (style & SWT.BORDER) == 0) highlight_header = 0;		
 	int oldHeight = tabHeight;
 	if (fixedTabHeight != SWT.DEFAULT) {
 		tabHeight = fixedTabHeight == 0 ? 0 : fixedTabHeight + 1; // +1 for line drawn across top of tab
@@ -3773,6 +3965,24 @@ boolean updateTabHeight(boolean force){
 				          12+d,7+d, 13+d,7+d, 15+d,9+d, 16+d,9+d, 17+d,10+d, 19+d,10+d, 20+d,11+d, 22+d,11+d, 23+d,12+d};
 		curveWidth = 26+d;
 		curveIndent = curveWidth/3;
+		
+		//this could be static but since values depend on curve, better to keep in one place
+		topCurveHighlightStart = new int[] { 
+				0, 2,  1, 2,  2, 2,    
+				3, 3,  4, 3,  5, 3, 
+				6, 4,  7, 4,
+				8, 5, 
+				9, 6, 10, 6};
+		
+		//also, by adding in 'd' here we save some math cost when drawing the curve
+		topCurveHighlightEnd = new int[] { 
+				10+d, 6+d,
+				11+d, 7+d,
+				12+d, 8+d,  13+d, 8+d,
+				14+d, 9+d,
+				15+d, 10+d,  16+d, 10+d,
+				17+d, 11+d,  18+d, 11+d,  19+d, 11+d,
+				20+d, 12+d,  21+d, 12+d,  22+d,  12+d }; 
 	}
 	notifyListeners(SWT.Resize, new Event());
 	return true;

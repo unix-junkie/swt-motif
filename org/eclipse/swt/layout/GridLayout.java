@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -46,7 +46,7 @@ public final class GridLayout extends Layout {
  	/**
  	 * numColumns specifies the number of cell columns in the layout.
  	 * If numColumns has a value less than 1, the layout will not
- 	 * set the size and postion of any controls.
+ 	 * set the size and position of any controls.
  	 *
  	 * The default value is 1.
  	 */
@@ -143,7 +143,7 @@ public GridLayout () {}
  * number of columns, and whether or not the columns
  * should be forced to have the same width.
  * If numColumns has a value less than 1, the layout will not
- * set the size and postion of any controls.
+ * set the size and position of any controls.
  *
  * @param numColumns the number of columns in the grid
  * @param makeColumnsEqualWidth whether or not the columns will have equal width

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -11,6 +11,7 @@
 package org.eclipse.swt.dnd;
 
 import org.eclipse.swt.events.TypedEvent;
+import org.eclipse.swt.graphics.*;
 
 /**
  * The DragSourceEvent contains the event information passed in the methods of the DragSourceListener.
@@ -62,6 +63,15 @@ public class DragSourceEvent extends TypedEvent {
 	 * Data provided in the data field must be of the same type.
  	 */
 	public TransferData dataType;
+	
+	/**
+	 * The drag source image to be displayed during the drag.
+	 * <p>A value of null indicates that no drag image will be displayed.</p>
+	 * <p>The default value is null.</p>
+	 * 
+	 * @since 3.3
+	 */
+	public Image image;
 
 	static final long serialVersionUID = 3257002142513770808L;
 	
@@ -79,6 +89,7 @@ public DragSourceEvent(DNDEvent e) {
 	this.dataType = e.dataType;
 	this.x = e.x;
 	this.y = e.y;
+	this.image = e.image;
 }
 void updateEvent(DNDEvent e) {
 	e.widget = this.widget;
@@ -89,5 +100,6 @@ void updateEvent(DNDEvent e) {
 	e.dataType = this.dataType;
 	e.x = this.x;
 	e.y = this.y;
+	e.image = this.image;
 }
 }

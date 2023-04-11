@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -787,6 +787,15 @@ void dispose (boolean notifyParent) {
 void expandAncestors () {
 	if (parentItem != null) parentItem.expandAncestors ();
 	setExpanded (true);
+	Event newEvent = new Event ();
+	newEvent.item = this;
+	parent.inExpand = true;
+	parent.sendEvent (SWT.Expand, newEvent);
+	parent.inExpand = false;
+	if (isDisposed ()) return;
+	if (items.length == 0) {
+		expanded = false;
+	}
 }
 /**
  * Returns the receiver's background color.
@@ -1505,6 +1514,63 @@ String getText (int columnIndex, boolean checkData) {
 	if (texts [columnIndex] == null) return "";	//$NON-NLS-1$
 	return texts [columnIndex];
 }
+/**
+ * Returns a rectangle describing the size and location
+ * relative to its parent of the text at a column in the
+ * tree.
+ *
+ * @param index the index that specifies the column
+ * @return the receiver's bounding text rectangle
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.3
+ */
+public Rectangle getTextBounds (int columnIndex) {
+	checkWidget ();
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
+	if (!isAvailable ()) return new Rectangle (0, 0, 0, 0);
+	TreeColumn[] columns = parent.columns;
+	int columnCount = columns.length;
+	int validColumnCount = Math.max (1, columnCount);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) {
+		return new Rectangle (0, 0, 0, 0);
+	}
+	/*
+	 * If there are no columns then this is the bounds of the receiver's content.
+	 */
+	if (columnCount == 0) {
+		int x = getTextX (0) + MARGIN_TEXT;
+		int width = Math.max (0, getContentX(0) + getContentWidth (0) - x);
+		return new Rectangle (
+			x,
+			parent.getItemY (this),
+			width,
+			parent.itemHeight - 1);
+	}
+
+	TreeColumn column = columns [columnIndex];
+	if (column.getOrderIndex () == 0) {
+		/* 
+		 * For ordered column 0 this is bounds from the beginning of the content to the
+		 * end of the column.
+		 */
+		int x = getTextX (columnIndex) + MARGIN_TEXT;
+		int offset = x - column.getX ();
+		int width = Math.max (0, column.width - offset - 1);		/* max is for columns with small widths */
+		return new Rectangle (x, parent.getItemY (this) + 1, width, parent.itemHeight - 1);
+	}
+	/*
+	 * For ordered columns > 0 this is the bounds of the tree cell.
+	 */
+	int x = getTextX (columnIndex) + MARGIN_TEXT;
+	int offset = x - column.getX ();
+	int width = Math.max (0, column.width - offset - MARGIN_TEXT);
+	return new Rectangle (x, parent.getItemY (this) + 1, width, parent.itemHeight - 1);
+}
 /*
  * Returns the x value where the receiver's text begins.
  */
@@ -1540,8 +1606,8 @@ boolean hasAncestor (TreeItem item) {
  * @return the index of the item
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the tool item is null</li>
- *    <li>ERROR_INVALID_ARGUMENT - if the tool item has been disposed</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the item is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the item has been disposed</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1693,11 +1759,12 @@ boolean paint (GC gc, TreeColumn column, boolean backgroundOnly) {
 
 	boolean isSelected = isSelected ();
 	boolean isFocusItem = parent.focusItem == this;
-	boolean drawBackground = background != null || (cellBackgrounds != null && cellBackgrounds [columnIndex] != null);
+	boolean drawBackground = true;
 	boolean drawForeground = true;
 	boolean drawSelection = isSelected;
 	boolean drawFocus = isFocusItem;
 	if (parent.hooks (SWT.EraseItem)) {
+		drawBackground = background != null || (cellBackgrounds != null && cellBackgrounds [columnIndex] != null);
 		gc.setFont (getFont (columnIndex, false));
 		if (isSelected && (columnIndex == 0 || (parent.style & SWT.FULL_SELECTION) != 0)) {
 			gc.setForeground (display.getSystemColor (SWT.COLOR_LIST_SELECTION_TEXT));
@@ -2192,8 +2259,12 @@ public void setChecked (boolean value) {
 	checked = value;
 	if ((parent.style & SWT.VIRTUAL) != 0) cached = true;
 	if (isInViewport ()) {
-		Rectangle bounds = getCheckboxBounds ();
-		parent.redraw (bounds.x, bounds.y, bounds.width, bounds.height, false);
+		if (parent.hooks (SWT.EraseItem) || parent.hooks (SWT.PaintItem)) {
+			redrawItem ();
+		} else {
+			Rectangle bounds = getCheckboxBounds ();
+			parent.redraw (bounds.x, bounds.y, bounds.width, bounds.height, false);
+		}
 	}
 }
 /**
@@ -2224,7 +2295,7 @@ public void setExpanded (boolean value) {
 			Rectangle clientArea = parent.clientArea;
 			int y = parent.getItemY (this) + parent.itemHeight;
 			if (0 < y && y < clientArea.height) {
-				if (parent.drawCount == 0) {
+				if (parent.drawCount <= 0) {
 					parent.update ();
 					GC gc = new GC (parent);
 					gc.copyArea (
@@ -2268,7 +2339,7 @@ public void setExpanded (boolean value) {
 		int y = parent.getItemY (this) + parent.itemHeight;
 		int startY = y + (descendents.length - 1) * parent.itemHeight;
 		if (y < clientArea.height && 0 < startY) {	/* determine whether any visual update is actually needed */
-			if (parent.drawCount == 0) {
+			if (parent.drawCount <= 0) {
 				parent.update ();
 				GC gc = new GC (parent);
 				gc.copyArea (0, startY, clientArea.width, clientArea.height - startY, 0, y);

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -8,17 +8,23 @@
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
-package org.eclipse.swt.dnd;
+package org.eclipse.swt.internal;
 
-import org.eclipse.swt.graphics.*;
-import org.eclipse.swt.widgets.*;
-
-abstract class DragAndDropEffect {
+public class LONG {
+	public int /*long*/ value;
 	
-Widget getItem(int x, int y){return null;}
+	public LONG (int /*long*/ value) {
+		this.value = value;
+	}
 
-ImageData getDragSourceImage(int x, int y){return null;}
+	public boolean equals (Object object) {
+		if (object == this) return true;
+		if (!(object instanceof LONG)) return false;
+		LONG obj = (LONG)object;
+		return obj.value == this.value;
+	}
 
-void showDropTargetEffect(int effect, int x, int y) {}
-
+	public int hashCode () {
+		return (int)/*64*/value;
+	}
 }

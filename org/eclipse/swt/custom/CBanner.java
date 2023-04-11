@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -47,7 +47,7 @@ public class CBanner extends Composite {
 	
 	boolean simple = true;
 	
-	int[] curve;
+	int[] curve = new int[0];
 	int curveStart = 0;
 	Rectangle curveRect = new Rectangle(0, 0, 0, 0);
 	int curve_width = 5;
@@ -233,7 +233,7 @@ public int getRightWidth() {
  * Returns <code>true</code> if the CBanner is rendered
  * with a simple, traditional shape.
  * 
- * @return <code>true</code> if the Cbanner is rendered with a simple shape
+ * @return <code>true</code> if the CBanner is rendered with a simple shape
  * 
  * @since 3.0
  */

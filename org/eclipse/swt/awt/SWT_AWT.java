@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -15,7 +15,7 @@ import java.lang.reflect.Method;
 
 /* SWT Imports */
 import org.eclipse.swt.*;
-import org.eclipse.swt.internal.Library;
+import org.eclipse.swt.internal.*;
 import org.eclipse.swt.graphics.Device;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.widgets.Shell;
@@ -195,19 +195,37 @@ public static Frame new_Frame (final Composite parent) {
 	Shell shell = parent.getShell ();
 	shell.addListener (SWT.Deiconify, shellListener);
 	shell.addListener (SWT.Iconify, shellListener);
-	parent.addListener (SWT.Dispose, new Listener () {
-		public void handleEvent (Event event) {
-			Shell shell = parent.getShell ();
-			shell.removeListener (SWT.Deiconify, shellListener);
-			shell.removeListener (SWT.Iconify, shellListener);
-			parent.setVisible(false);
-			EventQueue.invokeLater(new Runnable () {
-				public void run () {
-					frame.dispose ();
-				}
-			});
+	
+	Listener listener = new Listener () {
+		public void handleEvent (Event e) {
+			switch (e.type) {
+				case SWT.Dispose:
+					Shell shell = parent.getShell ();
+					shell.removeListener (SWT.Deiconify, shellListener);
+					shell.removeListener (SWT.Iconify, shellListener);
+					parent.setVisible(false);
+					EventQueue.invokeLater(new Runnable () {
+						public void run () {
+							frame.dispose ();
+						}
+					});
+					break;
+				case SWT.Resize:
+					if (Library.JAVA_VERSION >= Library.JAVA_VERSION(1, 6, 0)) {
+						final Rectangle clientArea = parent.getClientArea();
+						EventQueue.invokeLater(new Runnable () {
+							public void run () {
+								frame.setSize (clientArea.width, clientArea.height);
+							}
+						});
+					}
+					break;
+			}
 		}
-	});
+	};
+	parent.addListener (SWT.Dispose, listener);
+	parent.addListener (SWT.Resize, listener);
+	
 	parent.getDisplay().asyncExec(new Runnable() {
 		public void run () {
 			if (parent.isDisposed()) return;

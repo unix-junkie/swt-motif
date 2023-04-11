@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2003, 2004 IBM Corporation and others.
+ * Copyright (c) 2003, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -10,6 +10,7 @@
  *******************************************************************************/
 package org.eclipse.swt.browser;
 
+import org.eclipse.swt.internal.C;
 import org.eclipse.swt.internal.mozilla.*;
 
 class InputStream {
@@ -19,110 +20,110 @@ class InputStream {
 	byte[] buffer;
 	int index = 0;
 	
-public InputStream(byte[] buffer) {
+public InputStream (byte[] buffer) {
 	this.buffer = buffer;
 	index = 0;
-	createCOMInterfaces();
+	createCOMInterfaces ();
 }
 
-int AddRef() {
+int AddRef () {
 	refCount++;
 	return refCount;
 }
 
-void createCOMInterfaces() {
+void createCOMInterfaces () {
 	/* Create each of the interfaces that this object implements */
-	inputStream = new XPCOMObject(new int[]{2, 0, 0, 0, 1, 3, 4, 1}){
-		public int method0(int[] args) {return queryInterface(args[0], args[1]);}
-		public int method1(int[] args) {return AddRef();}
-		public int method2(int[] args) {return Release();}
-		public int method3(int[] args) {return Close();}
-		public int method4(int[] args) {return Available(args[0]);}
-		public int method5(int[] args) {return Read(args[0], args[1], args[2]);}
-		public int method6(int[] args) {return ReadSegments(args[0], args[1], args[2], args[3]);}
-		public int method7(int[] args) {return IsNonBlocking(args[0]);}
+	inputStream = new XPCOMObject (new int[] {2, 0, 0, 0, 1, 3, 4, 1}) {
+		public int /*long*/ method0 (int /*long*/[] args) {return QueryInterface (args[0], args[1]);}
+		public int /*long*/ method1 (int /*long*/[] args) {return AddRef ();}
+		public int /*long*/ method2 (int /*long*/[] args) {return Release ();}
+		public int /*long*/ method3 (int /*long*/[] args) {return Close ();}
+		public int /*long*/ method4 (int /*long*/[] args) {return Available (args[0]);}
+		public int /*long*/ method5 (int /*long*/[] args) {return Read (args[0], args[1], args[2]);}
+		public int /*long*/ method6 (int /*long*/[] args) {return ReadSegments (args[0], args[1], args[2], args[3]);}
+		public int /*long*/ method7 (int /*long*/[] args) {return IsNonBlocking (args[0]);}
 	};
 }
 
-void disposeCOMInterfaces() {
+void disposeCOMInterfaces () {
 	if (inputStream != null) {
-		inputStream.dispose();
+		inputStream.dispose ();
 		inputStream = null;	
 	}
 }
 
-int getAddress() {
-	return inputStream.getAddress();
+int /*long*/ getAddress () {
+	return inputStream.getAddress ();
 }
 
-int queryInterface(int riid, int ppvObject) {
+int /*long*/ QueryInterface (int /*long*/ riid, int /*long*/ ppvObject) {
 	if (riid == 0 || ppvObject == 0) return XPCOM.NS_ERROR_NO_INTERFACE;
-	nsID guid = new nsID();
-	XPCOM.memmove(guid, riid, nsID.sizeof);
+	nsID guid = new nsID ();
+	XPCOM.memmove (guid, riid, nsID.sizeof);
 	
-	if (guid.Equals(nsISupports.NS_ISUPPORTS_IID)) {
-		XPCOM.memmove(ppvObject, new int[] {inputStream.getAddress()}, 4);
-		AddRef();
+	if (guid.Equals (nsISupports.NS_ISUPPORTS_IID)) {
+		XPCOM.memmove (ppvObject, new int /*long*/[] {inputStream.getAddress ()}, C.PTR_SIZEOF);
+		AddRef ();
 		return XPCOM.NS_OK;
 	}
-	if (guid.Equals(nsIInputStream.NS_IINPUTSTREAM_IID)) {
-		XPCOM.memmove(ppvObject, new int[] {inputStream.getAddress()}, 4);
-		AddRef();
+	if (guid.Equals (nsIInputStream.NS_IINPUTSTREAM_IID)) {
+		XPCOM.memmove (ppvObject, new int /*long*/[] {inputStream.getAddress ()}, C.PTR_SIZEOF);
+		AddRef ();
 		return XPCOM.NS_OK;
 	}	
-	XPCOM.memmove(ppvObject, new int[] {0}, 4);
+	XPCOM.memmove (ppvObject, new int /*long*/[] {0}, C.PTR_SIZEOF);
 	return XPCOM.NS_ERROR_NO_INTERFACE;
 }
         	
-int Release() {
+int Release () {
 	refCount--;
-	if (refCount == 0) disposeCOMInterfaces();
+	if (refCount == 0) disposeCOMInterfaces ();
 	return refCount;
 }
 	
 /* nsIInputStream implementation */
 
-int Close() {
+int /*long*/ Close () {
 	buffer = null;
 	index = 0;
 	return XPCOM.NS_OK;
 }
 
-int Available(int _retval) {
+int /*long*/ Available (int /*long*/ _retval) {
 	int available = buffer == null ? 0 : buffer.length - index;
-	XPCOM.memmove(_retval, new int[] {available}, 4);
+	XPCOM.memmove (_retval, new int[] {available}, 4);
 	return XPCOM.NS_OK;
 }
 
-int Read(int aBuf, int aCount, int _retval) {
-	int max = Math.min(aCount, buffer == null ? 0 : buffer.length - index);
+int /*long*/ Read(int /*long*/ aBuf, int /*long*/ aCount, int /*long*/ _retval) {
+	int max = Math.min ((int)/*64*/aCount, buffer == null ? 0 : buffer.length - index);
 	if (max > 0) {
 		byte[] src = new byte[max];
-		System.arraycopy(buffer, index, src, 0, max);
-		XPCOM.memmove(aBuf, src, max);
+		System.arraycopy (buffer, index, src, 0, max);
+		XPCOM.memmove (aBuf, src, max);
 		index += max;
 	}
 	XPCOM.memmove(_retval, new int[] {max}, 4);
 	return XPCOM.NS_OK;
 }
 
-int ReadSegments(int aWriter, int aClosure, int aCount, int _retval) {
-	int max = Math.min(aCount, buffer == null ? 0 : buffer.length - index);
+int /*long*/ ReadSegments (int /*long*/ aWriter, int /*long*/ aClosure, int /*long*/ aCount, int /*long*/ _retval) {
+	int max = Math.min ((int)/*64*/aCount, buffer == null ? 0 : buffer.length - index);
 	int cnt = max;
 	while (cnt > 0) {
 		int[] aWriteCount = new int[1];
-		int rc = XPCOM.Call(aWriter, getAddress(), aClosure, buffer, index, cnt, aWriteCount);
+		int /*long*/ rc = XPCOM.Call (aWriter, getAddress (), aClosure, buffer, index, cnt, aWriteCount);
 		if (rc != XPCOM.NS_OK) break;
 		index += aWriteCount[0];
 		cnt -= aWriteCount[0];
 	}
-	XPCOM.memmove(_retval, new int[] {max - cnt}, 4);
+	XPCOM.memmove (_retval, new int[] {max - cnt}, 4);
 	return XPCOM.NS_OK;
 }
 
-int IsNonBlocking(int _retval) {
+int /*long*/ IsNonBlocking (int /*long*/ _retval) {
 	/* blocking */
-	XPCOM.memmove(_retval, new int[] {0}, 4);
+	XPCOM.memmove (_retval, new int[] {0}, 4);
 	return XPCOM.NS_OK;
 }		
 }

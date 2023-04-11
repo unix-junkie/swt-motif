@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -75,7 +75,9 @@ public abstract class Widget {
 	/* More global state flags */
 	static final int RELEASED = 1<<11;
 	static final int DISPOSE_SENT = 1<<12;
-	
+	static final int FOREIGN_HANDLE = 1<<13;
+	static final int DRAG_DETECT = 1<<14;
+
 	/* Default size for widgets */
 	static final int DEFAULT_WIDTH	= 64;
 	static final int DEFAULT_HEIGHT	= 64;
@@ -173,7 +175,7 @@ public Widget (Widget parent, int style) {
  *
  * @see Listener
  * @see SWT
- * @see #removeListener
+ * @see #removeListener(int, Listener)
  * @see #notifyListeners
  */
 public void addListener (int eventType, Listener handler) {
@@ -319,13 +321,13 @@ void destroyWidget () {
 }
 /**
  * Disposes of the operating system resources associated with
- * the receiver and all its descendents. After this method has
- * been invoked, the receiver and all descendents will answer
+ * the receiver and all its descendants. After this method has
+ * been invoked, the receiver and all descendants will answer
  * <code>true</code> when sent the message <code>isDisposed()</code>.
  * Any internal connections between the widgets in the tree will
  * have been removed to facilitate garbage collection.
  * <p>
- * NOTE: This method is not called recursively on the descendents
+ * NOTE: This method is not called recursively on the descendants
  * of the receiver. This means that, widget implementers can not
  * detect when a widget is being disposed of by re-implementing
  * this method, but should instead listen for the <code>Dispose</code>
@@ -562,7 +564,7 @@ void manageChildren () {
  * 
  * @see SWT
  * @see #addListener
- * @see #removeListener
+ * @see #removeListener(int, Listener)
  */
 public void notifyListeners (int eventType, Event event) {
 	checkWidget();

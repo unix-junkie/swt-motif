@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -16,19 +16,20 @@ extern char* XPCOM_nativeFunctionNames[];
 #define XPCOM_NATIVE_ENTER(env, that, func) XPCOM_nativeFunctionCallCount[func]++;
 #define XPCOM_NATIVE_EXIT(env, that, func) 
 #else
+#ifndef XPCOM_NATIVE_ENTER
 #define XPCOM_NATIVE_ENTER(env, that, func) 
+#endif
+#ifndef XPCOM_NATIVE_EXIT
 #define XPCOM_NATIVE_EXIT(env, that, func) 
+#endif
 #endif
 
 typedef enum {
 	Call_FUNC,
 	NS_1GetComponentManager_FUNC,
 	NS_1GetServiceManager_FUNC,
-	NS_1InitEmbedding_FUNC,
+	NS_1InitXPCOM2_FUNC,
 	NS_1NewLocalFile_FUNC,
-	NS_1TermEmbedding_FUNC,
-	PR_1Free_FUNC,
-	PR_1Malloc_FUNC,
 	VtblCall__II_FUNC,
 	VtblCall__IIF_FUNC,
 	VtblCall__III_FUNC,
@@ -37,11 +38,14 @@ typedef enum {
 	VtblCall__IIIIII_FUNC,
 	VtblCall__IIIIIII_FUNC,
 	VtblCall__IIIIIIII_FUNC,
+	VtblCall__IIIIIIJII_FUNC,
 	VtblCall__IIIIIIZ_FUNC,
+	VtblCall__IIIIII_3Z_3I_FUNC,
 	VtblCall__IIIIIZ_FUNC,
 	VtblCall__IIIIIZ_3CIIIIZ_3I_3I_FUNC,
 	VtblCall__IIIII_3C_FUNC,
 	VtblCall__IIIII_3I_FUNC,
+	VtblCall__IIIIJJJJ_FUNC,
 	VtblCall__IIIIJZ_FUNC,
 	VtblCall__IIIIZ_FUNC,
 	VtblCall__IIII_3C_FUNC,
@@ -56,8 +60,11 @@ typedef enum {
 	VtblCall__IIIZZII_FUNC,
 	VtblCall__IIIZZIIIIIIZZZZSI_FUNC,
 	VtblCall__IIIZ_3Z_FUNC,
+	VtblCall__III_3B_FUNC,
 	VtblCall__III_3BI_3I_FUNC,
+	VtblCall__III_3BZ_FUNC,
 	VtblCall__III_3B_3B_3BI_3I_FUNC,
+	VtblCall__III_3B_3C_FUNC,
 	VtblCall__III_3B_3Z_FUNC,
 	VtblCall__III_3C_FUNC,
 	VtblCall__III_3CI_FUNC,
@@ -78,6 +85,7 @@ typedef enum {
 	VtblCall__IIJJ_FUNC,
 	VtblCall__IIJJI_FUNC,
 	VtblCall__IIJJJJJ_FUNC,
+	VtblCall__IIJJZ_FUNC,
 	VtblCall__IILorg_eclipse_swt_internal_mozilla_nsID_2I_FUNC,
 	VtblCall__IILorg_eclipse_swt_internal_mozilla_nsID_2ILorg_eclipse_swt_internal_mozilla_nsID_2_3I_FUNC,
 	VtblCall__IILorg_eclipse_swt_internal_mozilla_nsID_2Lorg_eclipse_swt_internal_mozilla_nsID_2_3I_FUNC,
@@ -126,17 +134,10 @@ typedef enum {
 	VtblCall__II_3J_FUNC,
 	VtblCall__II_3S_FUNC,
 	VtblCall__II_3Z_FUNC,
+	XPCOMGlueShutdown_FUNC,
+	XPCOMGlueStartup_FUNC,
 	memmove__ILorg_eclipse_swt_internal_mozilla_nsID_2I_FUNC,
-	memmove__I_3BI_FUNC,
-	memmove__I_3CI_FUNC,
-	memmove__I_3II_FUNC,
-	memmove__I_3JI_FUNC,
 	memmove__Lorg_eclipse_swt_internal_mozilla_nsID_2II_FUNC,
-	memmove___3BII_FUNC,
-	memmove___3B_3CI_FUNC,
-	memmove___3CII_FUNC,
-	memmove___3III_FUNC,
-	memmove___3JII_FUNC,
 	nsEmbedCString_1Length_FUNC,
 	nsEmbedCString_1delete_FUNC,
 	nsEmbedCString_1get_FUNC,
@@ -148,9 +149,7 @@ typedef enum {
 	nsEmbedString_1new___FUNC,
 	nsEmbedString_1new___3C_FUNC,
 	nsID_1Equals_FUNC,
-	nsID_1Parse_FUNC,
 	nsID_1delete_FUNC,
 	nsID_1new_FUNC,
-	strlen_FUNC,
 	strlen_1PRUnichar_FUNC,
 } XPCOM_FUNCS;

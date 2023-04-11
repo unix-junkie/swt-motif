@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -25,6 +25,9 @@ import org.eclipse.swt.events.*;
  * <dt><b>Events:</b></dt>
  * <dd>Selection</dd>
  * </dl>
+ * </p><p>
+ * Note: Only one of the styles ICON_ERROR, ICON_INFORMATION,
+ * and ICON_WARNING may be specified.
  * </p><p>
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
@@ -111,11 +114,15 @@ static int checkStyle (int style) {
 
 /**
  * Adds the listener to the collection of listeners who will
- * be notified when the receiver's value changes, by sending
+ * be notified when the receiver is selected by the user, by sending
  * it one of the messages defined in the <code>SelectionListener</code>
  * interface.
+ * <p>
+ * <code>widgetSelected</code> is called when the receiver is selected.
+ * <code>widgetDefaultSelected</code> is not called.
+ * </p>
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should be notified when the receiver is selected by the user
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -424,7 +431,7 @@ void onPaint (Event event) {
 
 /**
  * Removes the listener from the collection of listeners who will
- * be notified when the receiver's value changes.
+ * be notified when the receiver is selected by the user.
  *
  * @param listener the listener which should no longer be notified
  *

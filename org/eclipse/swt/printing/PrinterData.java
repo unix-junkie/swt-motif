@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -35,15 +35,18 @@ public final class PrinterData extends DeviceData {
 	/**
 	 * the printer driver
 	 * On Windows systems, this is the name of the driver (often "winspool").
+	 * On Mac OSX, this is the destination type ("Printer", "Fax", "File", or "Preview").
 	 * On X/Window systems, this is the name of a display connection to the
 	 * Xprt server (the default is ":1").
+	 * On GTK+, this is the backend type name (eg. GtkPrintBackendCups).
 	 */
+	// TODO: note that this api is not finalized for GTK+
 	public String driver;
 	
 	/**
 	 * the name of the printer
 	 * On Windows systems, this is the name of the 'device'.
-	 * On X/Window systems, this is the printer's 'name'.
+	 * On Mac OSX, X/Window systems, and GTK+, this is the printer's 'name'.
 	 */
 	public String name;
 	
@@ -61,12 +64,14 @@ public final class PrinterData extends DeviceData {
 	public int scope = ALL_PAGES;
 	
 	/**
-	 * the start page of a page range, used when scope is PAGE_RANGE
+	 * the start page of a page range, used when scope is PAGE_RANGE.
+	 * This value can be from 1 to the maximum number of pages for the platform.
 	 */
 	public int startPage = 0;
 
 	/**
-	 * the end page of a page range, used when scope is PAGE_RANGE
+	 * the end page of a page range, used when scope is PAGE_RANGE.
+	 * This value can be from 1 to the maximum number of pages for the platform.
 	 */
 	public int endPage = 0;
 	

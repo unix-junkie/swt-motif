@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2003, 2005 IBM Corporation and others.
+ * Copyright (c) 2003, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -24,7 +24,48 @@ class PromptDialog extends Dialog {
 		this(parent, 0);
 	}
 	
-	public void confirmEx(String title, String text, String check, String button1, String button2, String button3, final int[] checkValue, final int[] result) {
+	public void alertCheck(String title, String text, String check, final int[] checkValue) {
+		Shell parent = getParent();
+		final Shell shell = new Shell(parent, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+		if (title != null) shell.setText(title);
+		GridLayout gridLayout = new GridLayout();
+		shell.setLayout(gridLayout);
+		Label label = new Label(shell, SWT.WRAP);
+		label.setText(text);
+		GridData data = new GridData();
+		data.horizontalAlignment = GridData.FILL;
+		data.grabExcessHorizontalSpace = true;
+		label.setLayoutData (data);
+
+		final Button checkButton = check != null ? new Button(shell, SWT.CHECK) : null;
+		if (checkButton != null) {
+			checkButton.setText(check);
+			checkButton.setSelection(checkValue[0] != 0);
+			data = new GridData ();
+			data.horizontalAlignment = GridData.BEGINNING;
+			checkButton.setLayoutData (data);
+		}
+		Button okButton = new Button(shell, SWT.PUSH);
+		okButton.setText(SWT.getMessage("SWT_OK")); //$NON-NLS-1$
+		data = new GridData ();
+		data.horizontalAlignment = GridData.CENTER;
+		okButton.setLayoutData (data);
+		okButton.addListener(SWT.Selection, new Listener() {
+			public void handleEvent(Event event) {
+				if (checkButton != null) checkValue[0] = checkButton.getSelection() ? 1 : 0;
+				shell.close();
+			}
+		});
+
+		shell.pack();
+		shell.open();
+		Display display = parent.getDisplay();
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) display.sleep();
+		}
+	}
+
+	public void confirmEx(String title, String text, String check, String button0, String button1, String button2, int defaultIndex, final int[] checkValue, final int[] result) {
 		Shell parent = getParent();
 		final Shell shell = new Shell(parent, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
 		shell.setText(title);
@@ -56,7 +97,7 @@ class PromptDialog extends Dialog {
 			buttons[0].setText(check);
 			buttons[0].setSelection(checkValue[0] != 0);
 			data = new GridData ();
-			data.horizontalAlignment = GridData.END;
+			data.horizontalAlignment = GridData.BEGINNING;
 			buttons[0].setLayoutData (data);
 		}
 		Composite composite = new Composite(shell, SWT.NONE);
@@ -64,21 +105,24 @@ class PromptDialog extends Dialog {
 		data.horizontalAlignment = GridData.END;
 		composite.setLayoutData (data);
 		composite.setLayout(new RowLayout());
-		if (button1 != null) {
+		if (button0 != null) {
 			buttons[1] = new Button(composite, SWT.PUSH);
-			buttons[1].setText(button1);
+			buttons[1].setText(button0);
 			buttons[1].addListener(SWT.Selection, listener);
 		}
-		if (button2 != null) {
+		if (button1 != null) {
 			buttons[2] = new Button(composite, SWT.PUSH);
-			buttons[2].setText(button2);
+			buttons[2].setText(button1);
 			buttons[2].addListener(SWT.Selection, listener);
 		}
-		if (button3 != null) {
+		if (button2 != null) {
 			buttons[3] = new Button(composite, SWT.PUSH);
-			buttons[3].setText(button3);
+			buttons[3].setText(button2);
 			buttons[3].addListener(SWT.Selection, listener);
 		}
+		Button defaultButton = buttons [defaultIndex + 1];
+		if (defaultButton != null) shell.setDefaultButton (defaultButton);
+
 		shell.pack();
 		shell.open();
 		Display display = parent.getDisplay();
@@ -99,14 +143,14 @@ class PromptDialog extends Dialog {
 		data.horizontalAlignment = GridData.FILL;
 		data.grabExcessHorizontalSpace = true;
 		label.setLayoutData (data);
-
+				
 		final Text valueText = new Text(shell, SWT.BORDER);
 		if (value[0] != null) valueText.setText(value[0]);
 		data = new GridData();
 		data.horizontalAlignment = GridData.FILL;
 		data.grabExcessHorizontalSpace = true;
 		valueText.setLayoutData(data);
-
+				
 		final Button[] buttons = new Button[3];
 		Listener listener = new Listener() {
 			public void handleEvent(Event event) {
@@ -121,7 +165,7 @@ class PromptDialog extends Dialog {
 			buttons[0].setText(check);
 			buttons[0].setSelection(checkValue[0] != 0);
 			data = new GridData ();
-			data.horizontalAlignment = GridData.END;
+			data.horizontalAlignment = GridData.BEGINNING;
 			buttons[0].setLayoutData (data);
 		}
 		Composite composite = new Composite(shell, SWT.NONE);
@@ -194,6 +238,7 @@ class PromptDialog extends Dialog {
 			buttons[0].setText(check);
 			buttons[0].setSelection(checkValue[0] != 0);
 			data = new GridData ();
+			data.horizontalAlignment = GridData.BEGINNING;
 			buttons[0].setLayoutData (data);
 		}
 		Composite composite = new Composite(shell, SWT.NONE);
@@ -203,11 +248,11 @@ class PromptDialog extends Dialog {
 		composite.setLayout(new GridLayout(2, true));
 		buttons[1] = new Button(composite, SWT.PUSH);
 		buttons[1].setText(SWT.getMessage("SWT_OK")); //$NON-NLS-1$
-		buttons[1].setLayoutData(new GridData (GridData.FILL_HORIZONTAL));
+		buttons[1].setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
 		buttons[1].addListener(SWT.Selection, listener);
 		buttons[2] = new Button(composite, SWT.PUSH);
 		buttons[2].setText(SWT.getMessage("SWT_Cancel")); //$NON-NLS-1$
-		buttons[2].setLayoutData(new GridData (GridData.FILL_HORIZONTAL));
+		buttons[2].setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
 		buttons[2].addListener(SWT.Selection, listener);
 
 		shell.setDefaultButton(buttons[1]);

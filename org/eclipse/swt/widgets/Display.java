@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -79,7 +79,7 @@ import org.eclipse.swt.graphics.*;
  * <dt><b>Styles:</b></dt>
  * <dd>(none)</dd>
  * <dt><b>Events:</b></dt>
- * <dd>Close, Dispose</dd>
+ * <dd>Close, Dispose, Settings</dd>
  * </dl>
  * <p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
@@ -117,6 +117,7 @@ public class Display extends Device {
 	/* Focus */
 	int focusEvent;
 	boolean postFocusOut;
+	Combo focusedCombo;
 	
 	/* Default Fonts, Colors, Insets, Widths and Heights. */
 	Font defaultFont;
@@ -277,7 +278,7 @@ public class Display extends Device {
 	static Display [] Displays = new Display [4];
 
 	/* Double Click */
-	int lastTime, lastButton;
+	int lastTime, lastButton, clickCount = 1;
 	
 	/* Current caret */
 	Caret currentCaret;
@@ -725,54 +726,70 @@ protected void create (DeviceData data) {
 }
 void createDisplay (DeviceData data) {
 	/* Create the AppContext */
-	int [] argc = new int [] {0};
-	int xtContext = OS.XtCreateApplicationContext ();
-	OS.XtSetLanguageProc (xtContext, 0, 0);
-	
 	xEvent = OS.XtMalloc (XEvent.sizeof);
 
-	/* 
-	* Feature in Linux.  On some DBCS Linux platforms, the default
-	* font is not be properly initialized to contain a font set.
-	* This causes the IME to fail.  The fix is to set a fallback
-	* resource with an appropriated font to ensure a font set is
-	* found.
-	*/
-	int ptr1 = 0, ptr2 = 0; 
-	if (OS.IsLinux && OS.IsDBLocale) {
-		String resource = "*fontList: -*-*-medium-r-*-*-*-120-*-*-*-*-*-*:";
-		byte [] buffer = Converter.wcsToMbcs (null, resource, true);
-		ptr1 = OS.XtMalloc (buffer.length);
-		if (ptr1 != 0) OS.memmove (ptr1, buffer, buffer.length);
-		int [] spec = new int[]{ptr1, 0};
-		ptr2 = OS.XtMalloc (spec.length * 4);
-		if (ptr2 != 0)OS.memmove (ptr2, spec, spec.length * 4);
-		OS.XtAppSetFallbackResources(xtContext, ptr2); 
+	int dpy = 0;
+	if (Default == null) {
+		int xtContext = OS.__XtDefaultAppContext ();
+		int [] dpy_return = new int [1];
+		int [] num_dpy_return = new int [1];
+		OS.XtGetDisplays (xtContext, dpy_return, num_dpy_return);
+		if (num_dpy_return [0] > 0) {
+			OS.memmove (dpy_return, dpy_return [0], 4);
+			dpy = dpy_return [0];
+		}
 	}
 	
-	/* Compute the display name, application name and class */
-	String display_name = null;
-	String application_name = APP_NAME;
-	String application_class = APP_NAME;
-	if (data != null) {
-		if (data.display_name != null) display_name = data.display_name;
-		if (data.application_name != null) application_name = data.application_name;
-		if (data.application_class != null) application_class = data.application_class;
-	}
-	/* Use the character encoding for the default locale */
-	if (display_name != null) displayName = Converter.wcsToMbcs (null, display_name, true);
-	if (application_name != null) appName = Converter.wcsToMbcs (null, application_name, true);
-	if (application_class != null) appClass = Converter.wcsToMbcs (null, application_class, true);
+	if (dpy != 0) {
+		xDisplay = dpy;
+	} else {
+		int [] argc = new int [] {0};
+		int xtContext = OS.XtCreateApplicationContext ();
+		OS.XtSetLanguageProc (xtContext, 0, 0);
 	
-	/* Create the XDisplay */
-	xDisplay = OS.XtOpenDisplay (xtContext, displayName, appName, appClass, 0, 0, argc, 0);
-	DisplayDisposed = false;
-	
-	if (ptr2 != 0) {
-		OS.XtAppSetFallbackResources (xtContext, 0);
-		OS.XtFree (ptr2);
+		/* 
+		* Feature in Linux.  On some DBCS Linux platforms, the default
+		* font is not be properly initialized to contain a font set.
+		* This causes the IME to fail.  The fix is to set a fallback
+		* resource with an appropriated font to ensure a font set is
+		* found.
+		*/
+		int ptr1 = 0, ptr2 = 0; 
+		if (OS.IsLinux && OS.IsDBLocale) {
+			String resource = "*fontList: -*-*-medium-r-*-*-*-120-*-*-*-*-*-*:";
+			byte [] buffer = Converter.wcsToMbcs (null, resource, true);
+			ptr1 = OS.XtMalloc (buffer.length);
+			if (ptr1 != 0) OS.memmove (ptr1, buffer, buffer.length);
+			int [] spec = new int[]{ptr1, 0};
+			ptr2 = OS.XtMalloc (spec.length * 4);
+			if (ptr2 != 0)OS.memmove (ptr2, spec, spec.length * 4);
+			OS.XtAppSetFallbackResources(xtContext, ptr2); 
+		}
+		
+		/* Compute the display name, application name and class */
+		String display_name = null;
+		String application_name = APP_NAME;
+		String application_class = APP_NAME;
+		if (data != null) {
+			if (data.display_name != null) display_name = data.display_name;
+			if (data.application_name != null) application_name = data.application_name;
+			if (data.application_class != null) application_class = data.application_class;
+		}
+		/* Use the character encoding for the default locale */
+		if (display_name != null) displayName = Converter.wcsToMbcs (null, display_name, true);
+		if (application_name != null) appName = Converter.wcsToMbcs (null, application_name, true);
+		if (application_class != null) appClass = Converter.wcsToMbcs (null, application_class, true);
+		
+		/* Create the XDisplay */
+		xDisplay = OS.XtOpenDisplay (xtContext, displayName, appName, appClass, 0, 0, argc, 0);
+		DisplayDisposed = false;
+		
+		if (ptr2 != 0) {
+			OS.XtAppSetFallbackResources (xtContext, 0);
+			OS.XtFree (ptr2);
+		}
+		if (ptr1 != 0) OS.XtFree (ptr1);
 	}
-	if (ptr1 != 0) OS.XtFree (ptr1);
 }
 int createMask (int pixmap) {
 	if (pixmap == 0) return 0;
@@ -1047,6 +1064,28 @@ public Widget findWidget (int handle) {
  * @since 3.1
  */
 public Widget findWidget (int handle, int id) {
+	checkDevice ();
+	return null;
+}
+/**
+ * Given a widget and a widget-specific id, returns the
+ * instance of the <code>Widget</code> subclass which represents
+ * the widget/id pair in the currently running application,
+ * if such exists, or null if no matching widget can be found.
+ *
+ * @param widget the widget
+ * @param id the id for the subwidget (usually an item)
+ * @return the SWT subwidget (usually an item) that the widget/id pair represents
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ *    <li>ERROR_DEVICE_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ * 
+ * @since 3.3
+ */
+public Widget findWidget (Widget widget, int id) {
+	checkDevice ();
 	return null;
 }
 boolean fixKey (int[] keysym, byte[] buffer, int state) {
@@ -2356,8 +2395,8 @@ public int internal_new_GC (GCData data) {
 		data.device = this;
 		data.display = xDisplay;
 		data.drawable = xDrawable;
-		data.background = getSystemColor (SWT.COLOR_WHITE).handle.pixel;
-		data.foreground = getSystemColor (SWT.COLOR_BLACK).handle.pixel;
+		data.background = getSystemColor (SWT.COLOR_WHITE).handle;
+		data.foreground = getSystemColor (SWT.COLOR_BLACK).handle;
 		data.font = defaultFont;
 		data.colormap = OS.XDefaultColormap (xDisplay, OS.XDefaultScreen (xDisplay));
 	}
@@ -2469,6 +2508,7 @@ public Point map (Control from, Control to, int x, int y) {
 	if (from != null && from.isDisposed()) error (SWT.ERROR_INVALID_ARGUMENT);
 	if (to != null && to.isDisposed()) error (SWT.ERROR_INVALID_ARGUMENT);
 	Point point = new Point (x, y);
+	if (from == to) return point;
 	if (from != null) {
 		short [] root_x = new short [1], root_y = new short [1];
 		OS.XtTranslateCoords (from.handle, (short) x, (short) y, root_x, root_y);
@@ -2567,6 +2607,7 @@ public Rectangle map (Control from, Control to, int x, int y, int width, int hei
 	if (from != null && from.isDisposed()) error (SWT.ERROR_INVALID_ARGUMENT);
 	if (to != null && to.isDisposed()) error (SWT.ERROR_INVALID_ARGUMENT);
 	Rectangle rect = new Rectangle (x, y, width, height);
+	if (from == to) return rect;
 	if (from != null) {
 		short [] root_x = new short [1], root_y = new short [1];
 		OS.XtTranslateCoords (from.handle, (short) x, (short) y, root_x, root_y);
@@ -2936,6 +2977,7 @@ void releaseDisplay () {
 	COLOR_INFO_BACKGROUND = null;
 
 	popups = null;
+	focusedCombo = null;
 }
 void releaseToolTipHandle (int handle) {
 	if (mouseHoverHandle == handle) removeMouseHoverTimeOut ();
@@ -3118,7 +3160,7 @@ boolean runPopups () {
 		System.arraycopy (popups, 1, popups, 0, --length);
 		popups [length] = null;
 		runDeferredEvents ();
-		menu._setVisible (true);
+		if (!menu.isDisposed ()) menu._setVisible (true);
 		result = true;
 	}
 	popups = null;
@@ -3134,6 +3176,21 @@ void sendEvent (int eventType, Event event) {
 	if (event.time == 0) event.time = getLastEventTime ();
 	if (!filterEvent (event)) {
 		if (eventTable != null) eventTable.sendEvent (event);
+	}
+}
+void sendFocusEvent (Control control, int type) {
+	if (type == SWT.FocusIn) {		
+		focusEvent = SWT.FocusIn;
+		control.sendEvent (SWT.FocusIn);
+		focusEvent = SWT.None;
+	} else {
+		if (postFocusOut) {
+			control.postEvent (SWT.FocusOut);
+		} else {
+			focusEvent = SWT.FocusOut;
+			control.sendEvent (SWT.FocusOut);
+			focusEvent = SWT.None;
+		}
 	}
 }
 /**
@@ -3473,7 +3530,7 @@ public boolean sleep () {
  * @param runnable code to run on the user-interface thread or <code>null</code>
  *
  * @exception SWTException <ul>
- *    <li>ERROR_FAILED_EXEC - if an exception occured when executing the runnable</li>
+ *    <li>ERROR_FAILED_EXEC - if an exception occurred when executing the runnable</li>
  *    <li>ERROR_DEVICE_DISPOSED - if the receiver has been disposed</li>
  * </ul>
  *

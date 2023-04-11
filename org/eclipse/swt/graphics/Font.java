@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -149,6 +149,14 @@ public Font (Device device, String name, int height, int style) {
 	if (device.tracking) device.new_Object(this);
 }
 
+/*public*/ Font (Device device, String name, float height, int style) {
+	if (device == null) device = Device.getDevice();
+	if (device == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
+	if (name == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
+	init(device, new FontData[]{new FontData(name, height, style)});
+	if (device.tracking) device.new_Object(this);
+}
+
 /**
  * Disposes of the operating system resources associated with
  * the font. Applications must dispose of all fonts which
@@ -220,6 +228,15 @@ static String getCodePage (int xDisplay, int fontList) {
 							if (codePage.indexOf ("iso") == 0) {
 								if (OS.IsLinux) {
 									codePage = "ISO-" + codePage.substring (3, codePage.length ());
+								}
+								if (OS.IsAIX) {
+									codePage = "ISO" + codePage.substring (3, codePage.length ());
+								}
+								if (OS.IsHPUX) {	
+									start = codePage.lastIndexOf('-');
+									if (start != -1) {
+										codePage = codePage.substring (0, start) + codePage.substring (start + 1, codePage.length ());
+									}
 								}
 							}
 						}

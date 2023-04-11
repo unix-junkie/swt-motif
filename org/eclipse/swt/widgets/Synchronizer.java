@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -38,6 +38,9 @@ public class Synchronizer {
 	Object messageLock = new Object ();
 	Thread syncThread;
 
+	//TEMPORARY CODE
+	static final boolean IS_CARBON = "carbon".equals (SWT.getPlatform ());
+
 /**
  * Constructs a new instance of this class.
  * 
@@ -75,8 +78,11 @@ void addLast (RunnableLock lock) {
  */
 protected void asyncExec (Runnable runnable) {
 	if (runnable == null) {
-		display.wake ();
-		return;
+		//TEMPORARY CODE
+		if (!IS_CARBON) {
+			display.wake ();
+			return;
+		}
 	}
 	addLast (new RunnableLock (runnable));
 }
@@ -142,7 +148,7 @@ boolean runAsyncMessages (boolean all) {
  * @param runnable code to run on the user-interface thread.
  *
  * @exception SWTException <ul>
- *    <li>ERROR_FAILED_EXEC - if an exception occured when executing the runnable</li>
+ *    <li>ERROR_FAILED_EXEC - if an exception occurred when executing the runnable</li>
  * </ul>
  *
  * @see #asyncExec

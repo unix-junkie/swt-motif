@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -733,6 +733,57 @@ public abstract void internal_dispose_GC (int handle, GCData data);
  */
 public boolean isDisposed () {
 	return xDisplay == 0;
+}
+
+/**
+ * Loads the font specified by a file.  The font will be
+ * present in the list of fonts available to the application.
+ *
+ * @param path the font file path
+ * @return whether the font was successfully loaded
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if path is null</li>
+ *    <li>ERROR_DEVICE_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ *
+ * @see Font
+ * 
+ * @since 3.3
+ */
+public boolean loadFont (String path) {
+	checkDevice();
+	if (path == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
+	//TEMPORARY CODE
+	if (true) return false;
+	int index = path.lastIndexOf ("/");
+	if (index != -1) path = path.substring (0, index);
+	int [] ndirs = new int [1];
+	int dirs = OS.XGetFontPath (xDisplay, ndirs);
+	int [] ptr = new int [1];
+	for (int i = 0; i < ndirs [0]; i++) {
+		OS.memmove (ptr, dirs + (i * 4), 4);
+		int length = OS.strlen (ptr [0]);
+		byte [] buffer = new byte [length];
+		OS.memmove (buffer, ptr [0], length);
+		if (Converter.mbcsToWcs (null, buffer).equals (path)) {
+			OS.XFreeFontPath (dirs);
+			return true;
+		}
+	}
+	int newDirs = OS.XtMalloc ((ndirs [0] + 1) * 4);
+	int[] dirsBuffer = new int [ndirs [0] + 1];
+	OS.memmove (dirsBuffer, dirs, ndirs [0] * 4);
+	byte[] buffer = Converter.wcsToMbcs (null, path, true);
+	int pathPtr = OS.XtMalloc (buffer.length);
+	OS.memmove (pathPtr, buffer, buffer.length);
+	dirsBuffer [dirsBuffer.length - 1] = pathPtr;
+	OS.memmove (newDirs, dirsBuffer, dirsBuffer.length * 4);
+	OS.XSetFontPath (xDisplay, newDirs, dirsBuffer.length);
+	OS.XFreeFontPath (dirs);
+	OS.XFree (newDirs);
+	OS.XFree (pathPtr);
+	return true;
 }
 	
 void new_Object (Object object) {

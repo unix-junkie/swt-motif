@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -141,7 +141,7 @@ public void addControlListener (ControlListener listener) {
 }
 /**
  * Adds the listener to the collection of listeners who will
- * be notified when the control is selected, by sending
+ * be notified when the control is selected by the user, by sending
  * it one of the messages defined in the <code>SelectionListener</code>
  * interface.
  * <p>
@@ -149,7 +149,7 @@ public void addControlListener (ControlListener listener) {
  * <code>widgetDefaultSelected</code> is not called.
  * </p>
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should be notified when the control is selected by the user
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -245,7 +245,7 @@ public void dispose () {
 	dispose (true);
 	int width = parentBounds.width - x;
 	parent.redraw (x, 0, width, parentBounds.height, false);
-	if (parent.drawCount == 0 && parent.getHeaderVisible ()) {
+	if (parent.drawCount <= 0 && parent.getHeaderVisible ()) {
 		parent.header.redraw (x, 0, width, parent.getHeaderHeight (), false);
 	}
 }
@@ -508,7 +508,7 @@ public void removeControlListener (ControlListener listener) {
 }
 /**
  * Removes the listener from the collection of listeners who will
- * be notified when the control is selected.
+ * be notified when the control is selected by the user.
  *
  * @param listener the listener which should no longer be notified
  *
@@ -551,7 +551,7 @@ public void setAlignment (int alignment) {
 	if (getOrderIndex () == 0) return;	/* no update needed since first ordered column appears left-aligned */
 	int x = getX ();
 	parent.redraw (x, 0, width, parent.clientArea.height, false);
-	if (parent.drawCount == 0 && parent.getHeaderVisible ()) {
+	if (parent.drawCount <= 0 && parent.getHeaderVisible ()) {
 		parent.header.redraw (x, 0, width, parent.getHeaderHeight (), false);		
 	}
 }
@@ -575,7 +575,7 @@ public void setImage (Image value) {
 		parent.setHeaderImageHeight (value.getBounds ().height);
 		if (oldHeaderHeight != parent.getHeaderHeight ()) {
 			/* parent header height changed */
-			if (parent.drawCount == 0 && parent.getHeaderVisible ()) {
+			if (parent.drawCount <= 0 && parent.getHeaderVisible ()) {
 				parent.header.redraw ();
 			}
 			parent.redraw ();
@@ -583,7 +583,7 @@ public void setImage (Image value) {
 		}
 	}
 	
-	if (parent.drawCount == 0 && parent.getHeaderVisible ()) {
+	if (parent.drawCount <= 0 && parent.getHeaderVisible ()) {
 		parent.header.redraw (getX (), 0, width, parent.getHeaderHeight (), false);
 	}
 }
@@ -641,7 +641,7 @@ void setSortDirection (int value) {
 		computeDisplayText (gc);
 		gc.dispose ();
 	}
-	if (parent.drawCount == 0 && parent.getHeaderVisible ()) {
+	if (parent.drawCount <= 0 && parent.getHeaderVisible ()) {
 		parent.header.redraw (getX (), 0, width, parent.getHeaderHeight (), false);
 	}
 }
@@ -653,7 +653,7 @@ public void setText (String value) {
 	GC gc = new GC (parent);
 	computeDisplayText (gc);
 	gc.dispose ();
-	if (parent.drawCount == 0 && parent.getHeaderVisible ()) {
+	if (parent.drawCount <= 0 && parent.getHeaderVisible ()) {
 		parent.header.redraw (getX (), 0, width, parent.getHeaderHeight (), false);
 	}
 }
@@ -691,7 +691,7 @@ public void setToolTipText (String string) {
  */
 public void setWidth (int value) {
 	checkWidget ();
-	value = Math.max (value, 0);
+	if (value < 0) return;
 	if (width == value) return;							/* same value */
 	parent.updateColumnWidth (this, value);
 }

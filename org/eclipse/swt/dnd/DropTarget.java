@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -12,7 +12,6 @@ package org.eclipse.swt.dnd;
 
 
 import org.eclipse.swt.*;
-import org.eclipse.swt.custom.*;
 import org.eclipse.swt.widgets.*;
 import org.eclipse.swt.internal.*;
 import org.eclipse.swt.internal.motif.*;
@@ -73,7 +72,7 @@ public class DropTarget extends Widget {
 	Control control;
 	Listener controlListener;
 	Transfer[] transferAgents = new Transfer[0];
-	DragAndDropEffect effect;
+	DropTargetEffect dropEffect;
 	
 	// Track application selections
 	TransferData selectedDataType;
@@ -100,6 +99,7 @@ public class DropTarget extends Widget {
 	// not visible.
 	boolean registered = false;
 	
+	static final String DEFAULT_DROP_TARGET_EFFECT = "DEFAULT_DROP_TARGET_EFFECT"; //$NON-NLS-1$
 	static int DELETE_TYPE = Transfer.registerType("DELETE\0"); //$NON-NLS-1$
 	static int NULL_TYPE = Transfer.registerType("NULL\0"); //$NON-NLS-1$
 	static final String DROPTARGETID = "DropTarget"; //$NON-NLS-1$
@@ -140,7 +140,7 @@ public class DropTarget extends Widget {
  * </ul>
  *
  * <p>NOTE: ERROR_CANNOT_INIT_DROP should be an SWTException, since it is a
- * recoverable error, but can not be changed due to backward compatability.</p>
+ * recoverable error, but can not be changed due to backward compatibility.</p>
  * 
  * @see Widget#dispose
  * @see DropTarget#checkSubclass
@@ -212,15 +212,13 @@ public DropTarget(Control control, int style) {
 		}
 	});
 
-	// Drag under effect
-	if (control instanceof Tree) {
-		effect = new TreeDragAndDropEffect((Tree)control);
+	Object effect = control.getData(DEFAULT_DROP_TARGET_EFFECT);
+	if (effect instanceof DropTargetEffect) {
+		dropEffect = (DropTargetEffect) effect;
 	} else if (control instanceof Table) {
-		effect = new TableDragAndDropEffect((Table)control);
-	} else if (control instanceof StyledText) {
-		effect = new StyledTextDragAndDropEffect((StyledText)control);
-	} else {
-		effect = new NoDragAndDropEffect(control);
+		dropEffect = new TableDropTargetEffect((Table) control);
+	} else if (control instanceof Tree) {
+		dropEffect = new TreeDropTargetEffect((Tree) control);
 	}
 
 	if (control.isVisible()) registerDropTarget();
@@ -250,10 +248,10 @@ public DropTarget(Control control, int style) {
 				event.dataType = selectedDataType;
 				event.operations = dragOverEvent.operations;
 				event.detail  = selectedOperation;
-				event.item = effect.getItem(dragOverEvent.x, dragOverEvent.y);
+				if (dropEffect != null) {
+					event.item = dropEffect.getItem(dragOverEvent.x, dragOverEvent.y);
+				}
 				notifyListeners(DND.DragOver, event);
-				
-				effect.showDropTargetEffect(event.feedback, event.x, event.y);
 				
 				selectedDataType = null;
 				if (event.dataType != null) {
@@ -348,6 +346,7 @@ static int TransferProcCallback(int widget, int client_data, int pSelection, int
 public void addDropListener(DropTargetListener listener) {
 	if (listener == null) DND.error (SWT.ERROR_NULL_ARGUMENT);
 	DNDListener typedListener = new DNDListener (listener);
+	typedListener.dndWidget = this;
 	addListener (DND.DragEnter, typedListener);
 	addListener (DND.DragLeave, typedListener);
 	addListener (DND.DragOver, typedListener);
@@ -371,7 +370,6 @@ void dragProcCallback(int widget, int client_data, int call_data) {
 
 	if (callbackData.reason == OS.XmCR_DROP_SITE_LEAVE_MESSAGE) {
 		updateDragOverHover(0, null);
-		effect.showDropTargetEffect(DND.FEEDBACK_NONE, 0, 0);
 		
 		if (callbackData.dropSiteStatus == OS.XmDROP_SITE_INVALID) {
 			return;
@@ -438,8 +436,6 @@ void dragProcCallback(int widget, int client_data, int call_data) {
 	if (selectedDataType != null && (allowedOperations & event.detail) != 0) {
 		selectedOperation = event.detail;
 	}
-	
-	effect.showDropTargetEffect(event.feedback, event.x, event.y);
 
 	callbackData.dropSiteStatus = (byte)OS.XmDROP_SITE_VALID;
 	callbackData.operation = opToOsOp(selectedOperation);
@@ -525,6 +521,19 @@ public Control getControl () {
 }
 
 /**
+ * Returns the drop effect for this DropTarget.  This drop effect will be 
+ * used during a drag and drop to display the drag under effect on the 
+ * target widget.
+ *
+ * @return the drop effect that is registered for this DropTarget
+ * 
+ * @since 3.3
+ */
+public DropTargetEffect getDropTargetEffect() {
+	return dropEffect;
+}
+
+/**
  * Returns a list of the data types that can be transferred to this DropTarget.
  *
  * @return a list of the data types that can be transferred to this DropTarget
@@ -585,14 +594,17 @@ void registerDropTarget() {
 		OS.XmNdropSiteType,       OS.XmDROP_SITE_COMPOSITE,
 	};
 	
-	if (transferAgents.length != 0) {
+	if (transferAgents != null && transferAgents.length != 0) {
 		TransferData[] transferData = new TransferData[0];
 		for (int i = 0, length = transferAgents.length; i < length; i++){
-			TransferData[] data = transferAgents[i].getSupportedTypes();
-			TransferData[] newTransferData = new TransferData[transferData.length +  data.length];
-			System.arraycopy(transferData, 0, newTransferData, 0, transferData.length);
-			System.arraycopy(data, 0, newTransferData, transferData.length, data.length);
-			transferData = newTransferData;
+			Transfer transfer = transferAgents[i];
+			if (transfer != null) {
+				TransferData[] data = transfer.getSupportedTypes();
+				TransferData[] newTransferData = new TransferData[transferData.length +  data.length];
+				System.arraycopy(transferData, 0, newTransferData, 0, transferData.length);
+				System.arraycopy(data, 0, newTransferData, transferData.length, data.length);
+				transferData = newTransferData;
+			}
 		}
 		
 		int[] atoms = new int[transferData.length];
@@ -651,6 +663,19 @@ public void removeDropListener(DropTargetListener listener) {
 	removeListener (DND.DropAccept, listener);
 }
 
+/**
+ * Specifies the drop effect for this DropTarget.  This drop effect will be 
+ * used during a drag and drop to display the drag under effect on the 
+ * target widget.
+ *
+ * @param effect the drop effect that is registered for this DropTarget
+ * 
+ * @since 3.3
+ */
+public void setDropTargetEffect(DropTargetEffect effect) {
+	dropEffect = effect;
+}
+
 boolean setEventData(byte ops, byte op, int dragContext, short x, short y, int timestamp, DNDEvent event) {
 	//get allowed operations
 	int style = getStyle();
@@ -699,7 +724,8 @@ boolean setEventData(byte ops, byte op, int dragContext, short x, short y, int t
 		for (int j = 0; j < transferAgents.length; j++){
 			TransferData transferData = new TransferData();
 			transferData.type = exportTargets[i];
-			if (transferAgents[j].isSupportedType(transferData)) {
+			Transfer transfer = transferAgents[j];
+			if (transfer != null && transfer.isSupportedType(transferData)) {
 				TransferData[] newDataTypes = new TransferData[dataTypes.length + 1];
 				System.arraycopy(dataTypes, 0, newDataTypes, 0, dataTypes.length);
 				newDataTypes[dataTypes.length] = transferData;
@@ -723,7 +749,9 @@ boolean setEventData(byte ops, byte op, int dragContext, short x, short y, int t
 	event.dataType = dataTypes[0];
 	event.operations = operations;
 	event.detail = operation;
-	event.item = effect.getItem(event.x, event.y);
+	if (dropEffect != null) {
+		event.item = dropEffect.getItem(event.x, event.y);
+	}
 	return true;
 }
 
@@ -749,11 +777,14 @@ public void setTransfer(Transfer[] transferAgents){
 	// register data types
 	TransferData[] transferData = new TransferData[0];
 	for (int i = 0, length = transferAgents.length; i < length; i++){
-		TransferData[] data = transferAgents[i].getSupportedTypes();
-		TransferData[] newTransferData = new TransferData[transferData.length +  data.length];
-		System.arraycopy(transferData, 0, newTransferData, 0, transferData.length);
-		System.arraycopy(data, 0, newTransferData, transferData.length, data.length);
-		transferData = newTransferData;
+		Transfer transfer = transferAgents[i];
+		if (transfer != null) {
+			TransferData[] data = transfer.getSupportedTypes();
+			TransferData[] newTransferData = new TransferData[transferData.length +  data.length];
+			System.arraycopy(transferData, 0, newTransferData, 0, transferData.length);
+			System.arraycopy(data, 0, newTransferData, transferData.length, data.length);
+			transferData = newTransferData;
+		}
 	}
 	
 	int[] atoms = new int[transferData.length];
@@ -807,8 +838,9 @@ void transferProcCallback(int widget, int client_data, int pSelection, int pType
 	transferData.pValue = pValue;
 	transferData.format = format[0];
 	for (int i = 0; i < transferAgents.length; i++){
-		if (transferAgents[i].isSupportedType(transferData)){
-			object = transferAgents[i].nativeToJava(transferData);
+		Transfer transfer = transferAgents[i];
+		if (transfer != null && transfer.isSupportedType(transferData)){
+			object = transfer.nativeToJava(transferData);
 			break;
 		}
 	}

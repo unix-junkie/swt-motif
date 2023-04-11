@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -84,7 +84,7 @@ import org.eclipse.swt.events.*;
  *			}
  *		});
  *		// Hide the TableCursor when the user hits the "MOD1" or "MOD2" key.
- *		// This alows the user to select multiple items in the table.
+ *		// This allows the user to select multiple items in the table.
  *		cursor.addKeyListener(new KeyAdapter() {
  *			public void keyPressed(KeyEvent e) {
  *				if (e.keyCode == SWT.MOD1 || 
@@ -192,9 +192,17 @@ public TableCursor(Table parent, int style) {
 				case SWT.Paint :
 					paint(event);
 					break;
-				case SWT.Traverse :
-					traverse(event);
+				case SWT.Traverse : {
+					event.doit = true;
+					switch (event.detail) {
+						case SWT.TRAVERSE_ARROW_NEXT :
+						case SWT.TRAVERSE_ARROW_PREVIOUS :
+						case SWT.TRAVERSE_RETURN :
+							event.doit = false;
+							break;
+					}
 					break;
+				}
 			}
 		}
 	};
@@ -249,7 +257,7 @@ public TableCursor(Table parent, int style) {
 
 /**
  * Adds the listener to the collection of listeners who will
- * be notified when the receiver's selection changes, by sending
+ * be notified when the user changes the receiver's selection, by sending
  * it one of the messages defined in the <code>SelectionListener</code>
  * interface.
  * <p>
@@ -259,7 +267,7 @@ public TableCursor(Table parent, int style) {
  * <code>widgetDefaultSelected</code> is typically called when an item is double-clicked.
  * </p>
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should be notified when the user changes the receiver's selection
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -404,7 +412,7 @@ void paint(Event event) {
 		x += imageSize.width;
 	}
 	String text = row.getText(columnIndex);
-	if (text != "") { //$NON-NLS-1$
+	if (text.length() > 0) {
 		Rectangle bounds = row.getBounds(columnIndex);
 		Point extent = gc.stringExtent(text);
 		// Temporary code - need a better way to determine table trim
@@ -503,17 +511,6 @@ void tableMouseDown(Event event) {
 	setFocus();
 	return;
 }
-
-void traverse(Event event) {
-	switch (event.detail) {
-		case SWT.TRAVERSE_ARROW_NEXT :
-		case SWT.TRAVERSE_ARROW_PREVIOUS :
-		case SWT.TRAVERSE_RETURN :
-			event.doit = false;
-			return;
-	}
-	event.doit = true;
-}
 void setRowColumn(int row, int column, boolean notify) {
 	TableItem item = row == -1 ? null : table.getItem(row);
 	TableColumn col = column == -1 || table.getColumnCount() == 0 ? null : table.getColumn(column);
@@ -563,7 +560,7 @@ public void setVisible(boolean visible) {
 
 /**
  * Removes the listener from the collection of listeners who will
- * be notified when the receiver's selection changes.
+ * be notified when the user changes the receiver's selection.
  *
  * @param listener the listener which should no longer be notified
  *

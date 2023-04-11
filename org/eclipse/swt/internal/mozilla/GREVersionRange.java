@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2003, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -8,13 +8,12 @@
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
-package org.eclipse.swt.dnd;
+package org.eclipse.swt.internal.mozilla;
 
-
-import org.eclipse.swt.widgets.*;
-
-class NoDragAndDropEffect extends DragAndDropEffect {
-
-NoDragAndDropEffect(Control control) {}
-void showDropTargetEffect(int effect, int x, int y){}
+public class GREVersionRange {
+    public int /*long*/ lower;
+    public boolean lowerInclusive;
+    public int /*long*/ upper;
+    public boolean upperInclusive;
+    public static final int sizeof = XPCOMInit.GREVersionRange_sizeof();
 }

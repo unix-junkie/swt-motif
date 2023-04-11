@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -16,8 +16,12 @@ extern char* CDE_nativeFunctionNames[];
 #define CDE_NATIVE_ENTER(env, that, func) CDE_nativeFunctionCallCount[func]++;
 #define CDE_NATIVE_EXIT(env, that, func) 
 #else
+#ifndef CDE_NATIVE_ENTER
 #define CDE_NATIVE_ENTER(env, that, func) 
+#endif
+#ifndef CDE_NATIVE_EXIT
 #define CDE_NATIVE_EXIT(env, that, func) 
+#endif
 #endif
 
 typedef enum {

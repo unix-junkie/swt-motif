@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -28,7 +28,6 @@ class StyledTextRenderer {
 	Font regularFont, boldFont, italicFont, boldItalicFont;
 	int tabWidth;
 	int ascent, descent;
-	int lineEndSpaceWidth;
 	int averageCharWidth;
 	
 	/* Line data */
@@ -79,12 +78,14 @@ class StyledTextRenderer {
 		public LineInfo() {
 		}
 		public LineInfo(LineInfo info) {
-			flags = info.flags;
-			background = info.background;
-			alignment = info.alignment;
-			indent = info.indent;
-			justify = info.justify;
-			segments = info.segments;
+			if (info != null) {
+				flags = info.flags;
+				background = info.background;
+				alignment = info.alignment;
+				indent = info.indent;
+				justify = info.justify;
+				segments = info.segments;
+			}
 		}
 	}
 	
@@ -355,59 +356,38 @@ int drawLine(int lineIndex, int paintX, int paintY, GC gc, Color widgetBackgroun
 	int lineOffset = content.getOffsetAtLine(lineIndex);
 	int lineLength = line.length();
 	Point selection = styledText.getSelection();
-	int selectionStart = selection.x;
-	int selectionEnd = selection.y;
+	int selectionStart = selection.x - lineOffset;
+	int selectionEnd = selection.y - lineOffset;
 	Rectangle client = styledText.getClientArea();  
 	Color lineBackground = getLineBackground(lineIndex, widgetBackground);
 	StyledTextEvent event = styledText.getLineBackgroundData(lineOffset, line);
 	if (event != null && event.lineBackground != null) lineBackground = event.lineBackground;
 	
-	boolean fullSelection = (styledText.getStyle() & SWT.FULL_SELECTION) != 0;
-	if (!fullSelection || selectionStart > lineOffset || selectionEnd <= lineOffset + lineLength) {
-		// draw background if full selection is off or if line is not completely selected
-		gc.setBackground(lineBackground);
-		styledText.drawBackground(gc, client.x, paintY, client.width, layout.getBounds().height);
-	}
-	if (selectionStart != selectionEnd) {
-		int y = paintY;
-		gc.setBackground(styledText.getSelectionBackground());
-		int lineCount = layout.getLineCount();
-		if (fullSelection) {
-			int[] offsets = layout.getLineOffsets();
-			for (int i = 0; i < lineCount - 1; i++) {
-				int lineStart = offsets[i];
-				if (lineStart >= selectionEnd - lineOffset) break;
-				int lineEnd = offsets[i + 1];
-				Rectangle lineBounds = layout.getLineBounds(i);
-				if (selectionStart - lineOffset <= lineEnd && lineEnd <= selectionEnd - lineOffset) {
-					int x = paintX + lineBounds.x + lineBounds.width;
-					gc.fillRectangle(x, y, client.width - x, lineBounds.height);
-				}
-				y += lineBounds.height + layout.getSpacing();
-			}
-		}
-		if (selectionStart - lineOffset <= lineLength && lineLength < selectionEnd - lineOffset) {
-			Rectangle lineBounds = layout.getLineBounds(lineCount - 1);
-			int x = paintX + lineBounds.x + lineBounds.width;
-			if (fullSelection) {
-				gc.fillRectangle(x, paintY + lineBounds.y, client.width - styledText.rightMargin - x, lineBounds.height);
-			} else {
-				gc.fillRectangle(x, paintY + lineBounds.y, lineEndSpaceWidth, lineBounds.height);
-			}
-		}
-	}
+	int height = layout.getBounds().height;
+	gc.setBackground(lineBackground);
+	styledText.drawBackground(gc, client.x, paintY, client.width, height);
+	
 	gc.setForeground(widgetForeground);
-	gc.setBackground(lineBackground);	
-	if (selectionStart == selectionEnd || (selectionEnd <= lineOffset && selectionStart > lineOffset + lineLength - 1)) {
+	gc.setBackground(lineBackground);
+	if (selectionStart == selectionEnd || (selectionEnd <= 0 && selectionStart > lineLength - 1)) {
 		layout.draw(gc, paintX, paintY);
 	} else {
-		int start = Math.max(0, selectionStart - lineOffset);
-		int end = Math.min(lineLength, selectionEnd - lineOffset);
+		int start = Math.max(0, selectionStart);
+		int end = Math.min(lineLength, selectionEnd);
 		Color selectionFg = styledText.getSelectionForeground();
 		Color selectionBg = styledText.getSelectionBackground();
-		layout.draw(gc, paintX, paintY, start, end - 1, selectionFg, selectionBg);
+		int flags;
+		if ((styledText.getStyle() & SWT.FULL_SELECTION) != 0) {
+			flags = SWT.FULL_SELECTION;
+		} else {
+			flags = SWT.DELIMITER_SELECTION;
+		}
+		if (selectionStart <= lineLength && lineLength < selectionEnd ) {
+			flags |= SWT.LAST_LINE_SELECTION;
+		}
+		layout.draw(gc, paintX, paintY, start, end - 1, selectionFg, selectionBg, flags);
 	}
-
+	
 	// draw objects
 	Bullet bullet = null;
 	int bulletIndex = -1;
@@ -436,7 +416,6 @@ int drawLine(int lineIndex, int paintX, int paintY, GC gc, Color widgetBackgroun
 			drawBullet(bullet, gc, paintX, paintY, bulletIndex, lineAscent, metrics.getDescent());
 		}
 	}
-	
 	TextStyle[] styles = layout.getStyles();
 	int[] ranges = null;
 	for (int i = 0; i < styles.length; i++) {
@@ -453,7 +432,6 @@ int drawLine(int lineIndex, int paintX, int paintY, GC gc, Color widgetBackgroun
 			styledText.paintObject(gc, point.x + paintX, point.y + paintY, lineAscent, metrics.getDescent(), style, null, 0);
 		}
 	}
-	int height = layout.getBounds().height;
 	disposeTextLayout(layout);
 	return height;
 }
@@ -527,9 +505,6 @@ Bullet getLineBullet (int index, Bullet defaultBullet) {
 		if (bullet.indexOf(index) != -1) return bullet;
 	}
 	return defaultBullet;
-}
-int getLineEndSpace() {
-	return lineEndSpaceWidth;
 }
 int getLineHeight() {
 	return ascent + descent;
@@ -617,7 +592,7 @@ int[] getRanges(int start, int length) {
 		newRanges[0] = start;
 	}
 	if (end < newRanges[newRanges.length - 2] + newRanges[newRanges.length - 1] - 1) {
-		newRanges[newRanges.length - 1] = end - newRanges[newRanges.length - 2];
+		newRanges[newRanges.length - 1] = end - newRanges[newRanges.length - 2] + 1;
 	}
 	return newRanges;
 }
@@ -972,7 +947,6 @@ void setFont(Font font, int tabs) {
 		FontMetrics metrics = layout.getLineMetrics(0);
 		ascent = metrics.getAscent() + metrics.getLeading();
 		descent = metrics.getDescent();
-		lineEndSpaceWidth = layout.getBounds(0, 0).width;
 		boldFont.dispose();
 		italicFont.dispose();
 		boldItalicFont.dispose();
@@ -988,6 +962,11 @@ void setFont(Font font, int tabs) {
 	layout.setText(tabBuffer.toString());
 	tabWidth = layout.getBounds().width;
 	layout.dispose();
+	if (styledText != null) {
+		GC gc = new GC(styledText);
+		averageCharWidth = gc.getFontMetrics().getAverageCharWidth();
+		gc.dispose();
+	}
 }
 void setLineAlignment(int startLine, int count, int alignment) {
 	if (lines == null) lines = new LineInfo[lineCount];

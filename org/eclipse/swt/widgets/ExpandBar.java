@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -499,6 +499,7 @@ void onKeyDown (Event event) {
 }
 
 void onMouseDown (Event event) {
+	if (event.button != 1) return;
 	int x = event.x;
 	int y = event.y;
 	for (int i = 0; i < itemCount; i++) {
@@ -511,13 +512,14 @@ void onMouseDown (Event event) {
 			forceFocus ();
 			break;
 		}
-	}		
+	}
 }
 
 void onMouseUp (Event event) {
+	if (event.button != 1) return;
+	if (focusItem == null) return;
 	int x = event.x;
 	int y = event.y;
-	if (focusItem == null) return;
 	boolean hover = focusItem.x <= x && x < (focusItem.x + focusItem.width) && focusItem.y <= y && y < (focusItem.y + getBandHeight ()); 
 	if (hover) {
 		Event ev = new Event ();

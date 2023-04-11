@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -600,7 +600,7 @@ void hookEvents () {
  * @return the index of the item
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the string is null</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the item is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -640,7 +640,9 @@ public int indexOf (MenuItem item) {
 public boolean isEnabled () {
 	checkWidget();
 	Menu parentMenu = getParentMenu ();
-	if (parentMenu == null) return getEnabled ();
+	if (parentMenu == null) {
+		return getEnabled () && parent.isEnabled ();
+	}
 	return getEnabled () && parentMenu.isEnabled ();
 }
 /**

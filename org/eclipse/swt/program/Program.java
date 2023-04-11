@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -717,28 +717,21 @@ public static boolean launch(String fileName) {
  *       become public and the original method above can be deprecated.
  */
 static boolean launch(Display display, String fileName) {
-	if (fileName == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
-	
-	/* If the argument appears to be a data file (it has an extension) */
-	int index = fileName.lastIndexOf('.');
-	if (index > 0) {
-		switch(getDesktop(display)) {
-			case DESKTOP_GNOME_24:
-				if (gnome_24_launch(fileName)) return true;
-			default:
-				/* Find the associated program, if one is defined. */
-				String extension = fileName.substring(index);
-				Program program = Program.findProgram(display, extension); 
-				
-				/* If the associated program is defined and can be executed, return. */
-				if (program != null && program.execute(fileName)) return true;
-				break;
-		}
+	if (fileName == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
+	switch(getDesktop (display)) {
+		case DESKTOP_GNOME_24:
+			if (gnome_24_launch (fileName)) return true;
+		default:
+			int index = fileName.lastIndexOf ('.');
+			if (index != -1) {
+				String extension = fileName.substring (index);
+				Program program = Program.findProgram (display, extension); 
+				if (program != null && program.execute (fileName)) return true;
+			}
+			break;
 	}
-	
-	/* Otherwise, the argument was the program itself. */
 	try {
-		Compatibility.exec(fileName);
+		Compatibility.exec (fileName);
 		return true;
 	} catch (IOException e) {
 		return false;

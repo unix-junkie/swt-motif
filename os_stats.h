@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -16,8 +16,12 @@ extern char* OS_nativeFunctionNames[];
 #define OS_NATIVE_ENTER(env, that, func) OS_nativeFunctionCallCount[func]++;
 #define OS_NATIVE_EXIT(env, that, func) 
 #else
+#ifndef OS_NATIVE_ENTER
 #define OS_NATIVE_ENTER(env, that, func) 
+#endif
+#ifndef OS_NATIVE_EXIT
 #define OS_NATIVE_EXIT(env, that, func) 
+#endif
 #endif
 
 typedef enum {
@@ -90,10 +94,12 @@ typedef enum {
 	_1XFreeCursor_FUNC,
 	_1XFreeFont_FUNC,
 	_1XFreeFontNames_FUNC,
+	_1XFreeFontPath_FUNC,
 	_1XFreeGC_FUNC,
 	_1XFreeModifiermap_FUNC,
 	_1XFreePixmap_FUNC,
 	_1XFreeStringList_FUNC,
+	_1XGetFontPath_FUNC,
 	_1XGetGCValues_FUNC,
 	_1XGetGeometry_FUNC,
 	_1XGetIconSizes_FUNC,
@@ -150,6 +156,7 @@ typedef enum {
 	_1XSetErrorHandler_FUNC,
 	_1XSetFillRule_FUNC,
 	_1XSetFillStyle_FUNC,
+	_1XSetFontPath_FUNC,
 	_1XSetForeground_FUNC,
 	_1XSetFunction_FUNC,
 	_1XSetGraphicsExposures_FUNC,
@@ -380,6 +387,7 @@ typedef enum {
 	_1XtDisplay_FUNC,
 	_1XtDisplayToApplicationContext_FUNC,
 	_1XtFree_FUNC,
+	_1XtGetDisplays_FUNC,
 	_1XtGetMultiClickTime_FUNC,
 	_1XtGetSelectionValue_FUNC,
 	_1XtGetValues_FUNC,
@@ -421,6 +429,7 @@ typedef enum {
 	_1XtWindow_FUNC,
 	_1XtWindowToWidget_FUNC,
 	_1_1XmSetMenuTraversal_FUNC,
+	_1_1XtDefaultAppContext_FUNC,
 	_1applicationShellWidgetClass_FUNC,
 	_1dlclose_FUNC,
 	_1dlopen_FUNC,
@@ -432,7 +441,6 @@ typedef enum {
 	_1xmMenuShellWidgetClass_FUNC,
 	close_FUNC,
 	fd_1set_1sizeof_FUNC,
-	getenv_FUNC,
 	iconv_FUNC,
 	iconv_1close_FUNC,
 	iconv_1open_FUNC,
@@ -447,10 +455,6 @@ typedef enum {
 	memmove__ILorg_eclipse_swt_internal_motif_XmSpinBoxCallbackStruct_2I_FUNC,
 	memmove__ILorg_eclipse_swt_internal_motif_XmTextBlockRec_2I_FUNC,
 	memmove__ILorg_eclipse_swt_internal_motif_XmTextVerifyCallbackStruct_2I_FUNC,
-	memmove__I_3BI_FUNC,
-	memmove__I_3CI_FUNC,
-	memmove__I_3II_FUNC,
-	memmove__I_3SI_FUNC,
 	memmove__Lorg_eclipse_swt_internal_motif_Visual_2II_FUNC,
 	memmove__Lorg_eclipse_swt_internal_motif_XAnyEvent_2II_FUNC,
 	memmove__Lorg_eclipse_swt_internal_motif_XButtonEvent_2II_FUNC,
@@ -479,15 +483,11 @@ typedef enum {
 	memmove__Lorg_eclipse_swt_internal_motif_XmSpinBoxCallbackStruct_2II_FUNC,
 	memmove__Lorg_eclipse_swt_internal_motif_XmTextBlockRec_2II_FUNC,
 	memmove__Lorg_eclipse_swt_internal_motif_XmTextVerifyCallbackStruct_2II_FUNC,
-	memmove___3BII_FUNC,
-	memmove___3CII_FUNC,
-	memmove___3III_FUNC,
 	nl_1langinfo_FUNC,
 	pipe_FUNC,
 	read_FUNC,
 	select_FUNC,
 	setResourceMem_FUNC,
 	setlocale_FUNC,
-	strlen_FUNC,
 	write_FUNC,
 } OS_FUNCS;

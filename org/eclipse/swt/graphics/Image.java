@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -249,6 +249,7 @@ public Image(Device device, Image srcImage, int flag) {
 				alphaData = new byte[srcImage.alphaData.length];
 				System.arraycopy(srcImage.alphaData, 0, alphaData, 0, alphaData.length);
 			}
+			createAlphaMask(width, height);
 			if (device.tracking) device.new_Object(this);
 			return;
 		case SWT.IMAGE_DISABLE:
@@ -425,6 +426,7 @@ public Image(Device device, Image srcImage, int flag) {
 				alphaData = new byte[srcImage.alphaData.length];
 				System.arraycopy(srcImage.alphaData, 0, alphaData, 0, alphaData.length);
 			}
+			createAlphaMask(width, height);
 			this.pixmap = destPixmap;
 			if (device.tracking) device.new_Object(this);
 			return;
@@ -683,6 +685,35 @@ public Image(Device device, String filename) {
 	if (device == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
 	init(device, new ImageData(filename));
 	if (device.tracking) device.new_Object(this);
+}
+void createAlphaMask(int width, int height) {
+	if (device.useXRender && (alpha != -1 || alphaData != null)) {
+		int xDisplay = device.xDisplay;
+		int drawable = OS.XDefaultRootWindow(xDisplay);
+		mask = OS.XCreatePixmap(xDisplay, drawable, alpha != -1 ? 1 : width, alpha != -1 ? 1 : height, 8);
+		if (mask == 0) SWT.error(SWT.ERROR_NO_HANDLES);
+		int gc = OS.XCreateGC(xDisplay, mask, 0, null);
+		if (alpha != -1) {
+			OS.XSetForeground(xDisplay, gc, (alpha & 0xFF) << 8 | (alpha & 0xFF));
+			OS.XFillRectangle(xDisplay, mask, gc, 0, 0, 1, 1);
+		} else {
+			int imagePtr = OS.XGetImage(xDisplay, mask, 0, 0, width, height, OS.AllPlanes, OS.ZPixmap);
+			XImage xImage = new XImage();
+			OS.memmove(xImage, imagePtr, XImage.sizeof);
+			if (xImage.bytes_per_line == width) {
+				OS.memmove(xImage.data, alphaData, alphaData.length);
+			} else {
+				byte[] line = new byte[xImage.bytes_per_line];
+				for (int y = 0; y < height; y++) {
+					System.arraycopy(alphaData, width * y, line, 0, width);
+					OS.memmove(xImage.data + (xImage.bytes_per_line * y), line, xImage.bytes_per_line);
+				}
+			}
+			OS.XPutImage(xDisplay, mask, gc, imagePtr, 0, 0, 0, 0, width, height);
+			OS.XDestroyImage(imagePtr);
+		}			
+		OS.XFreeGC(xDisplay, gc);
+	}
 }
 /**
  * Create the receiver's mask if necessary.
@@ -1097,31 +1128,7 @@ void init(Device device, ImageData image) {
 			this.alphaData = new byte[image.alphaData.length];
 			System.arraycopy(image.alphaData, 0, this.alphaData, 0, alphaData.length);
 		}
-		if (device.useXRender && (alpha != -1 || alphaData != null)) {
-			mask = OS.XCreatePixmap(xDisplay, drawable, alpha != -1 ? 1 : image.width, alpha != -1 ? 1 : image.height, 8);
-			if (mask == 0) SWT.error(SWT.ERROR_NO_HANDLES);
-			gc = OS.XCreateGC(xDisplay, mask, 0, null);
-			if (alpha != -1) {
-				OS.XSetForeground(xDisplay, gc, (alpha & 0xFF) << 8 | (alpha & 0xFF));
-				OS.XFillRectangle(xDisplay, mask, gc, 0, 0, 1, 1);
-			} else {
-				int imagePtr = OS.XGetImage(xDisplay, mask, 0, 0, image.width, image.height, OS.AllPlanes, OS.ZPixmap);
-				XImage xImage = new XImage();
-				OS.memmove(xImage, imagePtr, XImage.sizeof);
-				if (xImage.bytes_per_line == image.width) {
-					OS.memmove(xImage.data, alphaData, alphaData.length);
-				} else {
-					byte[] line = new byte[xImage.bytes_per_line];
-					for (int y = 0; y < image.height; y++) {
-						System.arraycopy(alphaData, image.width * y, line, 0, image.width);
-						OS.memmove(xImage.data + (xImage.bytes_per_line * y), line, xImage.bytes_per_line);
-					}
-				}
-				OS.XPutImage(xDisplay, mask, gc, imagePtr, 0, 0, 0, 0, image.width, image.height);
-				OS.XDestroyImage(imagePtr);
-			}			
-			OS.XFreeGC(xDisplay, gc);
-		}
+		createAlphaMask(image.width, image.height);
 	}
 	this.pixmap = pixmap;
 }
@@ -1154,8 +1161,8 @@ public int internal_new_GC (GCData data) {
 		data.device = device;
 		data.display = xDisplay;
 		data.drawable = pixmap;
-		data.background = device.COLOR_WHITE.handle.pixel;
-		data.foreground = device.COLOR_BLACK.handle.pixel;
+		data.background = device.COLOR_WHITE.handle;
+		data.foreground = device.COLOR_BLACK.handle;
 		data.font = device.systemFont;
 		data.colormap = OS.XDefaultColormap (xDisplay, OS.XDefaultScreen (xDisplay));
 		data.image = this;

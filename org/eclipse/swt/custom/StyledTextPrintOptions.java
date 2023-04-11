@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
+ * Copyright (c) 2000, 2006 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -83,4 +83,13 @@ public class StyledTextPrintOptions {
 	 * Print the line background color. Default value is <code>false</code>.
 	 */
 	public boolean printLineBackground = false;
+	
+	/**
+	 * Print line numbers. Default value is <code>false</code>.
+	 * 
+	 * @since 3.3
+	 */
+	public boolean printLineNumbers = false;
+	
+	
 }

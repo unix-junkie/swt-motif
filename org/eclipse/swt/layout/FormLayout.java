@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -188,7 +188,7 @@ public FormLayout () {
  *
  * 		Let X = D, the distance from the top of the form
  * 		to the bottom edge of the control.  In this case,
- * 		the control was attatched to the top of the form
+ * 		the control was attached to the top of the form
  * 		and the form needs to be large enough to show the
  * 		bottom edge of the control.
  * 
@@ -213,7 +213,7 @@ public FormLayout () {
  * 		(1 - C)X. Since the height of a fraction of the form is 
  * 		known, the height of the entire form can be found by setting
  * 		(1 - C)X = D.  We solve this equation for X in terms of U 
- * 		and V, giving us X = (U * D) / (U - V). Similarily, if the 
+ * 		and V, giving us X = (U * D) / (U - V). Similarly, if the 
  * 		offset D is	negative, the control is positioned above CX.
  * 		The offset -B is the distance from the top edge of the control
  * 		to CX. We can find the height of the entire form by setting 

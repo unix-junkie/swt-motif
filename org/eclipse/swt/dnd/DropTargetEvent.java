@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -53,6 +53,7 @@ public class DropTargetEvent extends TypedEvent {
 	 * <p>A value of DND.FEEDBACK_NONE indicates that no drag under effect will be displayed.</p>
 	 * <p>Feedback effects will only be applied if they are applicable.</p>
 	 * <p>The default value is DND.FEEDBACK_SELECT.</p>
+	 * @see DND#FEEDBACK_NONE
 	 * @see DND#FEEDBACK_SELECT
 	 * @see DND#FEEDBACK_INSERT_BEFORE
 	 * @see DND#FEEDBACK_INSERT_AFTER

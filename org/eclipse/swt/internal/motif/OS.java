@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -13,16 +13,9 @@ package org.eclipse.swt.internal.motif;
 import org.eclipse.swt.internal.*;
 
  
-public class OS extends Platform {
-	static {
-		Library.loadLibrary ("swt");
-	}
-
-	/* OS and locale Constants*/
+public class OS extends C {
 	public static final boolean IsAIX, IsSunOS, IsLinux, IsHPUX;
-	public static final boolean IsDBLocale;
 	static {
-		
 		/* Initialize the OS flags and locale constants */
 		String osName = System.getProperty ("os.name");
 		boolean isAIX = false, isSunOS = false, isLinux = false, isHPUX = false;
@@ -32,16 +25,12 @@ public class OS extends Platform {
 		if (osName.equals ("SunOS")) isSunOS = true;
 		if (osName.equals ("HP-UX")) isHPUX = true;
 		IsAIX = isAIX;  IsSunOS = isSunOS;  IsLinux = isLinux;  IsHPUX = isHPUX;
-		IsDBLocale = OS.MB_CUR_MAX () != 1;
 	}
+
+	public static final boolean IsDBLocale = OS.MB_CUR_MAX () != 1;
 	public static final int CODESET = CODESET ();
 	public static final int LC_CTYPE = LC_CTYPE ();
 
-	public static final int PTR_SIZEOF;
-	static {
-		PTR_SIZEOF = 4;
-	}
-	
 	static final int RESOURCE_LENGTH = 1024 * 3;
 	static final int RESOURCE_START = OS.XtMalloc (RESOURCE_LENGTH);
 	static int NextResourceStart = RESOURCE_START;
@@ -1827,6 +1816,33 @@ public static final void XSetFillStyle(int display, int gc, int fill_style) {
 	lock.lock();
 	try {
 		_XSetFillStyle(display, gc, fill_style);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native int _XSetFontPath(int display, int directories, int ndirs);
+public static final int XSetFontPath(int display, int directories, int ndirs) {
+	lock.lock();
+	try {
+		return _XSetFontPath(display, directories, ndirs);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native int _XGetFontPath(int display, int[] ndirs);
+public static final int XGetFontPath(int display, int[] ndirs) {
+	lock.lock();
+	try {
+		return _XGetFontPath(display,  ndirs);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native int _XFreeFontPath(int list);
+public static final int XFreeFontPath(int list) {
+	lock.lock();
+	try {
+		return _XFreeFontPath(list);
 	} finally {
 		lock.unlock();
 	}
@@ -3838,6 +3854,15 @@ public static final int XtCreatePopupShell(byte[] name, int widgetClass, int par
 		lock.unlock();
 	}
 }
+public static final native int __XtDefaultAppContext();
+public static final int _XtDefaultAppContext() {
+	lock.lock();
+	try {
+		return __XtDefaultAppContext();
+	} finally {
+		lock.unlock();
+	}
+}
 public static final native void _XtDestroyApplicationContext(int appContext);
 public static final void XtDestroyApplicationContext(int appContext) {
 	lock.lock();
@@ -3897,6 +3922,15 @@ public static final void XtFree(int ptr) {
 	lock.lock();
 	try {
 		_XtFree(ptr);
+	} finally {
+		lock.unlock();
+	}
+}
+public static final native void _XtGetDisplays(int app_context, int[] dpy_return, int[] num_dpy_return);
+public static final void XtGetDisplays(int app_context, int[] dpy_return, int[] num_dpy_return) {
+	lock.lock();
+	try {
+		_XtGetDisplays(app_context, dpy_return, num_dpy_return);
 	} finally {
 		lock.unlock();
 	}
@@ -4272,7 +4306,6 @@ public static final void _XmSetMenuTraversal(int menu, boolean traversal) {
 }
 public static final native int close(int filedes);
 public static final native int fd_set_sizeof();
-public static final native int getenv(byte[] name);
 public static final native int iconv(int cd, int[] inBuf, int[] inBytesLeft, int[] outBuf, int[] outBytesLeft);
 public static final native int iconv_close(int cd);
 public static final native int iconv_open(byte[] tocode, byte[] fromcode);
@@ -4282,9 +4315,6 @@ public static final native void memmove(int dest, XmDragProcCallbackStruct src, 
 public static final native void memmove(int dest, XmSpinBoxCallbackStruct src, int count);
 public static final native void memmove(int dest, XmTextBlockRec src, int count);
 public static final native void memmove(int dest, XmTextVerifyCallbackStruct src, int count);
-public static final native void memmove(int dest, byte[] src, int count);
-public static final native void memmove(int dest, char[] src, int count);
-public static final native void memmove(int dest, int[] src, int count);
 public static final native void memmove(Visual dest, int src, int count);
 public static final native void memmove(XAnyEvent dest, int src, int count);
 public static final native void memmove(XButtonEvent dest, int src, int count);
@@ -4313,10 +4343,6 @@ public static final native void memmove(XmDropProcCallbackStruct dest, int src, 
 public static final native void memmove(XmSpinBoxCallbackStruct dest, int src, int count);
 public static final native void memmove(XmTextBlockRec dest, int src, int count);
 public static final native void memmove(XmTextVerifyCallbackStruct dest, int src, int count);
-public static final native void memmove(byte[] dest, int src, int count);
-public static final native void memmove(char[] dest, int src, int count);
-public static final native void memmove(int[] dest, int src, int count);
-public static final native void memmove(int dest, short[] src, int count);
 public static final native void memmove(int dest, XExposeEvent src, int count);
 public static final native void memmove(int dest, XClientMessageEvent src, int count);
 public static final native void memmove(int dest, XConfigureEvent src, int count);
@@ -4327,7 +4353,6 @@ public static final native int pipe(int[] filedes);
 public static final native int read(int filedes, byte[] buf, int nbyte);
 public static final native int select(int n, byte[] readfds, byte[] writefds, byte[] exceptfds, int[] timeout);
 public static final native int setlocale(int category, byte[] locale);
-public static final native int strlen(int string);
 public static final native int write(int filedes, byte[] buf, int nbyte);
 
 }

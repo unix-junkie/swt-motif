@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -24,6 +24,10 @@ import org.eclipse.swt.internal.cairo.*;
  * method to release the operating system resources managed by each instance
  * when those instances are no longer required.
  * </p>
+ * <p>
+ * This class requires the operating system's advanced graphics subsystem
+ * which may not be available on some platforms.
+ * </p>
  * 
  * @since 3.1
  */
@@ -41,18 +45,26 @@ public class Path extends Resource {
 	 */
 	public int /*long*/ handle;
 	
-	boolean move;
+	boolean moved, closed = true;
 
 /**
  * Constructs a new empty Path.
+ * <p>
+ * This operation requires the operating system's advanced
+ * graphics subsystem which may not be available on some
+ * platforms.
+ * </p>
  * 
  * @param device the device on which to allocate the path
  * 
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the device is null and there is no current device</li>
  * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_NO_GRAPHICS_LIBRARY - if advanced graphics are not available</li>
+ * </ul>
  * @exception SWTError <ul>
- *    <li>ERROR_NO_HANDLES if a handle for the path could not be obtained/li>
+ *    <li>ERROR_NO_HANDLES if a handle for the path could not be obtained</li>
  * </ul>
  * 
  * @see #dispose()
@@ -101,24 +113,30 @@ public Path (Device device) {
  */
 public void addArc(float x, float y, float width, float height, float startAngle, float arcAngle) {
 	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
-	move = true;
+	moved = true;
 	if (width == height) {
+		float angle = -startAngle * (float)Compatibility.PI / 180;
+		if (closed) Cairo.cairo_move_to(handle, (x + width / 2f) + width / 2f * Math.cos(angle), (y + height / 2f) + height / 2f * Math.sin(angle));
 		if (arcAngle >= 0) {
-			Cairo.cairo_arc_negative(handle, x + width / 2f, y + height / 2f, width / 2f, -startAngle * (float)Compatibility.PI / 180, -(startAngle + arcAngle) * (float)Compatibility.PI / 180);
+			Cairo.cairo_arc_negative(handle, x + width / 2f, y + height / 2f, width / 2f, angle, -(startAngle + arcAngle) * (float)Compatibility.PI / 180);
 		} else {
-			Cairo.cairo_arc(handle, x + width / 2f, y + height / 2f, width / 2f, -startAngle * (float)Compatibility.PI / 180, -(startAngle + arcAngle) * (float)Compatibility.PI / 180);
+			Cairo.cairo_arc(handle, x + width / 2f, y + height / 2f, width / 2f, angle, -(startAngle + arcAngle) * (float)Compatibility.PI / 180);
 		}
 	} else {
 		Cairo.cairo_save(handle);
 		Cairo.cairo_translate(handle, x + width / 2f, y + height / 2f);
 		Cairo.cairo_scale(handle, width / 2f, height / 2f);
+		float angle = -startAngle * (float)Compatibility.PI / 180;
+		if (closed) Cairo.cairo_move_to(handle, Math.cos(angle), Math.sin(angle));
 		if (arcAngle >= 0) {
-			Cairo.cairo_arc_negative(handle, 0, 0, 1, -startAngle * (float)Compatibility.PI / 180, -(startAngle + arcAngle) * (float)Compatibility.PI / 180);
+			Cairo.cairo_arc_negative(handle, 0, 0, 1, angle, -(startAngle + arcAngle) * (float)Compatibility.PI / 180);
 		} else {
-			Cairo.cairo_arc(handle, 0, 0, 1, -startAngle * (float)Compatibility.PI / 180, -(startAngle + arcAngle) * (float)Compatibility.PI / 180);
+			Cairo.cairo_arc(handle, 0, 0, 1, angle, -(startAngle + arcAngle) * (float)Compatibility.PI / 180);
 		}
 		Cairo.cairo_restore(handle);
 	}
+	closed = false;
+	if (Math.abs(arcAngle) >= 360) close();
 }
 
 /**
@@ -138,11 +156,12 @@ public void addPath(Path path) {
 	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	if (path == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
 	if (path.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
-	move = false;
+	moved = false;
 	int /*long*/ copy = Cairo.cairo_copy_path(path.handle);
 	if (copy == 0) SWT.error(SWT.ERROR_NO_HANDLES);
 	Cairo.cairo_append_path(handle, copy);
 	Cairo.cairo_path_destroy(copy);
+	closed = path.closed;
 }
 
 /**
@@ -159,8 +178,9 @@ public void addPath(Path path) {
  */
 public void addRectangle(float x, float y, float width, float height) {
 	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
-	move = false;
+	moved = false;
 	Cairo.cairo_rectangle(handle, x, y, width, height);
+	closed = true;
 }
 
 /**
@@ -184,8 +204,9 @@ public void addString(String string, float x, float y, Font font) {
 	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	if (font == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
 	if (font.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
-	move = false;
+	moved = false;
 	GC.addCairoString(handle, string, x, y, font);
+	closed = true;
 }
 
 /**
@@ -200,7 +221,8 @@ public void addString(String string, float x, float y, Font font) {
 public void close() {
 	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	Cairo.cairo_close_path(handle);
-	move = false;
+	moved = false;
+	closed = true;
 }
 
 /**
@@ -232,6 +254,7 @@ public boolean contains(float x, float y, GC gc, boolean outline) {
 	if (gc.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	//TODO - see Windows
 	gc.initCairo();
+	gc.checkGC(GC.LINE_CAP | GC.LINE_JOIN | GC.LINE_STYLE | GC.LINE_WIDTH);
 	boolean result = false;
 	int /*long*/ cairo = gc.data.cairo;
 	int /*long*/ copy = Cairo.cairo_copy_path(handle);
@@ -263,13 +286,14 @@ public boolean contains(float x, float y, GC gc, boolean outline) {
  */
 public void cubicTo(float cx1, float cy1, float cx2, float cy2, float x, float y) {
 	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
-	if (!move) {
+	if (!moved) {
 		double[] currentX = new double[1], currentY = new double[1];
 		Cairo.cairo_get_current_point(handle, currentX, currentY);
 		Cairo.cairo_move_to(handle, currentX[0], currentY[0]);
+		moved = true;
 	}
-	move = true;
 	Cairo.cairo_curve_to(handle, cx1, cy1, cx2, cy2, x, y);
+	closed = false;
 }
 
 /**
@@ -458,13 +482,14 @@ public PathData getPathData() {
  */
 public void lineTo(float x, float y) {
 	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
-	if (!move) {
+	if (!moved) {
 		double[] currentX = new double[1], currentY = new double[1];
 		Cairo.cairo_get_current_point(handle, currentX, currentY);
 		Cairo.cairo_move_to(handle, currentX[0], currentY[0]);
+		moved = true;
 	}
-	move = true;
 	Cairo.cairo_line_to(handle, x, y);
+	closed = false;
 }
 
 /**
@@ -486,10 +511,11 @@ public void moveTo(float x, float y) {
 	* begining of a subpath, the first cairo_line_to() or
 	* cairo_curve_to() segment do not output anything.  The fix
 	* is to detect that the app did not call cairo_move_to()
-	* before those calls and call them explicitly. 
+	* before those calls and call it explicitly. 
 	*/
-	move = true;
+	moved = true;
 	Cairo.cairo_move_to(handle, x, y);
+	closed = true;
 }
 
 /**
@@ -508,10 +534,10 @@ public void quadTo(float cx, float cy, float x, float y) {
 	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	double[] currentX = new double[1], currentY = new double[1];
 	Cairo.cairo_get_current_point(handle, currentX, currentY);
-	if (!move) {
+	if (!moved) {
 		Cairo.cairo_move_to(handle, currentX[0], currentY[0]);
+		moved = true;
 	}
-	move = true;
 	float x0 = (float)currentX[0];
 	float y0 = (float)currentY[0];
 	float cx1 = x0 + 2 * (cx - x0) / 3;
@@ -519,6 +545,7 @@ public void quadTo(float cx, float cy, float x, float y) {
 	float cx2 = cx1 + (x - x0) / 3;
 	float cy2 = cy1 + (y - y0) / 3;
 	Cairo.cairo_curve_to(handle, cx1, cy1, cx2, cy2, x, y);
+	closed = false;
 }
 
 /**

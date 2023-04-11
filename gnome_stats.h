@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others. All rights reserved.
+ * Copyright (c) 2000, 2007 IBM Corporation and others. All rights reserved.
  * The contents of this file are made available under the terms
  * of the GNU Lesser General Public License (LGPL) Version 2.1 that
  * accompanies this distribution (lgpl-v21.txt).  The LGPL is also
@@ -20,8 +20,12 @@ extern char* GNOME_nativeFunctionNames[];
 #define GNOME_NATIVE_ENTER(env, that, func) GNOME_nativeFunctionCallCount[func]++;
 #define GNOME_NATIVE_EXIT(env, that, func) 
 #else
+#ifndef GNOME_NATIVE_ENTER
 #define GNOME_NATIVE_ENTER(env, that, func) 
+#endif
+#ifndef GNOME_NATIVE_EXIT
 #define GNOME_NATIVE_EXIT(env, that, func) 
+#endif
 #endif
 
 typedef enum {

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -23,12 +23,13 @@ import org.eclipse.swt.events.*;
  * <p>
  * <dl>
  * <dt><b>Styles:</b></dt>
- * <dd>CENTER, LEFT, MULTI, PASSWORD, SINGLE, RIGHT, READ_ONLY, WRAP</dd>
+ * <dd>CANCEL, CENTER, LEFT, MULTI, PASSWORD, SEARCH, SINGLE, RIGHT, READ_ONLY, WRAP</dd>
  * <dt><b>Events:</b></dt>
  * <dd>DefaultSelection, Modify, Verify</dd>
  * </dl>
  * <p>
- * Note: Only one of the styles MULTI and SINGLE may be specified. 
+ * Note: Only one of the styles MULTI and SINGLE may be specified,
+ * and only one of the styles LEFT, CENTER, and RIGHT may be specified.
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
@@ -36,7 +37,7 @@ import org.eclipse.swt.events.*;
 public class Text extends Scrollable {
 	char echoCharacter;
 	boolean ignoreChange;
-	String hiddenText;
+	String hiddenText, message;
 	int drawCount;
 	
 	static final boolean IsGB18030;
@@ -129,15 +130,17 @@ public void addModifyListener (ModifyListener listener) {
 }
 /**
  * Adds the listener to the collection of listeners who will
- * be notified when the control is selected, by sending
+ * be notified when the control is selected by the user, by sending
  * it one of the messages defined in the <code>SelectionListener</code>
  * interface.
  * <p>
  * <code>widgetSelected</code> is not called for texts.
- * <code>widgetDefaultSelected</code> is typically called when ENTER is pressed in a single-line text.
+ * <code>widgetDefaultSelected</code> is typically called when ENTER is pressed in a single-line text,
+ * or when ENTER is pressed in a search text. If the receiver has the <code>SWT.SEARCH | SWT.CANCEL</code> style
+ * and the user cancels the search, the event object detail field contains the value <code>SWT.CANCEL</code>.
  * </p>
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should be notified when the control is selected by the user
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -214,6 +217,11 @@ public void append (String string) {
 	display.setWarnings(warnings);
 }
 static int checkStyle (int style) {
+	if ((style & SWT.SEARCH) != 0) {
+		style |= SWT.SINGLE | SWT.BORDER;
+		style &= ~SWT.PASSWORD;
+	}
+	style &= ~SWT.SEARCH;
 	if ((style & SWT.SINGLE) != 0 && (style & SWT.MULTI) != 0) {
 		style &= ~SWT.MULTI;
 	}
@@ -301,6 +309,13 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 		}
 		OS.XtFree (ptr);
 	}
+	//This code is intentionally commented
+//	if ((style & SWT.SEARCH) != 0 && message.length () != 0) {
+//		GC gc = new GC (this);
+//		Point size = gc.stringExtent (message);
+//		width = Math.max (width, size.x);
+//		gc.dispose ();
+//	}
 	Rectangle trim = computeTrim (0, 0, width, height);
 	return new Point (trim.width, trim.height);
 }
@@ -364,7 +379,7 @@ void createHandle (int index) {
 		OS.XmNscrollVertical, (style & SWT.V_SCROLL) != 0 ? 1 : 0,
 		OS.XmNwordWrap, !IsGB18030 && (style & SWT.WRAP) != 0 ? 1: 0,
 		OS.XmNeditable, (style & SWT.READ_ONLY) != 0 ? 0 : 1,
-		OS.XmNcursorPositionVisible, (style & SWT.READ_ONLY) != 0 && (style & SWT.SINGLE) != 0 ? 0 : 1,
+		OS.XmNcursorPositionVisible, (style & SWT.READ_ONLY) != 0 ? 0 : 1,
 //		OS.XmNmarginWidth, 3,
 //		OS.XmNmarginHeight, 1,
 		OS.XmNancestorSensitive, 1,
@@ -406,7 +421,7 @@ ScrollBar createScrollBar (int type) {
 }
 void createWidget (int index) {
 	super.createWidget (index);	
-	hiddenText = "";
+	hiddenText = message = "";
 	if ((style & SWT.PASSWORD) != 0) setEchoChar ('*');
 }
 /**
@@ -436,18 +451,22 @@ Font defaultFont () {
 int defaultForeground () {
 	return display.textForeground;
 }
-boolean dragDetect (int x, int y) {
-	if (hooks (SWT.DragDetect)) {
+boolean dragDetect (int x, int y, boolean filter, boolean [] consume) {
+	if (filter) {
 		int [] start = new int [1], end = new int [1];
 		OS.XmTextGetSelectionPosition (handle, start, end);
-		if (start [0] == end [0]) return false;
-		int pos = OS.XmTextXYToPos(handle, (short) x, (short) y);
-		return pos > start [0] && pos < end [0];
+		if (start [0] != end [0]) {
+			int pos = OS.XmTextXYToPos(handle, (short) x, (short) y);
+			if (start [0] <= pos && pos < end [0]) {
+				if (super.dragDetect (x, y, filter, consume)) {
+					if (consume != null) consume [0] = true;
+					return true;
+				}
+			}
+		}
+		return false;
 	}
-	return false;
-}
-boolean dragOverride () {
-	return true;
+	return super.dragDetect (x, y, filter, consume);
 }
 /**
  * Returns the line number of the caret.
@@ -665,6 +684,29 @@ int getLineNumber (int position) {
 	}
 	return count;
 }
+/**
+ * Returns the widget message. When the widget is created
+ * with the style <code>SWT.SEARCH</code>, the message text
+ * is displayed as a hint for the user, indicating the
+ * purpose of the field.
+ * <p>
+ * Note: This operation is a <em>HINT</em> and is not
+ * supported on platforms that do not have this concept.
+ * </p>
+ * 
+ * @return the widget message
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.3
+ */
+public String getMessage () {
+	checkWidget ();
+	return message;
+}
 int getNavigationType () {
 	/*
 	* Bug in Motif.  On Solaris only, the implementation
@@ -700,6 +742,11 @@ int getNavigationType () {
 public int getOrientation () {
 	checkWidget();
 	return style & (SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT);
+}
+/*public*/ int getPosition (Point point) {
+	checkWidget ();
+	if (point == null) error (SWT.ERROR_NULL_ARGUMENT);
+	return OS.XmTextXYToPos(handle, (short) point.x, (short) point.y);
 }
 /**
  * Returns a <code>Point</code> whose x coordinate is the
@@ -1003,7 +1050,7 @@ public void paste () {
 }
 void releaseWidget () {
 	super.releaseWidget ();
-	hiddenText = null;
+	hiddenText = message = null;
 }
 /**
  * Removes the listener from the collection of listeners who will
@@ -1030,7 +1077,7 @@ public void removeModifyListener (ModifyListener listener) {
 }
 /**
  * Removes the listener from the collection of listeners who will
- * be notified when the control is selected.
+ * be notified when the control is selected by the user.
  *
  * @param listener the listener which should no longer be notified
  *
@@ -1207,6 +1254,33 @@ public void setEditable (boolean editable) {
 	if ((style & SWT.MULTI) != 0) return;
 	int [] argList = {OS.XmNcursorPositionVisible, editable && hasFocus () ? 1 : 0};
 	OS.XtSetValues (handle, argList, argList.length / 2);
+}
+/**
+ * Sets the widget message. When the widget is created
+ * with the style <code>SWT.SEARCH</code>, the message text
+ * is displayed as a hint for the user, indicating the
+ * purpose of the field.
+ * <p>
+ * Note: This operation is a <em>HINT</em> and is not
+ * supported on platforms that do not have this concept.
+ * </p>
+ * 
+ * @param message the new message
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the message is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.3
+ */
+public void setMessage (String message) {
+	checkWidget ();
+	if (message == null) error (SWT.ERROR_NULL_ARGUMENT);
+	this.message = message;
 }
 /**
  * Sets the orientation of the receiver, which must be one
@@ -1505,20 +1579,21 @@ int xFocusIn (XFocusChangeEvent xEvent) {
 	super.xFocusIn (xEvent);
 	// widget could be disposed at this point
 	if (handle == 0) return 0;
-	if ((style & SWT.READ_ONLY) != 0) return 0;
-	if ((style & SWT.MULTI) != 0) return 0;
-	int [] argList = {OS.XmNcursorPositionVisible, 1};
-	OS.XtSetValues (handle, argList, argList.length / 2);
+	if ((style & (SWT.READ_ONLY | SWT.SINGLE)) != 0) {
+		int [] argList = {OS.XmNcursorPositionVisible, 1};
+		OS.XtSetValues (handle, argList, argList.length / 2);
+	}
 	return 0;
 }
 int xFocusOut (XFocusChangeEvent xEvent) {
 	super.xFocusOut (xEvent);
 	// widget could be disposed at this point
 	if (handle == 0) return 0;
-	if ((style & SWT.READ_ONLY) != 0) return 0;
-	if ((style & SWT.MULTI) != 0) return 0;
-	int [] argList = {OS.XmNcursorPositionVisible, 0};
-	OS.XtSetValues (handle, argList, argList.length / 2);
+	if ((style & (SWT.READ_ONLY | SWT.SINGLE)) != 0) {
+		int [] argList = {OS.XmNcursorPositionVisible, 0};
+		OS.XtSetValues (handle, argList, argList.length / 2);
+		return 0;
+	}
 	return 0;
 }
 int XmNactivateCallback (int w, int client_data, int call_data) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -101,7 +101,7 @@ public TableTreeEditor (TableTree tableTree) {
 			public void run() {
 				if (editor == null || editor.isDisposed()) return;
 				if (TableTreeEditor.this.tableTree.isDisposed()) return;
-				_resize();
+				layout();
 				editor.setVisible(true);
 			}
 		};
@@ -120,10 +120,10 @@ public TableTreeEditor (TableTree tableTree) {
 	
 	columnListener = new ControlListener() {
 		public void controlMoved(ControlEvent e){
-			_resize ();
+			layout ();
 		}
 		public void controlResized(ControlEvent e){
-			_resize ();
+			layout ();
 		}
 	};
 	
@@ -171,18 +171,21 @@ Rectangle computeBounds () {
  * TableTree and the editor Control are <b>not</b> disposed.
  */
 public void dispose () {
-	if (treeListener != null) 
-		tableTree.removeTreeListener(treeListener);
-	treeListener = null;	
-	Table table = tableTree.getTable();
-	if (this.column > -1 && this.column < table.getColumnCount()){
-		TableColumn tableColumn = table.getColumn(this.column);
-		tableColumn.removeControlListener(columnListener);
+	if (tableTree != null && !tableTree.isDisposed()) {
+		Table table = tableTree.getTable();
+		if (table != null && !table.isDisposed()) {
+			if (this.column > -1 && this.column < table.getColumnCount()){
+				TableColumn tableColumn = table.getColumn(this.column);
+				tableColumn.removeControlListener(columnListener);
+			}
+		}
+		if (treeListener != null) tableTree.removeTreeListener(treeListener);
 	}
+	treeListener = null;
+	columnListener = null;
 	tableTree = null;
 	item = null;
 	column = -1;
-	
 	super.dispose();
 }
 /**
@@ -208,7 +211,7 @@ public void setColumn(int column) {
 	// In this situation, there is a single default column.
 	if (columnCount == 0) {
 		this.column = (column == 0) ? 0 : -1;
-		_resize();
+		layout();
 		return;
 	}
 	if (this.column > -1 && this.column < columnCount){
@@ -222,11 +225,11 @@ public void setColumn(int column) {
 	this.column = column;
 	TableColumn tableColumn = table.getColumn(this.column);
 	tableColumn.addControlListener(columnListener);
-	_resize();
+	layout();
 }
 public void setItem (TableTreeItem item) {	
 	this.item = item;
-	_resize();
+	layout();
 }
 
 /**
@@ -244,13 +247,13 @@ public void setEditor (Control editor, TableTreeItem item, int column) {
 	setColumn(column);
 	setEditor(editor);
 }
-void _resize () {
-	if (tableTree.isDisposed()) return;
+public void layout () {
+	if (tableTree == null || tableTree.isDisposed()) return;
 	if (item == null || item.isDisposed()) return;
 	Table table = tableTree.getTable();
 	int columnCount = table.getColumnCount();
 	if (columnCount == 0 && column != 0) return;
 	if (columnCount > 0 && (column < 0 || column >= columnCount)) return;
-	super._resize();
+	super.layout();
 }
 }

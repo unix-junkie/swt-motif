@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -50,7 +50,7 @@ public class TableTree extends Composite {
 	* TableTree inherits this behaviour from Composite.  The items
 	* must be disposed separately.  Because TableTree is not part of
 	* the org.eclipse.swt.widgets package, the method releaseWidget can 
-	* not be overriden (this is how items are disposed of in Table and Tree).
+	* not be overridden (this is how items are disposed of in Table and Tree).
 	* Instead, the items are disposed of in response to the dispose event on the
 	* TableTree.  The "inDispose" flag is used to distinguish between disposing
 	* one TableTreeItem (e.g. when removing an entry from the TableTree) and 
@@ -147,7 +147,7 @@ int addItem(TableTreeItem item, int index) {
 
 /**
  * Adds the listener to the collection of listeners who will
- * be notified when the receiver's selection changes, by sending
+ * be notified when the user changes the receiver's selection, by sending
  * it one of the messages defined in the <code>SelectionListener</code>
  * interface.
  * <p>
@@ -158,7 +158,7 @@ int addItem(TableTreeItem item, int index) {
  * The item field of the event object is valid for default selection, but the detail field is not used.
  * </p>
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should be notified when the user changes the receiver's selection
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -249,7 +249,7 @@ void expandItem (TableTreeItem item) {
 	}
 }
 public Color getBackground () {
-	// This method must be overriden otherwise, in a TableTree in which the first
+	// This method must be overridden otherwise, in a TableTree in which the first
 	// item has no sub items, a grey (Widget background colour) square will appear in
 	// the first column of the first item.
 	// It is not possible in the constructor to set the background of the TableTree
@@ -637,7 +637,7 @@ void removeItem(TableTreeItem item) {
 
 /**
  * Removes the listener from the collection of listeners who will
- * be notified when the receiver's selection changes.
+ * be notified when the user changes the receiver's selection.
  *
  * @param listener the listener which should no longer be notified
  *

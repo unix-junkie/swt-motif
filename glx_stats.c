@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -18,27 +18,27 @@ int GLX_nativeFunctionCount = 23;
 int GLX_nativeFunctionCallCount[23];
 char * GLX_nativeFunctionNames[] = {
 	"XVisualInfo_1sizeof",
-	"glGetIntegerv",
-	"glViewport",
-	"glXChooseVisual",
-	"glXCopyContext",
-	"glXCreateContext",
-	"glXCreateGLXPixmap",
-	"glXDestroyContext",
-	"glXDestroyGLXPixmap",
-	"glXGetClientString",
-	"glXGetConfig",
-	"glXGetCurrentContext",
-	"glXGetCurrentDrawable",
-	"glXIsDirect",
-	"glXMakeCurrent",
-	"glXQueryExtension",
-	"glXQueryExtensionsString",
-	"glXQueryServerString",
-	"glXQueryVersion",
-	"glXSwapBuffers",
-	"glXWaitGL",
-	"glXWaitX",
+	"_1glGetIntegerv",
+	"_1glViewport",
+	"_1glXChooseVisual",
+	"_1glXCopyContext",
+	"_1glXCreateContext",
+	"_1glXCreateGLXPixmap",
+	"_1glXDestroyContext",
+	"_1glXDestroyGLXPixmap",
+	"_1glXGetClientString",
+	"_1glXGetConfig",
+	"_1glXGetCurrentContext",
+	"_1glXGetCurrentDrawable",
+	"_1glXIsDirect",
+	"_1glXMakeCurrent",
+	"_1glXQueryExtension",
+	"_1glXQueryExtensionsString",
+	"_1glXQueryServerString",
+	"_1glXQueryVersion",
+	"_1glXSwapBuffers",
+	"_1glXWaitGL",
+	"_1glXWaitX",
 	"memmove",
 };
 

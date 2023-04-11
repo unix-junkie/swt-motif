@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -29,7 +29,7 @@ import org.eclipse.swt.widgets.Event;
  * @see MouseTrackListener
  */
 
-public final class MouseEvent extends TypedEvent {
+public class MouseEvent extends TypedEvent {
 	
 	/**
 	 * the button that was pressed or released; 1 for the
@@ -55,6 +55,15 @@ public final class MouseEvent extends TypedEvent {
 	 * at the time the mouse button was pressed or released
 	 */	
 	public int y;
+	
+	/**
+	 * the number times the mouse has been clicked, as defined
+	 * by the operating system; 1 for the first click, 2 for the
+	 * second click and so on.
+	 * 
+	 * @since 3.3
+	 */
+	public int count;
 
 	static final long serialVersionUID = 3257288037011566898L;
 	
@@ -70,6 +79,7 @@ public MouseEvent(Event e) {
 	this.y = e.y;
 	this.button = e.button;
 	this.stateMask = e.stateMask;
+	this.count = e.count;
 }
 
 /**
@@ -85,6 +95,7 @@ public String toString() {
 		+ " stateMask=" + stateMask
 		+ " x=" + x
 		+ " y=" + y
+		+ " count=" + count
 		+ "}";
 }
 }

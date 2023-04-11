@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -94,8 +94,9 @@ void checkLayout () {
 
 int stringWidth (StyleItem run, char[] ch) {
 	if (ch.length == 0) return 0;
-	int fontList = getItemFont(run).handle;
-	byte[] buffer = Converter.wcsToMbcs(null, ch, true);
+	Font font = getItemFont(run);
+	int fontList = font.handle;
+	byte[] buffer = Converter.wcsToMbcs(font.codePage, ch, true);
 	int xmString = OS.XmStringCreateLocalized(buffer);
 	int width = OS.XmStringWidth(fontList, xmString);
 	OS.XmStringFree(xmString);
@@ -322,16 +323,48 @@ public void draw (GC gc, int x, int y) {
  * </ul>
  */
 public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Color selectionForeground, Color selectionBackground) {
+	draw(gc, x, y, selectionStart, selectionEnd, selectionForeground, selectionBackground, 0);
+}
+
+/**
+ * Draws the receiver's text using the specified GC at the specified
+ * point.
+ * <p>
+ * The parameter <code>flags</code> can include one of <code>SWT.DELIMITER_SELECTION</code>
+ * or <code>SWT.FULL_SELECTION</code> to specify the selection behavior on all lines except
+ * for the last line, and can also include <code>SWT.LAST_LINE_SELECTION</code> to extend
+ * the specified selection behavior to the last line.
+ * </p>
+ * @param gc the GC to draw
+ * @param x the x coordinate of the top left corner of the rectangular area where the text is to be drawn
+ * @param y the y coordinate of the top left corner of the rectangular area where the text is to be drawn
+ * @param selectionStart the offset where the selections starts, or -1 indicating no selection
+ * @param selectionEnd the offset where the selections ends, or -1 indicating no selection
+ * @param selectionForeground selection foreground, or NULL to use the system default color
+ * @param selectionBackground selection background, or NULL to use the system default color
+ * @param flags drawing options
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the gc is null</li>
+ * </ul>
+ * 
+ * @since 3.3
+ */
+public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Color selectionForeground, Color selectionBackground, int flags) {
 	checkLayout();
 	computeRuns();
 	if (gc == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
 	if (gc.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	if (selectionForeground != null && selectionForeground.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	if (selectionBackground != null && selectionBackground.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+	gc.checkGC(GC.FOREGROUND);
 	int length = text.length(); 
-	if (length == 0) return;
+	if (length == 0 && flags == 0) return;
 	boolean hasSelection = selectionStart <= selectionEnd && selectionStart != -1 && selectionEnd != -1;
-	if (hasSelection) {
+	if (hasSelection || (flags & SWT.LAST_LINE_SELECTION) != 0) {
 		selectionStart = Math.min(Math.max(0, selectionStart), length - 1);
 		selectionEnd = Math.min(Math.max(0, selectionEnd), length - 1);		
 		if (selectionForeground == null) selectionForeground = device.getSystemColor(SWT.COLOR_LIST_SELECTION_TEXT);
@@ -345,13 +378,34 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 		int drawX = x + getLineIndent(line);
 		int drawY = y + lineY[line];
 		StyleItem[] lineRuns = runs[line];
+		int lineHeight = lineY[line+1] - lineY[line];
+		if (flags != 0 && (hasSelection || (flags & SWT.LAST_LINE_SELECTION) != 0)) {
+			boolean extent = false;
+			if (line == runs.length - 1 && (flags & SWT.LAST_LINE_SELECTION) != 0) {
+				extent = true;
+			} else {
+				StyleItem run = lineRuns[lineRuns.length - 1];
+				if (run.lineBreak && !run.softBreak) {
+					if (selectionStart <= run.start && run.start <= selectionEnd) extent = true;
+				} else {
+					int endOffset = run.start + run.length - 1;
+					if (selectionStart <= endOffset && endOffset < selectionEnd && (flags & SWT.FULL_SELECTION) != 0) {
+						extent = true;
+					}
+				}
+			}
+			if (extent) {
+				gc.setBackground(selectionBackground);
+				int width = (flags & SWT.FULL_SELECTION) != 0 ? 0x7fffffff : lineHeight / 3;
+				gc.fillRectangle(drawX + lineWidth[line], drawY, width, lineHeight);
+			}
+		}
 		if (drawX > clip.x + clip.width) continue;
 		if (drawX + lineWidth[line] < clip.x) continue;
 		int baseline = Math.max(0, this.ascent);
 		for (int i = 0; i < lineRuns.length; i++) {
 			baseline = Math.max(baseline, lineRuns[i].baseline);
 		}
-		int lineHeight = lineY[line+1] - lineY[line];
 		for (int i = 0; i < lineRuns.length; i++) {
 			StyleItem run = lineRuns[i];
 			if (run.length == 0) continue;
@@ -641,7 +695,7 @@ public boolean getJustify () {
  * embedding level is usually used to determine the directionality of a
  * character in bidirectional text.
  * 
- * @param offset the charecter offset
+ * @param offset the character offset
  * @return the embedding level
  * 
  * @exception IllegalArgumentException <ul>
@@ -892,7 +946,8 @@ Font getItemFont(StyleItem item) {
 /**
  * Returns the next offset for the specified offset and movement
  * type.  The movement is one of <code>SWT.MOVEMENT_CHAR</code>, 
- * <code>SWT.MOVEMENT_CLUSTER</code> or <code>SWT.MOVEMENT_WORD</code>.
+ * <code>SWT.MOVEMENT_CLUSTER</code>, <code>SWT.MOVEMENT_WORD</code>,
+ * <code>SWT.MOVEMENT_WORD_END</code> or <code>SWT.MOVEMENT_WORD_START</code>.
  * 
  * @param offset the start offset
  * @param movement the movement type 
@@ -926,7 +981,12 @@ public int getNextOffset (int offset, int movement) {
 	offset++;
 	while (offset < lineEnd) {
 		boolean spaceChar = !Compatibility.isLetterOrDigit(text.charAt(offset));
-		if (!spaceChar && previousSpaceChar) break;
+		if (movement == SWT.MOVEMENT_WORD || movement == SWT.MOVEMENT_WORD_END) {
+			if (spaceChar && !previousSpaceChar) break;
+		}
+		if (movement == SWT.MOVEMENT_WORD_START) {
+			if (!spaceChar && previousSpaceChar) break;
+		}
 		previousSpaceChar = spaceChar;
 		offset++;
 	}
@@ -1060,7 +1120,8 @@ public int getOrientation () {
 /**
  * Returns the previous offset for the specified offset and movement
  * type.  The movement is one of <code>SWT.MOVEMENT_CHAR</code>, 
- * <code>SWT.MOVEMENT_CLUSTER</code> or <code>SWT.MOVEMENT_WORD</code>.
+ * <code>SWT.MOVEMENT_CLUSTER</code> or <code>SWT.MOVEMENT_WORD</code>,
+ * <code>SWT.MOVEMENT_WORD_END</code> or <code>SWT.MOVEMENT_WORD_START</code>.
  * 
  * @param offset the start offset
  * @param movement the movement type 
@@ -1095,7 +1156,12 @@ public int getPreviousOffset (int offset, int movement) {
 	boolean previousSpaceChar = !Compatibility.isLetterOrDigit(text.charAt(offset));
 	while (lineStart < offset) {
 		boolean spaceChar = !Compatibility.isLetterOrDigit(text.charAt(offset - 1));
-		if (spaceChar && !previousSpaceChar) break;
+		if (movement == SWT.MOVEMENT_WORD_END) {
+			if (!spaceChar && previousSpaceChar) break;
+		}
+		if (movement == SWT.MOVEMENT_WORD || movement == SWT.MOVEMENT_WORD_START) {
+			if (spaceChar && !previousSpaceChar) break;
+		}
 		offset--;
 		previousSpaceChar = spaceChar;
 	}
@@ -1361,8 +1427,9 @@ void place (StyleItem run) {
 	} else {
 		char[] chars = new char[run.length];
 		text.getChars(run.start, run.start + run.length, chars, 0);
-		int fontList = getItemFont(run).handle;
-		byte[] buffer = Converter.wcsToMbcs(null, chars, true);
+		Font font = getItemFont(run);
+		int fontList = font.handle;
+		byte[] buffer = Converter.wcsToMbcs(font.codePage, chars, true);
 		short[] width = new short[1], height = new short[1];
 		int xmString = OS.XmStringCreateLocalized(buffer);
 		OS.XmStringExtent(fontList, xmString, width, height);

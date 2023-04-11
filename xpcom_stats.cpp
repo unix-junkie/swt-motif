@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -14,17 +14,14 @@
 
 #ifdef NATIVE_STATS
 
-int XPCOM_nativeFunctionCount = 132;
-int XPCOM_nativeFunctionCallCount[132];
+int XPCOM_nativeFunctionCount = 127;
+int XPCOM_nativeFunctionCallCount[127];
 char * XPCOM_nativeFunctionNames[] = {
 	"Call",
 	"NS_1GetComponentManager",
 	"NS_1GetServiceManager",
-	"NS_1InitEmbedding",
+	"NS_1InitXPCOM2",
 	"NS_1NewLocalFile",
-	"NS_1TermEmbedding",
-	"PR_1Free",
-	"PR_1Malloc",
 	"VtblCall__II",
 	"VtblCall__IIF",
 	"VtblCall__III",
@@ -33,11 +30,14 @@ char * XPCOM_nativeFunctionNames[] = {
 	"VtblCall__IIIIII",
 	"VtblCall__IIIIIII",
 	"VtblCall__IIIIIIII",
+	"VtblCall__IIIIIIJII",
 	"VtblCall__IIIIIIZ",
+	"VtblCall__IIIIII_3Z_3I",
 	"VtblCall__IIIIIZ",
 	"VtblCall__IIIIIZ_3CIIIIZ_3I_3I",
 	"VtblCall__IIIII_3C",
 	"VtblCall__IIIII_3I",
+	"VtblCall__IIIIJJJJ",
 	"VtblCall__IIIIJZ",
 	"VtblCall__IIIIZ",
 	"VtblCall__IIII_3C",
@@ -52,8 +52,11 @@ char * XPCOM_nativeFunctionNames[] = {
 	"VtblCall__IIIZZII",
 	"VtblCall__IIIZZIIIIIIZZZZSI",
 	"VtblCall__IIIZ_3Z",
+	"VtblCall__III_3B",
 	"VtblCall__III_3BI_3I",
+	"VtblCall__III_3BZ",
 	"VtblCall__III_3B_3B_3BI_3I",
+	"VtblCall__III_3B_3C",
 	"VtblCall__III_3B_3Z",
 	"VtblCall__III_3C",
 	"VtblCall__III_3CI",
@@ -74,6 +77,7 @@ char * XPCOM_nativeFunctionNames[] = {
 	"VtblCall__IIJJ",
 	"VtblCall__IIJJI",
 	"VtblCall__IIJJJJJ",
+	"VtblCall__IIJJZ",
 	"VtblCall__IILorg_eclipse_swt_internal_mozilla_nsID_2I",
 	"VtblCall__IILorg_eclipse_swt_internal_mozilla_nsID_2ILorg_eclipse_swt_internal_mozilla_nsID_2_3I",
 	"VtblCall__IILorg_eclipse_swt_internal_mozilla_nsID_2Lorg_eclipse_swt_internal_mozilla_nsID_2_3I",
@@ -122,17 +126,10 @@ char * XPCOM_nativeFunctionNames[] = {
 	"VtblCall__II_3J",
 	"VtblCall__II_3S",
 	"VtblCall__II_3Z",
+	"XPCOMGlueShutdown",
+	"XPCOMGlueStartup",
 	"memmove__ILorg_eclipse_swt_internal_mozilla_nsID_2I",
-	"memmove__I_3BI",
-	"memmove__I_3CI",
-	"memmove__I_3II",
-	"memmove__I_3JI",
 	"memmove__Lorg_eclipse_swt_internal_mozilla_nsID_2II",
-	"memmove___3BII",
-	"memmove___3B_3CI",
-	"memmove___3CII",
-	"memmove___3III",
-	"memmove___3JII",
 	"nsEmbedCString_1Length",
 	"nsEmbedCString_1delete",
 	"nsEmbedCString_1get",
@@ -144,10 +141,8 @@ char * XPCOM_nativeFunctionNames[] = {
 	"nsEmbedString_1new__",
 	"nsEmbedString_1new___3C",
 	"nsID_1Equals",
-	"nsID_1Parse",
 	"nsID_1delete",
 	"nsID_1new",
-	"strlen",
 	"strlen_1PRUnichar",
 };
 
