@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -91,6 +91,10 @@ import org.eclipse.swt.internal.motif.*;
  *	<dt><b>Styles</b></dt> <dd>DND.DROP_NONE, DND.DROP_COPY, DND.DROP_MOVE, DND.DROP_LINK</dd>
  *	<dt><b>Events</b></dt> <dd>DND.DragStart, DND.DragSetData, DND.DragEnd</dd>
  * </dl>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#dnd">Drag and Drop snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: DNDExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class DragSource extends Widget {
 
@@ -101,7 +105,6 @@ public class DragSource extends Widget {
 	DragSourceEffect dragEffect;
 
 	static final String DEFAULT_DRAG_SOURCE_EFFECT = "DEFAULT_DRAG_SOURCE_EFFECT"; //$NON-NLS-1$
-	static final String DRAGSOURCEID = "DragSource"; //$NON-NLS-1$
 		
 	static Callback ConvertProc;
 	static Callback DragDropFinish;
@@ -152,9 +155,9 @@ public DragSource(Control control, int style) {
 	if (ConvertProc == null || DragDropFinish == null || DropFinish == null)
 		DND.error(DND.ERROR_CANNOT_INIT_DRAG);
 	this.control = control;
-	if (control.getData(DRAGSOURCEID) != null)
+	if (control.getData(DND.DRAG_SOURCE_KEY) != null)
 		DND.error(DND.ERROR_CANNOT_INIT_DRAG);
-	control.setData(DRAGSOURCEID, this);
+	control.setData(DND.DRAG_SOURCE_KEY, this);
 
 	controlListener = new Listener () {
 		public void handleEvent (Event event) {
@@ -234,6 +237,7 @@ static int DropFinishCallback(int widget, int client_data, int call_data) {
  * </ul>
  *
  * @see DragSourceListener
+ * @see #getDragListeners
  * @see #removeDragListener
  * @see DragSourceEvent
  */
@@ -468,6 +472,43 @@ public Control getControl () {
 	return control;
 }
 /**
+ * Returns an array of listeners who will be notified when a drag and drop 
+ * operation is in progress, by sending it one of the messages defined in 
+ * the <code>DragSourceListener</code> interface.
+ *
+ * @return the listeners who will be notified when a drag and drop
+ * operation is in progress
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @see DragSourceListener
+ * @see #addDragListener
+ * @see #removeDragListener
+ * @see DragSourceEvent
+ * 
+ * @since 3.4
+ */
+public DragSourceListener[] getDragListeners() {
+	Listener[] listeners = getListeners(DND.DragStart);
+	int length = listeners.length;
+	DragSourceListener[] dragListeners = new DragSourceListener[length];
+	int count = 0;
+	for (int i = 0; i < length; i++) {
+		Listener listener = listeners[i];
+		if (listener instanceof DNDListener) {
+			dragListeners[count] = (DragSourceListener) ((DNDListener) listener).getEventListener();
+			count++;
+		}
+	}
+	if (count == length) return dragListeners;
+	DragSourceListener[] result = new DragSourceListener[count];
+	System.arraycopy(dragListeners, 0, result, 0, count);
+	return result;
+}
+/**
  * Returns the drag effect that is registered for this DragSource.  This drag
  * effect will be used during a drag and drop operation.
  *
@@ -495,7 +536,7 @@ void onDispose() {
 		control.removeListener(SWT.DragDetect, controlListener);
 	}
 	controlListener = null;
-	control.setData(DRAGSOURCEID, null);
+	control.setData(DND.DRAG_SOURCE_KEY, null);
 	control = null;
 	transferAgents = null;
 }
@@ -527,7 +568,7 @@ int osOpToOp(byte osOperation){
  * Removes the listener from the collection of listeners who will
  * be notified when a drag and drop operation is in progress.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -539,6 +580,7 @@ int osOpToOp(byte osOperation){
  *
  * @see DragSourceListener
  * @see #addDragListener
+ * @see #getDragListeners
  */
 public void removeDragListener(DragSourceListener listener) {
 	if (listener == null) DND.error (SWT.ERROR_NULL_ARGUMENT);

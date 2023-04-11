@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -41,6 +41,7 @@ import org.eclipse.swt.events.*;
  * </p>
  *
  * @see #checkSubclass
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public abstract class Widget {
 	/**
@@ -175,6 +176,7 @@ public Widget (Widget parent, int style) {
  *
  * @see Listener
  * @see SWT
+ * @see #getListeners(int)
  * @see #removeListener(int, Listener)
  * @see #notifyListeners
  */
@@ -361,7 +363,7 @@ void error (int code) {
 boolean filters (int eventType) {
 	return display.filters (eventType);
 }
-char fixMnemonic (char [] buffer) {
+static char fixMnemonic (char [] buffer) {
 	int i=0, j=0;
 	char mnemonic=0;
 	while (i < buffer.length) {
@@ -464,6 +466,32 @@ public Display getDisplay () {
 	if (display == null) error (SWT.ERROR_WIDGET_DISPOSED);
 	return display;
 }
+/**
+ * Returns an array of listeners who will be notified when an event 
+ * of the given type occurs. The event type is one of the event constants 
+ * defined in class <code>SWT</code>.
+ *
+ * @param eventType the type of event to listen for
+ * @return an array of listeners that will be notified when the event occurs
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @see Listener
+ * @see SWT
+ * @see #addListener(int, Listener)
+ * @see #removeListener(int, Listener)
+ * @see #notifyListeners
+ * 
+ * @since 3.4
+ */
+public Listener[] getListeners (int eventType) {
+	checkWidget();
+	if (eventTable == null) return new Listener[0];
+	return eventTable.getListeners(eventType);
+}
 String getName () {
 	String string = getClass ().getName ();
 	int index = string.lastIndexOf ('.');
@@ -564,6 +592,7 @@ void manageChildren () {
  * 
  * @see SWT
  * @see #addListener
+ * @see #getListeners(int)
  * @see #removeListener(int, Listener)
  */
 public void notifyListeners (int eventType, Event event) {
@@ -673,7 +702,7 @@ void releaseWidget () {
  * type is one of the event constants defined in class <code>SWT</code>.
  *
  * @param eventType the type of event to listen for
- * @param listener the listener which should no longer be notified when the event occurs
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -686,6 +715,7 @@ void releaseWidget () {
  * @see Listener
  * @see SWT
  * @see #addListener
+ * @see #getListeners(int)
  * @see #notifyListeners
  */
 public void removeListener (int eventType, Listener handler) {
@@ -705,7 +735,7 @@ public void removeListener (int eventType, Listener handler) {
  * </p>
  *
  * @param eventType the type of event to listen for
- * @param listener the listener which should no longer be notified when the event occurs
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -728,7 +758,7 @@ protected void removeListener (int eventType, SWTEventListener handler) {
  * Removes the listener from the collection of listeners who will
  * be notified when the widget is disposed.
  *
- * @param listener the listener which should no longer be notified when the receiver is disposed
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>

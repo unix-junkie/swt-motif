@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -34,6 +34,10 @@ import org.eclipse.swt.accessibility.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/snippets/#control">Control snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public abstract class Control extends Widget implements Drawable {
 	int drawCount, redrawWindow;
@@ -42,6 +46,7 @@ public abstract class Control extends Widget implements Drawable {
 	Menu menu;
 	Image backgroundImage;
 	Font font;
+	Region region;
 	String toolTipText;
 	Object layoutData;
 	Accessible accessible;
@@ -917,7 +922,9 @@ String getCodePage () {
  * When the mouse pointer passes over a control its appearance
  * is changed to match the control's cursor.
  * </p>
- * </ul>
+ *
+ * @return the receiver's cursor or <code>null</code>
+ *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -1225,6 +1232,23 @@ Control [] getPath () {
 		control = control.parent;
 	}
 	return result;
+}
+/** 
+ * Returns the region that defines the shape of the control,
+ * or null if the control has the default shape.
+ *
+ * @return the region that defines the shape of the shell (or null)
+ *	
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
+public Region getRegion () {
+	checkWidget ();
+	return region;
 }
 /**
  * Returns the receiver's shell. For all controls other than
@@ -1668,6 +1692,29 @@ void propagateWidget (boolean enabled) {
 	int xCursor = enabled && cursor != null ? cursor.handle : OS.None;
 	propagateHandle (enabled, handle, xCursor);
 }
+/**
+ * Prints the receiver and all children.
+ * 
+ * @param gc the gc where the drawing occurs
+ * @return <code>true</code> if the operation was successful and <code>false</code> otherwise
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the gc is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the gc has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public boolean print (GC gc) {
+	checkWidget ();
+	if (gc == null) error (SWT.ERROR_NULL_ARGUMENT);
+	if (gc.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
+	return false;
+}
 void realizeChildren () {
 	if (isEnabled ()) {
 		if (cursor != null) {
@@ -1786,6 +1833,7 @@ void releaseWidget () {
 		}
 	}
 	layoutData = null;
+	region = null;
 }
 /**
  * Removes the listener from the collection of listeners who will
@@ -2405,7 +2453,8 @@ public void setBounds (Rectangle rect) {
 /**
  * If the argument is <code>true</code>, causes the receiver to have
  * all mouse events delivered to it until the method is called with
- * <code>false</code> as the argument.
+ * <code>false</code> as the argument.  Note that on some platforms,
+ * a mouse button must currently be down for capture to be assigned.
  *
  * @param capture <code>true</code> to capture the mouse, and <code>false</code> to release it
  *
@@ -2825,6 +2874,40 @@ public void setRedraw (boolean redraw) {
 			}
 		}
 	}
+}
+/**
+ * Sets the shape of the control to the region specified
+ * by the argument.  When the argument is null, the
+ * default shape of the control is restored.
+ *
+ * @param region the region that defines the shape of the control (or null)
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the region has been disposed</li>
+ * </ul>  
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
+public void setRegion (Region region) {
+	checkWidget ();
+	if (region != null && region.isDisposed()) error (SWT.ERROR_INVALID_ARGUMENT);
+	int topHandle = topHandle ();
+	Shell shell = getShell ();
+	if (!OS.XtIsRealized (topHandle)) shell.realizeWidget ();
+	int xDisplay = OS.XtDisplay (topHandle);
+	if (xDisplay == 0) return;
+	int xWindow = OS.XtWindow (topHandle);
+	if (xWindow == 0) return;
+	if (region != null) {
+		OS.XShapeCombineRegion (xDisplay, xWindow, OS.ShapeBounding, 0, 0, region.handle, OS.ShapeSet);
+	} else {
+		OS.XShapeCombineMask (xDisplay, xWindow, OS.ShapeBounding, 0, 0, 0, OS.ShapeSet);
+	}
+	this.region = region;
 }
 boolean setTabGroupFocus (boolean next) {
 	return setTabItemFocus (next);

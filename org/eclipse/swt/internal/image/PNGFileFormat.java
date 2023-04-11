@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -16,7 +16,7 @@ import org.eclipse.swt.*;
 import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.internal.*;
 
-final class PNGFileFormat extends FileFormat {
+public final class PNGFileFormat extends FileFormat {
 	static final int SIGNATURE_LENGTH = 8;
 	static final int PRIME = 65521;
 	PngIhdrChunk headerChunk;
@@ -294,7 +294,7 @@ void readPixelData(PngIdatChunk chunk, PngChunkReader chunkReader) throws IOExce
 	boolean use3_2 = System.getProperty("org.eclipse.swt.internal.image.PNGFileFormat_3.2") != null;
 	InputStream inflaterStream = use3_2 ? null : Compatibility.newInflaterInputStream(stream);
 	if (inflaterStream != null) {
-		stream = new BufferedInputStream(inflaterStream);
+		stream = inflaterStream;
 	} else {
 		stream = new PngDecodingDataStream(stream);
 	}

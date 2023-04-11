@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -28,6 +28,9 @@ import org.eclipse.swt.widgets.*;
  * <p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#ctabfolder">CTabFolder, CTabItem snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class CTabItem extends Item {
 	CTabFolder parent;
@@ -118,12 +121,9 @@ public CTabItem (CTabFolder parent, int style) {
  * @see Widget#getStyle()
  */
 public CTabItem (CTabFolder parent, int style, int index) {
-	super (parent, checkStyle(style));
+	super (parent, style);
 	showClose = (style & SWT.CLOSE) != 0;
 	parent.createItem (this, index);
-}
-static int checkStyle(int style) {
-	return SWT.NONE;
 }
 
 /*
@@ -143,16 +143,19 @@ String shortenText(GC gc, String text, int width, String ellipses) {
 	if (gc.textExtent(text, FLAGS).x <= width) return text;
 	int ellipseWidth = gc.textExtent(ellipses, FLAGS).x;
 	int length = text.length();
-	int end = length - 1;
+	TextLayout layout = new TextLayout(getDisplay());
+	layout.setText(text);
+	int end = layout.getPreviousOffset(length, SWT.MOVEMENT_CLUSTER);
 	while (end > 0) {
 		text = text.substring(0, end);
 		int l = gc.textExtent(text, FLAGS).x;
 		if (l + ellipseWidth <= width) {
-			return text + ellipses;
+			break;
 		}
-		end--;
+		end = layout.getPreviousOffset(end, SWT.MOVEMENT_CLUSTER);
 	}
-	return text.substring(0,1);
+	layout.dispose();
+	return end == 0 ? text.substring(0, 1) : text + ellipses;
 }
 
 public void dispose() {
@@ -750,6 +753,24 @@ public CTabFolder getParent () {
 	return parent;
 }
 /**
+ * Returns <code>true</code> to indicate that the receiver's close button should be shown.
+ * Otherwise return <code>false</code>. The initial value is defined by the style (SWT.CLOSE)
+ * that was used to create the receiver.
+ * 
+ * @return <code>true</code> if the close button should be shown
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public boolean getShowClose() {
+	checkWidget();
+	return showClose;
+}
+/**
  * Returns the receiver's tool tip text, or null if it has
  * not been set.
  *
@@ -980,6 +1001,27 @@ public void setImage (Image image) {
 		parent.redrawTabs();
 	}
 }
+/**
+ * Sets to <code>true</code> to indicate that the receiver's close button should be shown.
+ * If the parent (CTabFolder) was created with SWT.CLOSE style, changing this value has
+ * no effect.
+ * 
+ * @param close the new state of the close button
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public void setShowClose(boolean close) {
+	checkWidget();
+	if (showClose == close) return;
+	showClose = close;
+	parent.updateItems();
+	parent.redrawTabs();
+}
 public void setText (String string) {
 	checkWidget();
 	if (string == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
@@ -1007,4 +1049,5 @@ public void setToolTipText (String string) {
 	checkWidget();
 	toolTipText = string;
 }
+
 }

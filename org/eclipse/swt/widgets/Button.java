@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -39,10 +39,15 @@ import org.eclipse.swt.events.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/snippets/#button">Button snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Button extends Control {
 	String text = "";
 	Image image, bitmap, disabled;
+	boolean grayed;
 	static final byte [] ARM_AND_ACTIVATE;
 	static {
 		String name = "ArmAndActivate";
@@ -441,6 +446,25 @@ boolean getDefault () {
 	return this == menuShell ().defaultButton;
 }
 /**
+ * Returns <code>true</code> if the receiver is grayed,
+ * and false otherwise. When the widget does not have
+ * the <code>CHECK</code> style, return false.
+ *
+ * @return the grayed state of the checkbox
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public boolean getGrayed () {
+	checkWidget();
+	if ((style & SWT.CHECK) == 0) return false;
+	return grayed;
+}
+/**
  * Returns the receiver's image if it has one, or null
  * if it does not.
  *
@@ -653,6 +677,25 @@ public void setFont (Font font) {
 	}
 	super.setFont (font);
 	if (fixString) OS.XtSetValues (handle, argList1, argList1.length / 2);	
+}
+/**
+ * Sets the grayed state of the receiver.  This state change 
+ * only applies if the control was created with the SWT.CHECK
+ * style.
+ *
+ * @param grayed the new grayed state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public void setGrayed (boolean grayed) {
+	checkWidget();
+	if ((style & SWT.CHECK) == 0) return;
+	this.grayed = grayed;
 }
 /**
  * Sets the receiver's image to the argument, which may be

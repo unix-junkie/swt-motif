@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -17,7 +17,7 @@ import org.eclipse.swt.widgets.*;
 
 /**
  * This adapter class provides a default drag under effect (eg. select and scroll) 
- * when a drag occurs over a <code>Table</code>.
+ * when a drag occurs over a <code>StyledText</code>.
  * 
  * <p>Classes that wish to provide their own drag under effect for a <code>StyledText</code>
  * can extend this class, override the <code>StyledTextDropTargetEffect.dragOver</code>
@@ -42,6 +42,7 @@ import org.eclipse.swt.widgets.*;
  * 
  * @see DropTargetAdapter
  * @see DropTargetEvent
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 3.3
  */
@@ -158,37 +159,27 @@ public class StyledTextDropTargetEffect extends DropTargetEffect {
 					 pt.y >= scrollY && pt.y <= (scrollY + SCROLL_TOLERANCE))) {
 					if (System.currentTimeMillis() >= scrollBeginTime) {
 						Rectangle area = text.getClientArea();
-						Rectangle bounds = text.getTextBounds(0, 0);
-						int charWidth = bounds.width;
+						GC gc = new GC(text);
+						FontMetrics fm = gc.getFontMetrics();
+						gc.dispose();
+						int charWidth = fm.getAverageCharWidth();
 						int scrollAmount = 10*charWidth;
 						if (pt.x < area.x + 3*charWidth) {
 							int leftPixel = text.getHorizontalPixel();
 							text.setHorizontalPixel(leftPixel - scrollAmount);
-							if (text.getHorizontalPixel() != leftPixel) {
-								text.redraw();
-							}
 						}
 						if (pt.x > area.width - 3*charWidth) {
 							int leftPixel = text.getHorizontalPixel();
 							text.setHorizontalPixel(leftPixel + scrollAmount);
-							if (text.getHorizontalPixel() != leftPixel) {
-								text.redraw();
-							}
 						}
-						int lineHeight = bounds.height;
+						int lineHeight = text.getLineHeight();
 						if (pt.y < area.y + lineHeight) {
 							int topPixel = text.getTopPixel();
 							text.setTopPixel(topPixel - lineHeight);
-							if (text.getTopPixel() != topPixel) {
-								text.redraw();
-							}
 						}
 						if (pt.y > area.height - lineHeight) {
 							int topPixel = text.getTopPixel();
 							text.setTopPixel(topPixel + lineHeight);
-							if (text.getTopPixel() != topPixel) {
-								text.redraw();
-							}
 						}
 						scrollBeginTime = 0;
 						scrollX = scrollY = -1;
@@ -202,53 +193,10 @@ public class StyledTextDropTargetEffect extends DropTargetEffect {
 		}
 			
 		if ((effect & DND.FEEDBACK_SELECT) != 0) {
-			StyledTextContent content = text.getContent();
-			int newOffset = -1;
-			try {
-				newOffset = text.getOffsetAtLocation(pt);
-			} catch (IllegalArgumentException ex1) {
-				int maxOffset = content.getCharCount();
-				Point maxLocation = text.getLocationAtOffset(maxOffset);
-				if (pt.y >= maxLocation.y) {
-					try {
-						newOffset = text.getOffsetAtLocation(new Point(pt.x, maxLocation.y));
-					} catch (IllegalArgumentException ex2) {
-						newOffset = maxOffset;
-					}
-				} else {
-					try {
-						int startOffset = text.getOffsetAtLocation(new Point(0, pt.y));
-						int endOffset = maxOffset;
-						int line = content.getLineAtOffset(startOffset);
-						int lineCount = content.getLineCount();
-						if (line + 1 < lineCount) {
-							endOffset = content.getOffsetAtLine(line + 1)  - 1;
-						}
-						int lineHeight = text.getLineHeight(startOffset);
-						for (int i = endOffset; i >= startOffset; i--) {
-							Point p = text.getLocationAtOffset(i);
-							if (p.x < pt.x && p.y < pt.y && p.y + lineHeight > pt.y) {
-								newOffset = i;
-								break;
-							}
-						}
-					} catch (IllegalArgumentException ex2) {
-						newOffset = -1;
-					}
-				}
-			}
-			if (newOffset != -1 && newOffset != currentOffset) {
-				// check if offset is line delimiter
-				// see StyledText.isLineDelimiter()
-				int line = content.getLineAtOffset(newOffset);
-				int lineOffset = content.getOffsetAtLine(line);	
-				int offsetInLine = newOffset - lineOffset;
-				// offsetInLine will be greater than line length if the line 
-				// delimiter is longer than one character and the offset is set
-				// in between parts of the line delimiter.
-				if (offsetInLine > content.getLine(line).length()) {
-					newOffset = Math.max(0, newOffset - 1);
-				}
+			int[] trailing = new int [1];
+			int newOffset = text.getOffsetAtPoint(pt.x, pt.y, trailing, false);
+			newOffset += trailing [0];
+			if (newOffset != currentOffset) {
 				refreshCaret(text, currentOffset, newOffset);
 				currentOffset = newOffset;
 			}

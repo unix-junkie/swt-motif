@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -186,7 +186,7 @@ TableTreeItem(TableTree parent, TableTreeItem parentItem, int style, int index) 
 		*/
 		if (parent.sizeImage == null) {
 			int itemHeight = parent.getItemHeight();
-			parent.sizeImage = new Image(null, itemHeight, itemHeight);
+			parent.sizeImage = new Image(parent.getDisplay(), itemHeight, itemHeight);
 			GC gc = new GC (parent.sizeImage);
 			gc.setBackground(parent.getBackground());
 			gc.fillRectangle(0, 0, itemHeight, itemHeight);

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -11,6 +11,7 @@
 package org.eclipse.swt.custom;
 
 import org.eclipse.swt.*;
+import org.eclipse.swt.events.*;
 import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.widgets.*;
 
@@ -96,17 +97,22 @@ import org.eclipse.swt.widgets.*;
  * <dl>
  * <dt><b>Styles:</b><dd>H_SCROLL, V_SCROLL
  * </dl>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#scrolledcomposite">ScrolledComposite snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class ScrolledComposite extends Composite {
 
 	Control content;
 	Listener contentListener;
+	Listener filter;
 	
 	int minHeight = 0;
 	int minWidth = 0;
 	boolean expandHorizontal = false;
 	boolean expandVertical = false;
 	boolean alwaysShowScroll = false;
+	boolean showFocusedControl = false;
 
 /**
  * Constructs a new instance of this class given its parent
@@ -164,11 +170,37 @@ public ScrolledComposite(Composite parent, int style) {
 			layout(false);
 		}
 	};
+	
+	filter = new Listener() {
+		public void handleEvent(Event event) {
+			if (event.widget instanceof Control) {
+				Control control = (Control) event.widget;
+				if (contains(control)) showControl(control);
+			}
+		}
+	};
+	
+	addDisposeListener(new DisposeListener() {
+		public void widgetDisposed(DisposeEvent e) {
+			getDisplay().removeFilter(SWT.FocusIn, filter);
+		}
+	});
 }
 
 static int checkStyle (int style) {
 	int mask = SWT.H_SCROLL | SWT.V_SCROLL | SWT.BORDER | SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT;
 	return style & mask;
+}
+
+boolean contains(Control control) {
+	if (control == null || control.isDisposed()) return false;
+
+	Composite parent = control.getParent();
+	while (parent != null && !(parent instanceof Shell)) {
+		if (this == parent) return true;
+		parent = parent.getParent();
+	}
+	return false;
 }
 
 /**
@@ -263,6 +295,24 @@ public int getMinHeight() {
 public Control getContent() {
 	//checkWidget();
 	return content;
+}
+
+/**
+ * Returns <code>true</code> if the receiver automatically scrolls to a focused child control 
+ * to make it visible. Otherwise, returns <code>false</code>.
+ * 
+ * @return a boolean indicating whether focused child controls are automatically scrolled into the viewport
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public boolean getShowFocusedControl() {
+	checkWidget();
+	return showFocusedControl;
 }
 
 void hScroll() {
@@ -572,6 +622,66 @@ public void setMinSize(int width, int height) {
  */
 public void setMinWidth(int width) {
 	setMinSize(width, minHeight);
+}
+
+/**
+ * Configure the receiver to automatically scroll to a focused child control
+ * to make it visible.
+ * 
+ * If show is <code>false</code>, show a focused control is off.  
+ * By default, show a focused control is off.
+ * 
+ * @param show <code>true</code> to show a focused control.
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public void setShowFocusedControl(boolean show) {
+	checkWidget();
+	if (showFocusedControl == show) return;
+	Display display = getDisplay();
+	display.removeFilter(SWT.FocusIn, filter);
+	showFocusedControl = show;
+	if (!showFocusedControl) return;
+	display.addFilter(SWT.FocusIn, filter);
+	Control control = display.getFocusControl();
+	if (contains(control)) showControl(control);
+}
+
+/**
+ * Scrolls the content of the receiver so that the control is visible.
+ *
+ * @param control the control to be shown
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the control is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the control has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
+public void showControl(Control control) {
+	checkWidget ();
+	if (control == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
+	if (control.isDisposed ()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+	if (!contains(control)) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+	
+	Rectangle itemRect = getDisplay().map(control.getParent(), this, control.getBounds());
+	Rectangle area = getClientArea();
+	Point origin = getOrigin();
+	if (itemRect.x < 0) origin.x = Math.max(0, origin.x + itemRect.x);
+	if (itemRect.y < 0) origin.y = Math.max(0, origin.y + itemRect.y);
+	if (area.width < itemRect.x + itemRect.width) origin.x = Math.max(0, origin.x + itemRect.x + itemRect.width - area.width);
+	if (area.height < itemRect.y + itemRect.height) origin.y = Math.max(0, origin.y + itemRect.y + itemRect.height - area.height);
+	setOrigin(origin);
 }
 
 void vScroll() {

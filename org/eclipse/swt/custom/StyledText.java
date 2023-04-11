@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -73,6 +73,10 @@ import org.eclipse.swt.widgets.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#styledtext">StyledText snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Examples: CustomControlExample, TextEditor</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class StyledText extends Canvas {
 	static final char TAB = '\t';
@@ -145,10 +149,12 @@ public class StyledText extends Canvas {
 	Image leftCaretBitmap = null;
 	Image rightCaretBitmap = null;
 	int caretDirection = SWT.NULL;
+	int caretWidth = 0;
 	Caret defaultCaret = null;
 	boolean updateCaretDirection = true;
 	boolean fixedLineHeight;
 	boolean dragDetect = true;
+	IME ime;
 	
 	int alignment;
 	boolean justify;
@@ -446,11 +452,24 @@ public class StyledText extends Canvas {
 			printLayout.setFont(printerFont);
 		}
 		if (printOptions.printLineNumbers) {
+			int numberingWidth = 0;
 			int count = endLine - startLine + 1;
-			StringBuffer buffer = new StringBuffer("0");
-			while ((count /= 10) > 0) buffer.append("0");
-			printLayout.setText(buffer.toString());
-			int numberingWidth = printLayout.getBounds().width + printMargin;
+			String[] lineLabels = printOptions.lineLabels;
+			if (lineLabels != null) {
+				for (int i = startLine; i < Math.min(count, lineLabels.length); i++) {
+					if (lineLabels[i] != null) {
+						printLayout.setText(lineLabels[i]);
+						int lineWidth = printLayout.getBounds().width;
+						numberingWidth = Math.max(numberingWidth, lineWidth);
+					}
+				}
+			} else {
+				StringBuffer buffer = new StringBuffer("0");
+				while ((count /= 10) > 0) buffer.append("0");
+				printLayout.setText(buffer.toString());
+				numberingWidth = printLayout.getBounds().width;
+			}
+			numberingWidth += printMargin;
 			if (numberingWidth > width) numberingWidth = width;
 			paintX += numberingWidth;
 			width -= numberingWidth;
@@ -488,8 +507,9 @@ public class StyledText extends Canvas {
 				} else {
 					//draw paragraph top in the current page and paragraph bottom in the next
 					int height = paragraphBottom - paintY;
-					gc.setClipping(paintX, paintY, width, height);
+					gc.setClipping(clientArea.x, paintY, clientArea.width, height);
 					printLine(paintX, paintY, gc, foreground, lineBackground, layout, printLayout, i);
+					gc.setClipping((Rectangle)null);
 					printDecoration(page, false, printLayout);
 					printer.endPage();					
 					page++;
@@ -498,16 +518,16 @@ public class StyledText extends Canvas {
 						printDecoration(page, true, printLayout);
 						paintY = clientArea.y - height;
 						int layoutHeight = layout.getBounds().height;
-						gc.setClipping(paintX, clientArea.y, width, layoutHeight - height);
+						gc.setClipping(clientArea.x, clientArea.y, clientArea.width, layoutHeight - height);
 						printLine(paintX, paintY, gc, foreground, lineBackground, layout, printLayout, i);
+						gc.setClipping((Rectangle)null);
 						paintY += layoutHeight;
 					}
-					gc.setClipping((Rectangle)null);
 				}
 			}
 			printerRenderer.disposeTextLayout(layout);
 		}
-		if (paintY > clientArea.y) {
+		if (page <= endPage && paintY > clientArea.y) {
 			// close partial page
 			printDecoration(page, false, printLayout);
 			printer.endPage();
@@ -594,9 +614,18 @@ public class StyledText extends Canvas {
 		}
 		if (printOptions.printLineNumbers) {
 			FontMetrics metrics = layout.getLineMetrics(0);
-			printLayout.setAscent(metrics.getAscent() + metrics.getDescent());
+			printLayout.setAscent(metrics.getAscent() + metrics.getLeading());
 			printLayout.setDescent(metrics.getDescent());
-			printLayout.setText(String.valueOf(index));
+			String[] lineLabels = printOptions.lineLabels;
+			if (lineLabels != null) {
+				if (0 <= index && index < lineLabels.length && lineLabels[index] != null) {
+					printLayout.setText(lineLabels[index]);
+				} else {
+					printLayout.setText("");
+				}
+			} else {
+				printLayout.setText(String.valueOf(index));
+			}
 			int paintX = x - printMargin - printLayout.getBounds().width;
 			printLayout.draw(gc, paintX, y);
 			printLayout.setAscent(-1);
@@ -1208,7 +1237,8 @@ public StyledText(Composite parent, int style) {
 	renderer = new StyledTextRenderer(getDisplay(), this);
 	renderer.setContent(content);
 	renderer.setFont(getFont(), tabLength);
-	defaultCaret = new Caret(this, SWT.NULL);
+	ime = new IME(this, SWT.NONE);
+	defaultCaret = new Caret(this, SWT.NONE);
 	if ((style & SWT.WRAP) != 0) {
 		setWordWrap(true);
 	}
@@ -1223,7 +1253,7 @@ public StyledText(Composite parent, int style) {
 				setCaretLocation(newCaretPos, direction);
 			}
 		};
-		BidiUtil.addLanguageListener(handle, runnable);
+		BidiUtil.addLanguageListener(this, runnable);
 	}
 	setCaret(defaultCaret);	
 	calculateScrollBars();
@@ -1647,10 +1677,12 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 		int maxHeight = display.getClientArea().height;
 		for (int lineIndex = 0; lineIndex < lineCount; lineIndex++) {
 			TextLayout layout = renderer.getTextLayout(lineIndex);
+			int wrapWidth = layout.getWidth();
 			if (wordWrap) layout.setWidth(wHint == 0 ? 1 : wHint);
 			Rectangle rect = layout.getBounds();
 			height += rect.height;
 			width = Math.max(width, rect.width);
+			layout.setWidth(wrapWidth);
 			renderer.disposeTextLayout(layout);
 			if (isFixedLineHeight() && height > maxHeight) break;
 		}
@@ -1837,8 +1869,8 @@ boolean checkDragDetect(Event event) {
 		if (event.button != 1) return false;
 	}
 	if (selection.x == selection.y) return false;
-	int offset = getOffsetAtPoint(event.x, event.y);
-	if (offset > selection.x && offset < selection.y) {
+	int offset = getOffsetAtPoint(event.x, event.y, null, true);
+	if (selection.x <= offset && offset < selection.y) {
 		return dragDetect(event);
 	}
 	return false;
@@ -2122,10 +2154,6 @@ void doBackspace() {
  * @param key the character typed by the user
  */
 void doContent(char key) {
-	if (textLimit > 0 && 
-		content.getCharCount() - (selection.y - selection.x) >= textLimit) {
-		return;
-	}
 	Event event = new Event();
 	event.start = selection.x;
 	event.end = selection.y;
@@ -2152,6 +2180,9 @@ void doContent(char key) {
 		event.text = new String(new char[] {key});
 	}
 	if (event.text != null) {
+		if (textLimit > 0 && content.getCharCount() - (event.end - event.start) >= textLimit) {
+			return;
+		}
 		sendKeyEvent(event);
 	}
 }
@@ -2416,8 +2447,7 @@ void doMouseLocationChange(int x, int y, boolean select) {
 	int oldCaretAlignment = caretAlignment;
 	int newCaretOffset = getOffsetAtPoint(x, y);
 	
-	if (clickCount > 1) {
-		// double click word select the previous/next word. fixes bug 15610
+	if (doubleClickEnabled && clickCount > 1) {
 		newCaretOffset = doMouseWordSelect(x, newCaretOffset, line);
 	}
 	
@@ -3132,21 +3162,27 @@ int getBottomIndex() {
 }
 Rectangle getBoundsAtOffset(int offset) {
 	int lineIndex = content.getLineAtOffset(offset);
+	int lineOffset = content.getOffsetAtLine(lineIndex);
 	String line = content.getLine(lineIndex);
 	Rectangle bounds;
 	if (line.length() != 0) {
-		int offsetInLine = offset - content.getOffsetAtLine(lineIndex);
+		int offsetInLine = offset - lineOffset;
 		TextLayout layout = renderer.getTextLayout(lineIndex);
 		bounds = layout.getBounds(offsetInLine, offsetInLine);
 		renderer.disposeTextLayout(layout);
 	} else {
 		bounds = new Rectangle (0, 0, 0, renderer.getLineHeight());
 	}
+	if (offset == caretOffset) {
+		int lineEnd = lineOffset + line.length();
+		if (offset == lineEnd && caretAlignment == PREVIOUS_OFFSET_TRAILING) {
+			bounds.width += getCaretWidth();
+		}
+	}
 	bounds.x += leftMargin - horizontalScrollOffset;
 	bounds.y += getLinePixel(lineIndex);
 	return bounds;
 }
-
 /**
  * Returns the caret position relative to the start of the text.
  *
@@ -3193,11 +3229,11 @@ int getClusterPrevious(int offset, int lineIndex) {
 	return offset;
 }
 /**
- * Returns the content implementation that is used for text storage
- * or null if no user defined content implementation has been set.
- *
- * @return content implementation that is used for text storage or null 
- * if no user defined content implementation has been set.
+ * Returns the content implementation that is used for text storage.
+ * 
+ * @return content the user defined content implementation that is used for
+ * text storage or the default content implementation if no user defined 
+ * content implementation has been set.
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -3350,6 +3386,32 @@ public int getKeyBinding(int key) {
 public int getCharCount() {
 	checkWidget();
 	return content.getCharCount();
+}
+/**
+ * Returns the line at the given line index without delimiters.
+ * Index 0 is the first line of the content. When there are not
+ * any lines, getLine(0) is a valid call that answers an empty string.
+ * <p>
+ *
+ * @param lineIndex index of the line to return.
+ * @return the line text without delimiters
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * @exception IllegalArgumentException <ul>
+ *   <li>ERROR_INVALID_RANGE when the line index is outside the valid range (< 0 or >= getLineCount())</li> 
+ * </ul>
+ * @since 3.4
+ */
+public String getLine(int lineIndex) {
+	checkWidget();
+	if (lineIndex < 0 || 
+		(lineIndex > 0 && lineIndex >= content.getLineCount())) {
+		SWT.error(SWT.ERROR_INVALID_RANGE);		
+	}
+	return content.getLine(lineIndex);
 }
 /**
  * Returns the alignment of the line at the given index.
@@ -3646,7 +3708,9 @@ StyledTextEvent getLineStyleData(int lineOffset, String line) {
  *  
  * @param lineIndex the line index, the max value is lineCount. If
  * lineIndex == lineCount it returns the bottom pixel of the last line.
- * It means this function can be used to retrieve the bottom pixel of any line. 
+ * It means this function can be used to retrieve the bottom pixel of any line.
+ * 
+ * @return the top pixel of a given line index
  * 
  * @since 3.2
  */
@@ -3674,6 +3738,10 @@ public int getLinePixel(int lineIndex) {
 /**
  * Returns the line index for a y, relative to the client area.
  * The line index returned is always in the range 0..lineCount - 1.
+ * 
+ * @param y the y-coordinate pixel
+ * 
+ * @return the line index for a given y-coordinate pixel
  *
  * @since 3.2
  */
@@ -3743,7 +3811,7 @@ public Point getLocationAtOffset(int offset) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  * @exception IllegalArgumentException <ul>
- *   <li>ERROR_INVALID_RANGE when the offset is outside the valid range (< 0 or > getCharCount())</li> 
+ *   <li>ERROR_INVALID_RANGE when the line index is outside the valid range (< 0 or >= getLineCount())</li> 
  * </ul>
  * @since 2.0
  */
@@ -3783,32 +3851,12 @@ public int getOffsetAtLocation(Point point) {
 	if (point == null) {
 		SWT.error(SWT.ERROR_NULL_ARGUMENT);
 	}
-	// is y above first line or is x before first column?
-	if (point.y + getVerticalScrollOffset() < 0 || point.x + horizontalScrollOffset < 0) {
-		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
-	}
-	int bottomIndex = getLineIndex(clientAreaHeight);
-	int height = getLinePixel(bottomIndex) + renderer.getLineHeight(bottomIndex);
-	if (point.y > height) {
-		SWT.error(SWT.ERROR_INVALID_ARGUMENT);		
-	}
-	int lineIndex = getLineIndex(point.y);
-	int lineOffset = content.getOffsetAtLine(lineIndex);
-	TextLayout layout = renderer.getTextLayout(lineIndex);	
 	int[] trailing = new int[1];
-	int x = point.x + horizontalScrollOffset - leftMargin ;
-	int y = point.y - getLinePixel(lineIndex);
-	int offsetInLine = layout.getOffset(x, y, trailing);
-	String line = content.getLine(lineIndex);
-	if (offsetInLine != line.length() - 1) {
-		offsetInLine = Math.min(line.length(), offsetInLine + trailing[0]);		
-	}
-	Rectangle rect = layout.getLineBounds(layout.getLineIndex(offsetInLine));
-	renderer.disposeTextLayout(layout);
-	if (x > rect.x + rect.width) {
+	int offset = getOffsetAtPoint(point.x, point.y, trailing, true);
+	if (offset == -1) {
 		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
-	return lineOffset + offsetInLine;
+	return offset + trailing[0];
 }
 int getOffsetAtPoint(int x, int y) {
 	int lineIndex = getLineIndex(y);
@@ -3831,7 +3879,6 @@ int getOffsetAtPoint(int x, int y, int lineIndex) {
 	caretAlignment = OFFSET_LEADING;
 	if (trailing[0] != 0) {
 		int lineInParagraph = layout.getLineIndex(offsetInLine + trailing[0]);
-		//TODO handle bidi text
 		int lineStart = layout.getLineOffsets()[lineInParagraph];
 		if (offsetInLine + trailing[0] == lineStart) {
 			offsetInLine += trailing[0];
@@ -3858,6 +3905,28 @@ int getOffsetAtPoint(int x, int y, int lineIndex) {
 	renderer.disposeTextLayout(layout);
 	return offsetInLine + content.getOffsetAtLine(lineIndex);
 }
+int getOffsetAtPoint(int x, int y, int[] trailing, boolean inTextOnly) {
+	if (inTextOnly && y + getVerticalScrollOffset() < 0 || x + horizontalScrollOffset < 0) {
+		return -1;
+	}
+	int bottomIndex = getPartialBottomIndex();
+	int height = getLinePixel(bottomIndex + 1);
+	if (inTextOnly && y > height) {
+		return -1;
+	}
+	int lineIndex = getLineIndex(y);
+	int lineOffset = content.getOffsetAtLine(lineIndex);
+	TextLayout layout = renderer.getTextLayout(lineIndex);	
+	x += horizontalScrollOffset - leftMargin ;
+	y -= getLinePixel(lineIndex);
+	int offset = layout.getOffset(x, y, trailing);
+	Rectangle rect = layout.getLineBounds(layout.getLineIndex(offset));
+	renderer.disposeTextLayout(layout);
+	if (inTextOnly && !(rect.x  <= x && x <=  rect.x + rect.width)) {
+		return -1;
+	}
+	return offset + lineOffset;
+}
 /**
  * Returns the orientation of the receiver.
  *
@@ -3883,7 +3952,7 @@ int getPartialBottomIndex() {
 	if (isFixedLineHeight()) {
 		int lineHeight = renderer.getLineHeight();
 		int partialLineCount = Compatibility.ceil(clientAreaHeight, lineHeight);
-		return Math.min(content.getLineCount(), topIndex + partialLineCount) - 1;
+		return Math.max(0, Math.min(content.getLineCount(), topIndex + partialLineCount) - 1);
 	}
 	return getLineIndex(clientAreaHeight - bottomMargin);
 }
@@ -4480,12 +4549,15 @@ public Rectangle getTextBounds(int start, int end) {
 	for (int i = lineStart; i <= lineEnd; i++) {
 		int lineOffset = content.getOffsetAtLine(i);		
 		TextLayout layout = renderer.getTextLayout(i);
-		if (layout.getText().length() > 0) {
-			if (i == lineStart && i == lineEnd) {
-				rect = layout.getBounds(start - lineOffset, end - lineOffset);
-			} else if (i == lineStart) {
-				String line = content.getLine(i);
-				rect = layout.getBounds(start - lineOffset, line.length());
+		int length = layout.getText().length();
+		if (length > 0) {
+			if (i == lineStart) {
+				if (i == lineEnd) {
+					rect = layout.getBounds(start - lineOffset, end - lineOffset);
+				} else {
+					rect = layout.getBounds(start - lineOffset, length);
+				}
+				y += rect.y;
 			} else if (i == lineEnd) {
 				rect = layout.getBounds(0, end - lineOffset);
 			} else {
@@ -4610,6 +4682,7 @@ int getVisualLineIndex(TextLayout layout, int offsetInLine) {
 }
 int getCaretDirection() {
 	if (!isBidiCaret()) return SWT.DEFAULT;
+	if (ime.getCompositionOffset() != -1) return SWT.DEFAULT;
 	if (!updateCaretDirection && caretDirection != SWT.NULL) return caretDirection;
 	updateCaretDirection = false;
 	int caretLine = getCaretLine();
@@ -4637,7 +4710,7 @@ int getCaretLine() {
 }
 int getWrapWidth () {
 	if (wordWrap && !isSingleLine()) {
-		int width = clientAreaWidth - leftMargin - rightMargin;
+		int width = clientAreaWidth - leftMargin - rightMargin - getCaretWidth();
 		return width > 0 ? width : 1;
 	}
 	return -1;
@@ -4817,6 +4890,15 @@ void installListeners() {
 	addListener(SWT.Paint, listener);
 	addListener(SWT.Resize, listener);
 	addListener(SWT.Traverse, listener);
+	ime.addListener(SWT.ImeComposition, new Listener() {
+		public void handleEvent(Event event) {
+			switch (event.detail) {
+				case SWT.COMPOSITION_SELECTION: handleCompositionSelection(event); break;
+				case SWT.COMPOSITION_CHANGED: handleCompositionChanged(event); break;
+				case SWT.COMPOSITION_OFFSET: handleCompositionOffset(event); break;
+			}
+		}
+	});
 	if (verticalBar != null) {
 		verticalBar.addListener(SWT.Selection, new Listener() {
 			public void handleEvent(Event event) {
@@ -4920,6 +5002,40 @@ void internalRedrawRange(int start, int length) {
 		super.redraw(leftMargin, y, clientAreaWidth - rightMargin - leftMargin, endRect.y - y, false);
 	}
 }
+void handleCompositionOffset (Event event) {
+	int[] trailing = new int [1];
+	event.index = getOffsetAtPoint(event.x, event.y, trailing, true);
+	event.count = trailing[0];
+}
+void handleCompositionSelection (Event event) {
+	event.start = selection.x;
+	event.end = selection.y;
+	event.text = getSelectionText();
+}
+void handleCompositionChanged(Event event) {
+	String text = event.text;
+	int start = event.start;
+	int end = event.end;
+	int length = text.length();
+	if (length == ime.getCommitCount()) {
+		content.replaceTextRange(start, end - start, "");
+		caretOffset = ime.getCompositionOffset();
+		caretWidth = 0;
+		caretDirection = SWT.NULL;
+	} else {
+		content.replaceTextRange(start, end - start, text);
+		caretOffset = ime.getCaretOffset();
+		if (ime.getWideCaret()) {
+			start = ime.getCompositionOffset();
+			int lineIndex = getCaretLine();
+			int lineOffset = content.getOffsetAtLine(lineIndex);
+			TextLayout layout = renderer.getTextLayout(lineIndex);	
+			caretWidth = layout.getBounds(start - lineOffset, start + length - 1 - lineOffset).width;
+			renderer.disposeTextLayout(layout);
+		}
+	}
+	showCaret();
+}
 /** 
  * Frees resources.
  */
@@ -4950,7 +5066,7 @@ void handleDispose(Event event) {
 		rightCaretBitmap = null;
 	}
 	if (isBidiCaret()) {
-		BidiUtil.removeLanguageListener(handle);
+		BidiUtil.removeLanguageListener(this);
 	}
 	selectionBackground = null;
 	selectionForeground = null;
@@ -5131,8 +5247,8 @@ void handleMouseDown(Event event) {
 				start = lineOffset;
 				end = lineEnd;
 			}
-			selection.x = selection.y = start;
-			selectionAnchor = -1;
+			caretOffset = start;
+			resetSelection();
 			caretOffset = end;
 			showCaret();
 			doMouseSelection();
@@ -5277,6 +5393,10 @@ void handleResize(Event event) {
  * the content change.
  */
 void handleTextChanged(TextChangedEvent event) {
+	int offset = ime.getCompositionOffset();
+	if (offset != -1 && lastTextChangeStart < offset) {
+		ime.setCompositionOffset(offset + lastTextChangeNewCharCount - lastTextChangeReplaceCharCount);
+	}
 	int firstLine = content.getLineAtOffset(lastTextChangeStart);
 	resetCache(firstLine, 0);
 	if (!isFixedLineHeight() && topIndex > firstLine) {
@@ -5289,7 +5409,6 @@ void handleTextChanged(TextChangedEvent event) {
 		int newLastLineBottom = getLinePixel(lastLine + 1);
 		if (lastLineBottom != newLastLineBottom) {
 			super.redraw();
-			if (wordWrap) setCaretLocation();
 		} else {
 			super.redraw(0, firstLineTop, clientAreaWidth, newLastLineBottom - firstLineTop, false);
 			redrawLinesBullet(renderer.redrawLines);
@@ -5663,7 +5782,7 @@ public void invokeAction(int action) {
  * Temporary until SWT provides this
  */
 boolean isBidi() {
-	return IS_GTK || BidiUtil.isBidiPlatform() || isMirrored;
+	return IS_GTK || IS_CARBON || BidiUtil.isBidiPlatform() || isMirrored;
 }
 boolean isBidiCaret() {
 	return BidiUtil.isBidiPlatform();
@@ -5832,6 +5951,9 @@ public void print() {
  * </p>
  * 
  * @param printer the printer to print to
+ *
+ * @return a <code>Runnable</code> for printing the receiver's text
+ *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -5861,6 +5983,9 @@ public Runnable print(Printer printer) {
  * 
  * @param printer the printer to print to
  * @param options print options to use during printing
+ *
+ * @return a <code>Runnable</code> for printing the receiver's text
+ *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6019,7 +6144,8 @@ public void redrawRange(int start, int length, boolean clearBackground) {
 /**
  * Removes the specified bidirectional segment listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6027,6 +6153,7 @@ public void redrawRange(int start, int length, boolean clearBackground) {
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT when listener is null</li>
  * </ul>
+ * 
  * @since 2.0
  */
 public void removeBidiSegmentListener(BidiSegmentListener listener) {
@@ -6037,7 +6164,8 @@ public void removeBidiSegmentListener(BidiSegmentListener listener) {
 /**
  * Removes the specified extended modify listener.
  *
- * @param extendedModifyListener the listener
+ * @param extendedModifyListener the listener which should no longer be notified
+ *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6054,7 +6182,8 @@ public void removeExtendedModifyListener(ExtendedModifyListener extendedModifyLi
 /**
  * Removes the specified line background listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6071,7 +6200,8 @@ public void removeLineBackgroundListener(LineBackgroundListener listener) {
 /**
  * Removes the specified line style listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6088,7 +6218,8 @@ public void removeLineStyleListener(LineStyleListener listener) {
 /**
  * Removes the specified modify listener.
  *
- * @param modifyListener the listener
+ * @param modifyListener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6105,7 +6236,8 @@ public void removeModifyListener(ModifyListener modifyListener) {
 /**
  * Removes the specified listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6145,7 +6277,8 @@ public void removeSelectionListener(SelectionListener listener) {
 /**
  * Removes the specified verify listener.
  *
- * @param verifyListener the listener
+ * @param verifyListener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6162,7 +6295,8 @@ public void removeVerifyListener(VerifyListener verifyListener) {
 /**
  * Removes the specified key verify listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6178,7 +6312,8 @@ public void removeVerifyKeyListener(VerifyKeyListener listener) {
 /**
  * Removes the specified word movement listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6390,9 +6525,7 @@ boolean scrollHorizontal(int pixels, boolean adjustScrollBar) {
 		}
 	}
 	horizontalScrollOffset += pixels;
-	int oldColumnX = columnX;
 	setCaretLocation();
-	columnX = oldColumnX;
 	return true;
 }
 /**
@@ -6445,9 +6578,7 @@ boolean scrollVertical(int pixels, boolean adjustScrollBar) {
 		calculateTopIndex(pixels);
 		super.redraw();
 	}
-	int oldColumnX = columnX;
 	setCaretLocation();
-	columnX = oldColumnX;
 	return true;
 }
 void scrollText(int srcY, int destY) {
@@ -6581,7 +6712,11 @@ int sendWordBoundaryEvent(int eventType, int movement, int offset, int newOffset
 }
 /**
  * Sets the alignment of the widget. The argument should be one of <code>SWT.LEFT</code>, 
- * <code>SWT.CENTER</code> or <code>SWT.RIGHT</code>. The alignment applies for all lines.  
+ * <code>SWT.CENTER</code> or <code>SWT.RIGHT</code>. The alignment applies for all lines.
+ * </p><p>
+ * Note that if <code>SWT.MULTI</code> is set, then <code>SWT.WRAP</code> must also be set
+ * in order to stabilize the right edge before setting alignment.
+ * </p>
  * 
  * @param alignment the new alignment
  *  
@@ -6609,6 +6744,7 @@ public void setAlignment(int alignment) {
 public void setBackground(Color color) {
 	checkWidget();
 	background = color;
+	super.setBackground(color);
 	super.redraw();
 }
 /**
@@ -6678,7 +6814,7 @@ void setCaretLocation(Point location, int direction) {
 			location.x -= (caret.getSize().x - 1);
 		}
 		if (isDefaultCaret) {
-			caret.setBounds(location.x, location.y, 0, caretHeight);
+			caret.setBounds(location.x, location.y, caretWidth, caretHeight);
 		} else {
 			caret.setLocation(location);
 		}
@@ -6732,6 +6868,7 @@ public void setCaretOffset(int offset) {
 			}
 			caretOffset = offset;
 		}
+		caretAlignment = PREVIOUS_OFFSET_TRAILING;
 		// clear the selection if the caret is moved.
 		// don't notify listeners about the selection change.
 		clearSelection(false);
@@ -6874,9 +7011,6 @@ public void setFont(Font font) {
 	setCaretLocation();
 	super.redraw();
 }
-/**
- * @see org.eclipse.swt.widgets.Control#setForeground
- */
 public void setForeground(Color color) {
 	checkWidget();
 	foreground = color;
@@ -7061,7 +7195,10 @@ public void setKeyBinding(int key, int action) {
 /**
  * Sets the alignment of the specified lines. The argument should be one of <code>SWT.LEFT</code>, 
  * <code>SWT.CENTER</code> or <code>SWT.RIGHT</code>.
- * <p>
+ * <p><p>
+ * Note that if <code>SWT.MULTI</code> is set, then <code>SWT.WRAP</code> must also be set
+ * in order to stabilize the right edge before setting alignment.
+ * </p>
  * Should not be called if a LineStyleListener has been set since the listener 
  * maintains the line attributes.
  * </p><p>
@@ -7367,7 +7504,7 @@ public void setOrientation(int orientation) {
 	if ((orientation & SWT.LEFT_TO_RIGHT) != 0 && !isMirrored()) {
 		return;
 	}
-	if (!BidiUtil.setOrientation(handle, orientation)) {
+	if (!BidiUtil.setOrientation(this, orientation)) {
 		return;
 	}
 	isMirrored = (orientation & SWT.RIGHT_TO_LEFT) != 0;
@@ -7583,6 +7720,7 @@ void setSelection(int start, int length, boolean sendEvent) {
 			selectionAnchor = selection.x = start;
 			caretOffset = selection.y = end;
 		}
+		caretAlignment = PREVIOUS_OFFSET_TRAILING;
 		internalRedrawRange(selection.x, selection.y - selection.x);
 	}
 }
@@ -7882,12 +8020,8 @@ public void setTabs(int tabs) {
 	checkWidget();	
 	tabLength = tabs;
 	renderer.setFont(null, tabs);
-	if (caretOffset > 0) {
-		caretOffset = 0;
-		showCaret();
-		clearSelection(false);
-	}
 	resetCache(0, content.getLineCount());
+	setCaretLocation();
 	super.redraw();
 }
 /** 
@@ -8169,6 +8303,7 @@ public void showSelection() {
 void updateSelection(int startOffset, int replacedLength, int newLength) {
 	if (selection.y <= startOffset) {
 		// selection ends before text change
+		if (wordWrap) setCaretLocation();
 		return;
 	}
 	if (selection.x < startOffset) {

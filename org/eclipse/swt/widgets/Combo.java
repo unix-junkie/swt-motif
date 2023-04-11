@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -51,6 +51,9 @@ import org.eclipse.swt.events.*;
  * </p>
  *
  * @see List
+ * @see <a href="http://www.eclipse.org/swt/snippets/#combo">Combo snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Combo extends Composite {
 	int visibleCount = 5;
@@ -608,6 +611,44 @@ public String [] getItems () {
 		items += 4;
 	}
 	return result;
+}
+/**
+ * Returns <code>true</code> if the receiver's list is visible,
+ * and <code>false</code> otherwise.
+ * <p>
+ * If one of the receiver's ancestors is not visible or some
+ * other condition makes the receiver not visible, this method
+ * may still indicate that it is considered visible even though
+ * it may not actually be showing.
+ * </p>
+ *
+ * @return the receiver's list's visibility state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public boolean getListVisible () {
+	checkWidget ();
+	int[] argList1 = new int[] {OS.XmNlist, 0, OS.XmNtextField, 0};
+	OS.XtGetValues (handle, argList1, argList1.length / 2);
+	int xtParent = OS.XtParent (argList1 [1]);
+	while (xtParent != 0 && !OS.XtIsSubclass (xtParent, OS.shellWidgetClass ())) {
+		xtParent = OS.XtParent (xtParent);
+	}
+	if (xtParent != 0) {
+		int xDisplay = OS.XtDisplay (xtParent);
+		if (xDisplay == 0) return false;
+		int xWindow = OS.XtWindow (xtParent);
+		if (xWindow == 0) return false;
+		XWindowAttributes attributes = new XWindowAttributes ();
+		OS.XGetWindowAttributes (xDisplay, xWindow, attributes);
+		return attributes.map_state == OS.IsViewable;
+	}
+	return false;
 }
 int getMinimumHeight () {
 	return getTextHeight ();
@@ -1334,6 +1375,49 @@ public void setItems (String [] items) {
 	OS.XtGetValues (handle, argList3, argList3.length / 2);
 	int [] argList4 = {OS.XmNselectedItemCount, 0, OS.XmNselectedItems, 0};
 	OS.XtSetValues (argList3 [1], argList4, argList4.length / 2);
+}
+/**
+ * Marks the receiver's list as visible if the argument is <code>true</code>,
+ * and marks it invisible otherwise.
+ * <p>
+ * If one of the receiver's ancestors is not visible or some
+ * other condition makes the receiver not visible, marking
+ * it visible may not actually cause it to be displayed.
+ * </p>
+ *
+ * @param visible the new visibility state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public void setListVisible (boolean visible) {
+	checkWidget ();
+	if ((style & SWT.DROP_DOWN) != 0) {
+		int[] argList1 = new int[] {OS.XmNlist, 0, OS.XmNtextField, 0};
+		OS.XtGetValues (handle, argList1, argList1.length / 2);
+		int xtParent = OS.XtParent (argList1 [1]);
+		while (xtParent != 0 && !OS.XtIsSubclass (xtParent, OS.shellWidgetClass ())) {
+			xtParent = OS.XtParent (xtParent);
+		}
+		if (xtParent != 0) {
+			if (visible) {
+				int [] argList2 = {OS.XmNx, 0, OS.XmNy, 0, OS.XmNwidth, 0, OS.XmNheight, 0, OS.XmNborderWidth, 0};
+				OS.XtGetValues (argList1 [3], argList2, argList2.length / 2);
+				int x = argList2 [1], y = argList2 [3] + argList2 [7] + argList2 [9];
+				short [] root_x = new short [1], root_y = new short [1];
+				OS.XtTranslateCoords (handle, (short) x, (short) y, root_x, root_y);
+				OS.XtMoveWidget (xtParent, root_x [0], root_y [0]);
+				OS.XtPopup (xtParent, OS.XtGrabNone);
+			} else {
+				// This code is intentionally commented
+				//OS.XtPopdown (xtParent);
+			}
+		}
+	}
 }
 /**
  * Sets the orientation of the receiver, which must be one

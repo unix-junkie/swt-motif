@@ -16,7 +16,7 @@ include make_common.mak
 
 SWT_VERSION=$(maj_ver)$(min_ver)
 
-CC=cc_r
+CC=gcc
 
 # This makefile expects the following environment variables set:
 #    JAVA_HOME  - The JDK > 1.3
@@ -36,6 +36,12 @@ CDE_LIB = lib$(CDE_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).a
 CDE_OBJS = swt.o cde.o cde_structs.o cde_stats.o
 CDE_LIBS = -L$(CDE_HOME)/lib -bnoentry -bexpall -lDtSvc -lc -lXt -lX11
 
+CAIRO_PREFIX = swt-cairo
+CAIRO_LIB = lib$(CAIRO_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).a
+CAIRO_OBJS = swt.o cairo.o cairo_structs.o cairo_stats.o
+CAIROCFLAGS = `pkg-config --cflags cairo`
+CAIRO_LIBS = -G -bnoentry -bexpall -lc `pkg-config --libs-only-L cairo` -lcairo
+
 # Uncomment for Native Stats tool
 #NATIVE_STATS = -DNATIVE_STATS
 
@@ -45,9 +51,9 @@ CDE_LIBS = -L$(CDE_HOME)/lib -bnoentry -bexpall -lDtSvc -lc -lXt -lX11
 #
 CFLAGS = -O -s \
 	-DSWT_VERSION=$(SWT_VERSION) $(NATIVE_STATS) \
+	-D_MSGQSUPPORT \
 	-DAIX -DMOTIF -DCDE \
 	-DNO_XPRINTING_EXTENSIONS -DNO_XINERAMA_EXTENSIONS \
-	-q mbcs -qlanglvl=extended -qmaxmem=8192 \
 	-I$(JAVA_HOME)/include \
 	-I$(MOTIF_HOME)/include \
 	-I$(CDE_HOME)/include
@@ -63,6 +69,18 @@ make_cde: $(CDE_LIB)
 
 $(CDE_LIB): $(CDE_OBJS)
 	ld -o $@ $(CDE_OBJS) $(CDE_LIBS)
+
+make_cairo: $(CAIRO_LIB)
+
+$(CAIRO_LIB): $(CAIRO_OBJS)
+	ld -o $@ $(CAIRO_OBJS) $(CAIRO_LIBS)
+
+cairo.o: cairo.c cairo.h swt.h
+	$(CC)  $(CAIROCFLAGS)  $(CFLAGS) -c cairo.c
+cairo_structs.o: cairo_structs.c cairo_structs.h cairo.h swt.h
+	$(CC)  $(CAIROCFLAGS)  $(CFLAGS) -c cairo_structs.c
+cairo_stats.o: cairo_stats.c cairo_structs.h cairo.h cairo_stats.h swt.h
+	$(CC)  $(CAIROCFLAGS) $(CFLAGS) -c cairo_stats.c
 
 install: all
 	cp *.a $(OUTPUT_DIR)

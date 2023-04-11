@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -71,6 +71,8 @@ import org.eclipse.swt.*;
  * </p>
  * 
  * @see Shell
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 
 public abstract class Dialog {
@@ -161,6 +163,20 @@ protected void checkSubclass () {
 void checkParent (Shell parent) {
 	if (parent == null) error (SWT.ERROR_NULL_ARGUMENT);
 	parent.checkWidget ();
+}
+
+static int checkStyle (Shell parent, int style) {
+	if ((style & (SWT.PRIMARY_MODAL | SWT.APPLICATION_MODAL | SWT.SYSTEM_MODAL)) == 0) {
+		style |= SWT.APPLICATION_MODAL;
+	}
+	style &= ~SWT.MIRRORED;
+	if ((style & (SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT)) == 0) {
+		if (parent != null) {
+			if ((parent.style & SWT.LEFT_TO_RIGHT) != 0) style |= SWT.LEFT_TO_RIGHT;
+			if ((parent.style & SWT.RIGHT_TO_LEFT) != 0) style |= SWT.RIGHT_TO_LEFT;
+		}
+	}
+	return Widget.checkBits (style, SWT.LEFT_TO_RIGHT, SWT.RIGHT_TO_LEFT, 0, 0, 0, 0);
 }
 
 /**

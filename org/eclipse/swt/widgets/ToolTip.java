@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -32,11 +32,16 @@ import org.eclipse.swt.events.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#tooltips">Tool Tips snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 3.2
  */
 public class ToolTip extends Widget {
 	Shell parent, tip;
+	TrayItem item;
 	int x, y;
 	int [] borderPolygon;
 	boolean spikeAbove, autohide;
@@ -146,6 +151,8 @@ public void addSelectionListener (SelectionListener listener) {
 
 void configure () {
 	Display display = parent.getDisplay ();
+	int x = this.x;
+	int y = this.y;
 	if (x == -1 || y == -1) {
 		Point point = display.getCursorLocation ();
 		x = point.x;

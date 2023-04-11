@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -27,9 +27,16 @@ import org.eclipse.swt.graphics.*;
  * <dd>HORIZONTAL, VERTICAL, SMOOTH</dd>
  * </dl>
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#sashform">SashForm snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: CustomControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class SashForm extends Composite {
 
+	/**
+	* The width of all sashes in the form.
+	*/
 	public int SASH_WIDTH = 3;
 
 	int sashStyle;
@@ -97,6 +104,23 @@ static int checkStyle (int style) {
 public int getOrientation() {
 	//checkWidget();
 	return (sashStyle & SWT.VERTICAL) != 0 ? SWT.HORIZONTAL : SWT.VERTICAL;
+}
+/**
+ * Returns the width of the sashes when the controls in the SashForm are 
+ * laid out.
+ * 
+ * @return the width of the sashes
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public int getSashWidth() {
+	checkWidget();
+	return SASH_WIDTH;
 }
 public int getStyle() {
 	int style = super.getStyle();
@@ -346,6 +370,25 @@ public void setMaximizedControl(Control control){
 	layout(false);
 }
 
+/**
+ * Specify the width of the sashes when the controls in the SashForm are 
+ * laid out.
+ * 
+ * @param width the width of the sashes
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public void setSashWidth(int width) {
+	checkWidget();
+	if (SASH_WIDTH == width) return;
+	SASH_WIDTH = width;
+	layout(false);
+}
 /**
  * Specify the relative weight of each child in the SashForm.  This will determine
  * what percent of the total width (if SashForm has Horizontal orientation) or 

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -43,6 +43,10 @@ import org.eclipse.swt.widgets.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#ctabfolder">CTabFolder, CTabItem snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: CustomControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
  
 public class CTabFolder extends Composite {
@@ -1488,6 +1492,8 @@ public int getStyle() {
 	style &= ~(SWT.SINGLE | SWT.MULTI);
 	style |= single ? SWT.SINGLE : SWT.MULTI;
 	if (borderLeft != 0) style |= SWT.BORDER;
+	style &= ~SWT.CLOSE;
+	if (showClose) style |= SWT.CLOSE;
 	return style;
 }
 /**
@@ -1662,20 +1668,26 @@ void initAccessible() {
 
 		public void getLocation(AccessibleControlEvent e) {
 			Rectangle location = null;
+			Point pt = null;
 			int childID = e.childID;
 			if (childID == ACC.CHILDID_SELF) {
 				location = getBounds();
-			} else if (childID >= 0 && childID < items.length) {
-				location = items[childID].getBounds();
-			} else if (showChevron && childID == items.length + CHEVRON_CHILD_ID) {
-				location = chevronRect;
-			} else if (showMin && childID == items.length + MINIMIZE_CHILD_ID) {
-				location = minRect;
-			} else if (showMax && childID == items.length + MAXIMIZE_CHILD_ID) {
-				location = maxRect;
+				pt = getParent().toDisplay(location.x, location.y);
+			} else {
+				if (childID >= 0 && childID < items.length && items[childID].isShowing()) {
+					location = items[childID].getBounds();
+				} else if (showChevron && childID == items.length + CHEVRON_CHILD_ID) {
+					location = chevronRect;
+				} else if (showMin && childID == items.length + MINIMIZE_CHILD_ID) {
+					location = minRect;
+				} else if (showMax && childID == items.length + MAXIMIZE_CHILD_ID) {
+					location = maxRect;
+				}
+				if (location != null) {
+					pt = toDisplay(location.x, location.y);
+				}
 			}
-			if (location != null) {
-				Point pt = toDisplay(location.x, location.y);
+			if (location != null && pt != null) {
 				e.x = pt.x;
 				e.y = pt.y;
 				e.width = location.width;
@@ -2162,8 +2174,8 @@ void onMouse(Event event) {
 						CTabFolderListener listener = tabListeners[j];
 						listener.itemClosed(e);
 					}
-					if (e.doit) {
-						item.dispose();
+					if (e.doit) item.dispose();
+					if (!isDisposed() && item.isDisposed()) {
 						Display display = getDisplay();
 						Point pt = display.getCursorLocation();
 						pt = display.map(null, this, pt.x, pt.y);
@@ -2326,7 +2338,7 @@ void redrawTabs() {
 /**	 
  * Removes the listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -2365,7 +2377,7 @@ public void removeCTabFolder2Listener(CTabFolder2Listener listener) {
 /**	 
  * Removes the listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -3162,7 +3174,7 @@ public void setMRUVisible(boolean show) {
  * @param item the tab item to be selected
  * 
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the item is null</li>
  * </ul>
  * 
  * @exception SWTException <ul>
@@ -3203,16 +3215,19 @@ public void setSelection(int index) {
 	selection.closeImageState = NORMAL;
 	selection.showing = false;
 
-	Control control = selection.control;
-	if (control != null && !control.isDisposed()) {
-		control.setBounds(getClientArea());
-		control.setVisible(true);
+	Control newControl = selection.control;
+	Control oldControl = null;
+	if (oldIndex != -1) {
+		oldControl = items[oldIndex].control;
 	}
 	
-	if (oldIndex != -1) {
-		control = items[oldIndex].control;
-		if (control != null && !control.isDisposed()) {
-			control.setVisible(false);
+	if (newControl != oldControl) {
+		if (newControl != null && !newControl.isDisposed()) {
+			newControl.setBounds(getClientArea());
+			newControl.setVisible(true);
+		}
+		if (oldControl != null && !oldControl.isDisposed()) {
+			oldControl.setVisible(false);
 		}
 	}
 	showItem(selection);

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -28,6 +28,8 @@ import org.eclipse.swt.graphics.*;
  * @see Printer
  * @see Printer#getPrinterList
  * @see PrintDialog#open
+ * @see <a href="http://www.eclipse.org/swt/snippets/#printing">Printing snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 
 public final class PrinterData extends DeviceData {
@@ -124,6 +126,10 @@ public final class PrinterData extends DeviceData {
 	/**
 	 * private, platform-specific data
 	 * On Windows, this contains a copy of the DEVMODE struct
+	 * returned from the <code>PrintDialog</code>.
+	 * On GTK, this contains a copy of the print_settings and page_setup
+	 * returned from the <code>PrintDialog</code>.
+	 * On OS X Carbon, this contains a copy of the PrintSettings and PageFormat
 	 * returned from the <code>PrintDialog</code>.
 	 * This field is not currently used on the X/Window System.
 	 */	

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -44,6 +44,9 @@ import org.eclipse.swt.*;
  * </p>
  *
  * @see org.eclipse.swt.events.PaintEvent
+ * @see <a href="http://www.eclipse.org/swt/snippets/#gc">GC snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Examples: GraphicsExample, PaintExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public final class GC extends Resource {
 	/**
@@ -149,7 +152,7 @@ public GC(Drawable drawable, int style) {
 	if (device == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
 	this.device = data.device = device;
 	init(drawable, data, xGC);
-	if (device.tracking) device.new_Object(this);
+	init();
 }
 static void addCairoString(int cairo, String string, float x, float y, Font font) {
 	byte[] buffer = Converter.wcsToMbcs(null, string, true);
@@ -259,13 +262,16 @@ void checkGC (int mask) {
 			data.cairoXoffset = data.cairoYoffset = 0;
 			double[] matrix = new double[6];
 			Cairo.cairo_get_matrix(cairo, matrix);
-			double scaling = matrix[0];
+			double[] dx = new double[]{1};
+			double[] dy = new double[]{1};
+			Cairo.cairo_user_to_device_distance(cairo, dx, dy);
+			double scaling = dx[0];
 			if (scaling < 0) scaling = -scaling;
 			double strokeWidth = data.lineWidth * scaling;
 			if (strokeWidth == 0 || ((int)strokeWidth % 2) == 1) {
 				data.cairoXoffset = 0.5 / scaling;
 			}
-			scaling = matrix[3];
+			scaling = dy[0];
 			if (scaling < 0) scaling = -scaling;
 			strokeWidth = data.lineWidth * scaling;
 			if (strokeWidth == 0 || ((int)strokeWidth % 2) == 1) {
@@ -458,19 +464,7 @@ public void copyArea(Image image, int x, int y) {
 	OS.XCopyArea(xDisplay, data.drawable, image.pixmap, xGC, x, y, rect.width, rect.height, 0, 0);
 	OS.XFreeGC(xDisplay, xGC);
 }
-/**
- * Disposes of the operating system resources associated with
- * the graphics context. Applications must dispose of all GCs
- * which they allocate.
- * 
- * @exception SWTError <ul>
- *    <li>ERROR_THREAD_INVALID_ACCESS if not called from the thread that created the drawable</li>
- * </ul>
- */
-public void dispose () {
-	if (handle == 0) return;
-	if (data.device.isDisposed()) return;
-
+void destroy() {
 	int /*long*/ cairo = data.cairo;
 	if (cairo != 0) Cairo.cairo_destroy(cairo);
 	data.cairo = 0;
@@ -494,7 +488,6 @@ public void dispose () {
 	if (xmMnemonic != 0) OS.XmStringFree (xmMnemonic);
 
 	/* Dispose the GC */
-	Device device = data.device;
 	if (drawable != null) drawable.internal_dispose_GC(handle, data);
 
 	data.display = data.drawable = data.colormap = 
@@ -504,8 +497,6 @@ public void dispose () {
 	drawable = null;
 	handle = 0;
 	data.image = null;
-	if (device.tracking) device.dispose_Object(this);
-	data.device = null;
 	data = null;
 }
 /**
@@ -1483,21 +1474,25 @@ public void drawRoundRectangle (int x, int y, int width, int height, int arcWidt
 	if (nah < 0) nah = 0 - nah;
 	int /*long*/ cairo = data.cairo;
 	if (cairo != 0) {
-		float naw2 = naw / 2f;
-		float nah2 = nah / 2f;
-		float fw = nw / naw2;
-		float fh = nh / nah2;
-		Cairo.cairo_save(cairo);
 		double xOffset = data.cairoXoffset, yOffset = data.cairoYoffset;
-		Cairo.cairo_translate(cairo, nx + xOffset, ny + yOffset);
-		Cairo.cairo_scale(cairo, naw2, nah2);
-		Cairo.cairo_move_to(cairo, fw - 1, 0);
-	    Cairo.cairo_arc(cairo, fw - 1, 1, 1, Compatibility.PI + Compatibility.PI/2.0, Compatibility.PI*2.0);
-	    Cairo.cairo_arc(cairo, fw - 1, fh - 1, 1, 0, Compatibility.PI/2.0);
-	    Cairo.cairo_arc(cairo, 1, fh - 1, 1, Compatibility.PI/2, Compatibility.PI);
-	    Cairo.cairo_arc(cairo, 1, 1, 1, Compatibility.PI, 270.0*Compatibility.PI/180.0);
-		Cairo.cairo_close_path(cairo);
-		Cairo.cairo_restore(cairo);
+		if (naw == 0 || nah == 0) {
+			Cairo.cairo_rectangle(cairo, x + xOffset, y + yOffset, width, height);
+		} else {
+			float naw2 = naw / 2f;
+			float nah2 = nah / 2f;
+			float fw = nw / naw2;
+			float fh = nh / nah2;
+			Cairo.cairo_save(cairo);
+			Cairo.cairo_translate(cairo, nx + xOffset, ny + yOffset);
+			Cairo.cairo_scale(cairo, naw2, nah2);
+			Cairo.cairo_move_to(cairo, fw - 1, 0);
+		    Cairo.cairo_arc(cairo, fw - 1, 1, 1, Compatibility.PI + Compatibility.PI/2.0, Compatibility.PI*2.0);
+		    Cairo.cairo_arc(cairo, fw - 1, fh - 1, 1, 0, Compatibility.PI/2.0);
+		    Cairo.cairo_arc(cairo, 1, fh - 1, 1, Compatibility.PI/2, Compatibility.PI);
+		    Cairo.cairo_arc(cairo, 1, 1, 1, Compatibility.PI, 270.0*Compatibility.PI/180.0);
+			Cairo.cairo_close_path(cairo);
+			Cairo.cairo_restore(cairo);
+		}
 		Cairo.cairo_stroke(cairo);
 		return;
 	}
@@ -2163,20 +2158,24 @@ public void fillRoundRectangle (int x, int y, int width, int height, int arcWidt
 	if (nah < 0) nah = 0 - nah;
 	int /*long*/ cairo = data.cairo;
 	if (cairo != 0) {
-		float naw2 = naw / 2f;
-		float nah2 = nah / 2f;
-		float fw = nw / naw2;
-		float fh = nh / nah2;
-		Cairo.cairo_save(cairo);
-		Cairo.cairo_translate(cairo, nx, ny);
-		Cairo.cairo_scale(cairo, naw2, nah2);
-		Cairo.cairo_move_to(cairo, fw - 1, 0);
-	    Cairo.cairo_arc(cairo, fw - 1, 1, 1, Compatibility.PI + Compatibility.PI/2.0, Compatibility.PI*2.0);
-	    Cairo.cairo_arc(cairo, fw - 1, fh - 1, 1, 0, Compatibility.PI/2.0);
-	    Cairo.cairo_arc(cairo, 1, fh - 1, 1, Compatibility.PI/2, Compatibility.PI);
-	    Cairo.cairo_arc(cairo, 1, 1, 1, Compatibility.PI, 270.0*Compatibility.PI/180.0);		
-		Cairo.cairo_close_path(cairo);
-		Cairo.cairo_restore(cairo);
+		if (naw == 0 || nah == 0) {
+			Cairo.cairo_rectangle(cairo, x, y, width, height);
+		} else {
+			float naw2 = naw / 2f;
+			float nah2 = nah / 2f;
+			float fw = nw / naw2;
+			float fh = nh / nah2;
+			Cairo.cairo_save(cairo);
+			Cairo.cairo_translate(cairo, nx, ny);
+			Cairo.cairo_scale(cairo, naw2, nah2);
+			Cairo.cairo_move_to(cairo, fw - 1, 0);
+		    Cairo.cairo_arc(cairo, fw - 1, 1, 1, Compatibility.PI + Compatibility.PI/2.0, Compatibility.PI*2.0);
+		    Cairo.cairo_arc(cairo, fw - 1, fh - 1, 1, 0, Compatibility.PI/2.0);
+		    Cairo.cairo_arc(cairo, 1, fh - 1, 1, Compatibility.PI/2, Compatibility.PI);
+		    Cairo.cairo_arc(cairo, 1, 1, 1, Compatibility.PI, 270.0*Compatibility.PI/180.0);		
+			Cairo.cairo_close_path(cairo);
+			Cairo.cairo_restore(cairo);
+		}
 		Cairo.cairo_fill(cairo);
 		return;
 	}
@@ -2400,7 +2399,8 @@ public boolean getAdvanced() {
 	return data.cairo != 0;
 }
 /**
- * Returns the receiver's alpha value.
+ * Returns the receiver's alpha value. The alpha value
+ * is between 0 (transparent) and 255 (opaque).
  *
  * @return the alpha value
  *
@@ -3473,7 +3473,8 @@ public void setAdvanced(boolean advanced) {
 	}
 }
 /**
- * Sets the receiver's alpha value.
+ * Sets the receiver's alpha value which must be
+ * between 0 (transparent) and 255 (opaque).
  * <p>
  * This operation requires the operating system's advanced
  * graphics subsystem which may not be available on some
@@ -3880,9 +3881,8 @@ public void setFillRule(int rule) {
  */
 public void setFont (Font font) {
 	if (handle == 0) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
-	if (font == null) font = data.device.systemFont;
-	if (font.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
-	data.font = font;
+	if (font != null && font.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+	data.font = font != null ? font : data.device.systemFont;
 	data.state &= ~FONT;
 	if (data.renderTable != 0) OS.XmRenderTableFree(data.renderTable);
 	data.renderTable = 0;
@@ -4045,7 +4045,7 @@ public void setLineAttributes(LineAttributes attributes) {
 				SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 		}
 	}
-	int cap = attributes.join;
+	int cap = attributes.cap;
 	if (cap != data.lineCap) {
 		mask |= LINE_CAP;
 		switch (cap) {

@@ -17,8 +17,9 @@ class HelperAppLauncherDialogFactory {
 	XPCOMObject supports;
 	XPCOMObject factory;
 	int refCount = 0;
+	boolean isPre_1_9 = true;
 
-public HelperAppLauncherDialogFactory () {
+HelperAppLauncherDialogFactory () {
 	createCOMInterfaces ();
 }
 
@@ -40,7 +41,7 @@ void createCOMInterfaces () {
 		public int /*long*/ method1 (int /*long*/[] args) {return AddRef ();}
 		public int /*long*/ method2 (int /*long*/[] args) {return Release ();}
 		public int /*long*/ method3 (int /*long*/[] args) {return CreateInstance (args[0], args[1], args[2]);}
-		public int /*long*/ method4 (int /*long*/[] args) {return LockFactory (args[0]);}
+		public int /*long*/ method4 (int /*long*/[] args) {return LockFactory ((int)/*64*/args[0]);}
 	};
 }
 
@@ -59,7 +60,7 @@ int /*long*/ getAddress () {
 	return factory.getAddress ();
 }
 
-int /*long*/ QueryInterface (int /*long*/ riid, int /*long*/ ppvObject) {
+int QueryInterface (int /*long*/ riid, int /*long*/ ppvObject) {
 	if (riid == 0 || ppvObject == 0) return XPCOM.NS_ERROR_NO_INTERFACE;
 	nsID guid = new nsID ();
 	XPCOM.memmove (guid, riid, nsID.sizeof);
@@ -87,14 +88,20 @@ int Release () {
 	
 /* nsIFactory */
 
-public int /*long*/ CreateInstance (int /*long*/ aOuter, int /*long*/ iid, int /*long*/ result) {
-	HelperAppLauncherDialog helperAppLauncherDialog = new HelperAppLauncherDialog ();
-	helperAppLauncherDialog.AddRef ();
-	XPCOM.memmove (result, new int /*long*/[] {helperAppLauncherDialog.getAddress ()}, C.PTR_SIZEOF);
+int CreateInstance (int /*long*/ aOuter, int /*long*/ iid, int /*long*/ result) {
+	if (isPre_1_9) {
+		HelperAppLauncherDialog helperAppLauncherDialog = new HelperAppLauncherDialog ();
+		helperAppLauncherDialog.AddRef ();
+		XPCOM.memmove (result, new int /*long*/[] {helperAppLauncherDialog.getAddress ()}, C.PTR_SIZEOF);
+	} else {
+		HelperAppLauncherDialog_1_9 helperAppLauncherDialog = new HelperAppLauncherDialog_1_9 ();
+		helperAppLauncherDialog.AddRef ();
+		XPCOM.memmove (result, new int /*long*/[] {helperAppLauncherDialog.getAddress ()}, C.PTR_SIZEOF);
+	}
 	return XPCOM.NS_OK;
 }
 
-public int /*long*/ LockFactory (int /*long*/ lock) {
+int LockFactory (int lock) {
 	return XPCOM.NS_OK;
 }
 }

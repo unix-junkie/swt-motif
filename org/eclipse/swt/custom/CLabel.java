@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -38,6 +38,9 @@ import org.eclipse.swt.accessibility.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: CustomControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class CLabel extends Canvas {
 
@@ -759,25 +762,33 @@ protected String shortenText(GC gc, String t, int width) {
 	int min = 0;
 	int mid = (max+min)/2 - 1;
 	if (mid <= 0) return t;
+	TextLayout layout = new TextLayout (getDisplay());
+	layout.setText(t);
+	mid = validateOffset(layout, mid);
 	while (min < mid && mid < max) {
 		String s1 = t.substring(0, mid);
-		String s2 = t.substring(l-mid, l);
+		String s2 = t.substring(validateOffset(layout, l-mid), l);
 		int l1 = gc.textExtent(s1, DRAW_FLAGS).x;
 		int l2 = gc.textExtent(s2, DRAW_FLAGS).x;
 		if (l1+w+l2 > width) {
 			max = mid;			
-			mid = (max+min)/2;
+			mid = validateOffset(layout, (max+min)/2);
 		} else if (l1+w+l2 < width) {
 			min = mid;
-			mid = (max+min)/2;
+			mid = validateOffset(layout, (max+min)/2);
 		} else {
 			min = max;
 		}
 	}
-	if (mid == 0) return t;
- 	return t.substring(0, mid)+ELLIPSIS+t.substring(l-mid, l);
+	String result = mid == 0 ? t : t.substring(0, mid) + ELLIPSIS + t.substring(validateOffset(layout, l-mid), l);
+	layout.dispose();
+ 	return result;
 }
-
+int validateOffset(TextLayout layout, int offset) {
+	int nextOffset = layout.getNextOffset(offset, SWT.MOVEMENT_CLUSTER);
+	if (nextOffset != offset) return layout.getPreviousOffset(nextOffset, SWT.MOVEMENT_CLUSTER);
+	return offset;
+}
 private String[] splitString(String text) {
     String[] lines = new String[1];
     int start = 0, pos;

@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- * 
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -31,10 +31,17 @@
 #define RETURN_CAST
 #endif
 
+/*
+* Note that only x86 assembler is supported
+*/
+#if !(defined(__i386__) || defined(_M_IX86) || defined(_X86_))
+#undef USE_ASSEMBLER
+#endif
+
 #ifdef REDUCED_CALLBACKS
 #define MAX_CALLBACKS 16
 #else
-#if (defined(USE_ASSEMBLER) && (defined(__i386__) || defined(_M_IX86) || defined(_X86_)) && (defined (_WIN32) || defined (_WIN32_WCE)))
+#ifdef USE_ASSEMBLER
 #define MAX_CALLBACKS 256
 #else
 #define MAX_CALLBACKS 128

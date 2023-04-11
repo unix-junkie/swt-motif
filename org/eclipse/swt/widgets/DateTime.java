@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2005, 2007 IBM Corporation and others.
+ * Copyright (c) 2005, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -38,6 +38,10 @@ import org.eclipse.swt.events.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/snippets/#datetime">DateTime snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  *
  * @since 3.3
  */
@@ -219,8 +223,8 @@ String getFormattedString(int style) {
 		int m = calendar.get(Calendar.MINUTE);
 		int s = calendar.get(Calendar.SECOND);
 		int a = calendar.get(Calendar.AM_PM);
-		if ((style & SWT.SHORT) != 0) return "" + (h < 10 ? " " : "") + h + ":" + (m < 10 ? " " : "") + m + " " + ampm[a];
-		return "" + (h < 10 ? " " : "") + h + ":" + (m < 10 ? " " : "") + m + ":" + (s < 10 ? " " : "") + s + " " + ampm[a];
+		if ((style & SWT.SHORT) != 0) return "" + (h < 10 ? " " : "") + h + ":" + (m < 10 ? "0" : "") + m + " " + ampm[a];
+		return "" + (h < 10 ? " " : "") + h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s + " " + ampm[a];
 	}
 	/* SWT.DATE */
 	int y = calendar.get(Calendar.YEAR);
@@ -508,6 +512,11 @@ public int getMonth() {
 	return calendar.get(Calendar.MONTH);
 }
 
+String getNameText() {
+	return (style & SWT.TIME) != 0 ? getHours() + ":" + getMinutes() + ":" + getSeconds()
+			: (getMonth() + 1) + "/" + getDay() + "/" + getYear();
+}
+
 /**
  * Returns the receiver's seconds.
  * <p>
@@ -603,7 +612,7 @@ void handleSelection(Event event) {
 		return;
 	}
 	redraw();
-	notifyListeners(SWT.Selection, new Event());
+	postEvent(SWT.Selection);
 }
 
 void handleTraverse(Event event) {
@@ -623,6 +632,12 @@ boolean isValid(int fieldName, int value) {
 	int min = calendar.getActualMinimum(fieldName);
 	int max = calendar.getActualMaximum(fieldName);
 	return value >= min && value <= max;
+}
+
+boolean isValid(int year, int month, int day) {
+	Calendar valid = Calendar.getInstance();
+	valid.set(year, month, day);
+	return valid.get(Calendar.YEAR) == year && valid.get(Calendar.MONTH) == month && valid.get(Calendar.DAY_OF_MONTH) == day;
 }
 
 void onKeyDown(Event event) {
@@ -822,8 +837,16 @@ void setTextField(int fieldName, int value, boolean commit, boolean adjust) {
 	/* Convert leading 0's into spaces. */
 	int prependCount = end - start - buffer.length();
 	for (int i = 0; i < prependCount; i++) {
-		buffer.insert(0, ' ');
-	}
+		switch (fieldName) {
+		case Calendar.MINUTE:
+		case Calendar.SECOND:
+			buffer.insert(0, 0);
+		break;
+		default:
+			buffer.insert(0, ' ');
+		break;
+		}
+	}	
 	newValue = buffer.toString();
 	ignoreVerify = true;
 	text.insert(newValue);
@@ -838,7 +861,7 @@ void setField(int fieldName, int value) {
 		calendar.roll(Calendar.HOUR_OF_DAY, 12); // TODO: needs more work for setFormat and locale
 	}
 	calendar.set(fieldName, value);
-	notifyListeners(SWT.Selection, new Event());
+	postEvent(SWT.Selection);
 }
 
 /**
@@ -878,6 +901,38 @@ public void setBackground(Color color) {
 }
 
 /**
+ * Sets the receiver's year, month, and day in a single operation.
+ * <p>
+ * This is the recommended way to set the date, because setting the year,
+ * month, and day separately may result in invalid intermediate dates.
+ * </p>
+ *
+ * @param year an integer between 1752 and 9999
+ * @param month an integer between 0 and 11
+ * @param day a positive integer beginning with 1
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
+public void setDate (int year, int month, int day) {
+	checkWidget ();
+	if (!isValid(year, month, day)) return;
+	calendar.set(Calendar.YEAR, year);
+	calendar.set(Calendar.MONTH, month);
+	if ((style & SWT.CALENDAR) != 0) {
+		updateControl();
+		setDay(day, false);
+	} else {
+		calendar.set(Calendar.DAY_OF_MONTH, day);
+		updateControl();
+	}
+}
+
+/**
  * Sets the receiver's date, or day of the month, to the specified day.
  * <p>
  * The first day of the month is 1, and the last day depends on the month and year.
@@ -890,7 +945,7 @@ public void setBackground(Color color) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public void setDay(int day) {
+public void setDay (int day) {
 	checkWidget();
 	if (!isValid(Calendar.DAY_OF_MONTH, day)) return;
 	if ((style & SWT.CALENDAR) != 0) {
@@ -909,7 +964,7 @@ void setDay(int newDay, boolean notify) {
 	redraw(getCell(calendar.get(Calendar.DAY_OF_MONTH)), cellSize);
 	calendar.set(Calendar.DAY_OF_MONTH, newDay);
 	redraw(getCell(calendar.get(Calendar.DAY_OF_MONTH)), cellSize);
-	if (notify) notifyListeners(SWT.Selection, new Event());
+	if (notify) postEvent(SWT.Selection);
 }
 
 public void setFont(Font font) {
@@ -1014,7 +1069,7 @@ public void setMinutes (int minutes) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public void setMonth(int month) {
+public void setMonth (int month) {
 	checkWidget();
 	if (!isValid(Calendar.MONTH, month)) return;
 	calendar.set(Calendar.MONTH, month);
@@ -1042,6 +1097,31 @@ public void setSeconds (int seconds) {
 }
 
 /**
+ * Sets the receiver's hours, minutes, and seconds in a single operation.
+ *
+ * @param hours an integer between 0 and 23
+ * @param minutes an integer between 0 and 59
+ * @param seconds an integer between 0 and 59
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
+public void setTime (int hours, int minutes, int seconds) {
+	checkWidget ();
+	if (!isValid(Calendar.HOUR_OF_DAY, hours)) return;
+	if (!isValid(Calendar.MINUTE, minutes)) return;
+	if (!isValid(Calendar.SECOND, seconds)) return;
+	calendar.set(Calendar.HOUR_OF_DAY, hours);
+	calendar.set(Calendar.MINUTE, minutes);
+	calendar.set(Calendar.SECOND, seconds);
+	updateControl();
+}
+
+/**
  * Sets the receiver's year.
  * <p>
  * The first year is 1752 and the last year is 9999.
@@ -1054,7 +1134,7 @@ public void setSeconds (int seconds) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public void setYear(int year) {
+public void setYear (int year) {
 	checkWidget();
 	//if (!isValid(Calendar.YEAR, year)) return;
 	if (year < MIN_YEAR || year > MAX_YEAR) return;
@@ -1079,7 +1159,7 @@ int unformattedIntValue(int fieldName, String newText, boolean adjust, int max) 
 	return newValue;
 }
 
-public void updateControl() {
+void updateControl() {
 	if (text != null) {
 		String string = getFormattedString(style);
 		ignoreVerify = true;

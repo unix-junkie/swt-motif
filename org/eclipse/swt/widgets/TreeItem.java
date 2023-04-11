@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -27,6 +27,9 @@ import org.eclipse.swt.internal.Compatibility;
  * <p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#tree">Tree, TreeItem, TreeColumn snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class TreeItem extends Item {
 	Tree parent;
@@ -351,7 +354,8 @@ void addItem (TreeItem item, int index) {
 	 */
 	if (item.availableIndex < parent.topIndex) {
 		parent.topIndex++;
-		parent.getVerticalBar ().setSelection (parent.topIndex);
+		ScrollBar vBar = parent.getVerticalBar ();
+		if (vBar != null) vBar.setSelection (parent.topIndex);
 		return;
 	}
 	
@@ -866,7 +870,7 @@ Rectangle getBounds (boolean checkData) {
 			width = Math.max (0, right - x);
 		}
 	}
-	return new Rectangle (x, parent.getItemY (this), width, parent.itemHeight - 1);
+	return new Rectangle (x, parent.getItemY (this), width, parent.itemHeight);
 }
 /**
  * Returns a rectangle describing the receiver's size and location
@@ -1064,12 +1068,7 @@ Rectangle getExpanderBounds () {
 Rectangle getFocusBounds () {
 	TreeColumn[] columns = parent.columns;
 	int orderedCol0index = columns.length == 0 ? 0 : parent.getOrderedColumns ()[0].getIndex ();
-	int x;
-	if (parent.hooks (SWT.PaintItem)) {
-		x = getContentX (orderedCol0index);
-	} else {
-		x = getTextX (orderedCol0index);
-	}
+	int x = getTextX (orderedCol0index);
 
 	int width;
 	if (columns.length > 0) {
@@ -1758,7 +1757,7 @@ boolean paint (GC gc, TreeColumn column, boolean backgroundOnly) {
 	}
 
 	boolean isSelected = isSelected ();
-	boolean isFocusItem = parent.focusItem == this;
+	boolean isFocusItem = parent.focusItem == this && parent.isFocusControl ();
 	boolean drawBackground = true;
 	boolean drawForeground = true;
 	boolean drawSelection = isSelected;
@@ -2192,14 +2191,15 @@ void removeItem (TreeItem item, int index) {
  * @since 2.0
  * 
  */
-public void setBackground (Color value) {
+public void setBackground (Color color) {
 	checkWidget ();
-	if (value != null && value.isDisposed ()) {
+	if (color != null && color.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
-	if (background == value) return;
-	if (background != null && background.equals (value)) return;
-	background = value;
+	Color oldColor = background;
+	if (oldColor == color) return;
+	background = color;
+	if (oldColor != null && oldColor.equals (color)) return;
 	if ((parent.style & SWT.VIRTUAL) != 0) cached = true;
 	redrawItem ();
 }
@@ -2222,19 +2222,21 @@ public void setBackground (Color value) {
  * @since 3.1
  * 
  */
-public void setBackground (int columnIndex, Color value) {
+public void setBackground (int columnIndex, Color color) {
 	checkWidget ();
-	if (value != null && value.isDisposed ()) {
+	if (color != null && color.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
 	int validColumnCount = Math.max (1, parent.columns.length);
 	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return;
 	if (cellBackgrounds == null) {
+		if (color == null) return;
 		cellBackgrounds = new Color [validColumnCount];
 	}
-	if (cellBackgrounds [columnIndex] == value) return;
-	if (cellBackgrounds [columnIndex] != null && cellBackgrounds [columnIndex].equals (value)) return;
-	cellBackgrounds [columnIndex] = value;
+	Color oldColor = cellBackgrounds [columnIndex];
+	if (oldColor == color) return;
+	cellBackgrounds [columnIndex] = color;
+	if (oldColor != null && oldColor.equals (color)) return;
 	if ((parent.style & SWT.VIRTUAL) != 0) cached = true;
 	if (isInViewport ()) {
 		Rectangle bounds = getCellBounds (columnIndex);
@@ -2323,7 +2325,8 @@ public void setExpanded (boolean value) {
 		 */
 		if (availableIndex < parent.topIndex) {
 			parent.topIndex += descendentsCount - 1;
-			parent.getVerticalBar ().setSelection (parent.topIndex);
+			ScrollBar vBar = parent.getVerticalBar ();
+			if (vBar != null) vBar.setSelection (parent.topIndex);
 			return;
 		}
 
@@ -2358,7 +2361,8 @@ public void setExpanded (boolean value) {
 		int bottomIndex = availableIndex + descendents.length - 1;
 		if (bottomIndex < parent.topIndex) {
 			parent.topIndex = parent.topIndex - descendents.length + 1;
-			parent.getVerticalBar ().setSelection (parent.topIndex);
+			ScrollBar vBar = parent.getVerticalBar ();
+			if (vBar != null) vBar.setSelection (parent.topIndex);
 		}
 		
 		parent.updateHorizontalBar ();
@@ -2403,17 +2407,18 @@ public void setExpanded (boolean value) {
  * 
  * @since 3.0
  */
-public void setFont (Font value) {
+public void setFont (Font font) {
 	checkWidget ();
-	if (value != null && value.isDisposed ()) {
+	if (font != null && font.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
-	if (font == value) return;
-	if (value != null && value.equals (font)) return;
+	Font oldFont = this.font;
+	if (oldFont == font) return;
+	this.font = font;
+	if (oldFont != null && oldFont.equals (font)) return;
 	
 	Rectangle bounds = getBounds (false);
 	int oldRightX = bounds.x + bounds.width;
-	font = value;
 	if ((parent.style & SWT.VIRTUAL) != 0) cached = true;
 
 	/* recompute cached values for string measurements */
@@ -2451,21 +2456,22 @@ public void setFont (Font value) {
  * 
  * @since 3.1
  */
-public void setFont (int columnIndex, Font value) {
+public void setFont (int columnIndex, Font font) {
 	checkWidget ();
-	if (value != null && value.isDisposed ()) {
+	if (font != null && font.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
 
 	int validColumnCount = Math.max (1, parent.columns.length);
 	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return;
 	if (cellFonts == null) {
-		if (value == null) return;
+		if (font == null) return;
 		cellFonts = new Font [validColumnCount];
 	}
-	if (cellFonts [columnIndex] == value) return;
-	if (cellFonts [columnIndex] != null && cellFonts [columnIndex].equals (value)) return;
-	cellFonts [columnIndex] = value;
+	Font oldFont = cellFonts [columnIndex];
+	if (oldFont == font) return;
+	cellFonts [columnIndex] = font;
+	if (oldFont != null && oldFont.equals (font)) return;
 	if ((parent.style & SWT.VIRTUAL) != 0) cached = true;
 
 	/* recompute cached values for string measurements */
@@ -2501,14 +2507,15 @@ public void setFont (int columnIndex, Font value) {
  * @since 2.0
  * 
  */
-public void setForeground (Color value) {
+public void setForeground (Color color) {
 	checkWidget ();
-	if (value != null && value.isDisposed ()) {
+	if (color != null && color.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
-	if (foreground == value) return;
-	if (foreground != null && foreground.equals (value)) return;
-	foreground = value;
+	Color oldColor = foreground;
+	if (oldColor == color) return;
+	foreground = color;
+	if (oldColor != null && oldColor.equals (color)) return;
 	if ((parent.style & SWT.VIRTUAL) != 0) cached = true;
 	redrawItem ();
 }
@@ -2539,11 +2546,13 @@ public void setForeground (int columnIndex, Color value) {
 	int validColumnCount = Math.max (1, parent.columns.length);
 	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return;
 	if (cellForegrounds == null) {
+		if (value == null) return;
 		cellForegrounds = new Color [validColumnCount];
 	}
-	if (cellForegrounds [columnIndex] == value) return;
-	if (cellForegrounds [columnIndex] != null && cellForegrounds [columnIndex].equals (value)) return;
+	Color oldColor = cellForegrounds [columnIndex];
+	if (oldColor == value) return;
 	cellForegrounds [columnIndex] = value;
+	if (oldColor != null && oldColor.equals (value)) return;
 	if ((parent.style & SWT.VIRTUAL) != 0) cached = true;
 	if (isInViewport ()) {
 		redraw (

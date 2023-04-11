@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2003, 2007 IBM Corporation and others.
+ * Copyright (c) 2003, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -24,16 +24,23 @@ import org.eclipse.swt.widgets.*;
  * <dl>
  * <dt><b>Styles:</b></dt>
  * <dd>MOZILLA</dd>
+ * <dt><b>Events:</b></dt>
+ * <dd>CloseWindowListener, LocationListener, OpenWindowListener, ProgressListener, StatusTextListener, TitleListener, VisibilityWindowListener</dd>
  * </dl>
  * <p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
  * 
+ * @see <a href="http://www.eclipse.org/swt/snippets/#browser">Browser snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Examples: ControlExample, BrowserExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ *
  * @since 3.0
  */
 
 public class Browser extends Composite {
 	WebBrowser webBrowser;
+	int userStyle;
 
 	static final String PACKAGE_PREFIX = "org.eclipse.swt.browser."; //$NON-NLS-1$
 	static final String NO_INPUT_METHOD = "org.eclipse.swt.internal.gtk.noInputMethod"; //$NON-NLS-1$
@@ -70,6 +77,8 @@ public class Browser extends Composite {
  */
 public Browser (Composite parent, int style) {
 	super (checkParent (parent), checkStyle (style));
+	userStyle = style;
+
 	String platform = SWT.getPlatform ();
 	Display display = parent.getDisplay ();
 	if ("gtk".equals (platform)) display.setData (NO_INPUT_METHOD, null); //$NON-NLS-1$
@@ -83,7 +92,7 @@ public Browser (Composite parent, int style) {
 			className = "org.eclipse.swt.browser.Mozilla"; //$NON-NLS-1$
 		} else if ("gtk".equals (platform)) { //$NON-NLS-1$
 			className = "org.eclipse.swt.browser.Mozilla"; //$NON-NLS-1$
-		} else if ("carbon".equals (platform)) { //$NON-NLS-1$
+		} else if ("carbon".equals (platform) || "cocoa".equals (platform)) { //$NON-NLS-1$
 			className = "org.eclipse.swt.browser.Safari"; //$NON-NLS-1$
 		} else if ("photon".equals (platform)) { //$NON-NLS-1$
 			className = "org.eclipse.swt.browser.Voyager"; //$NON-NLS-1$
@@ -139,6 +148,10 @@ static int checkStyle(int style) {
 	}
 
 	if ("win32".equals (platform)) { //$NON-NLS-1$
+		/*
+		* For IE on win32 the border is supplied by the embedded browser, so remove
+		* the style so that the parent Composite will not draw a second border.
+		*/
 		return style & ~SWT.BORDER;
 	} else if ("motif".equals (platform)) { //$NON-NLS-1$
 		return style | SWT.EMBEDDED;
@@ -407,6 +420,32 @@ public boolean execute (String script) {
 public boolean forward () {
 	checkWidget();
 	return webBrowser.forward ();
+}
+
+public int getStyle () {
+	/*
+	* If SWT.BORDER was specified at creation time then getStyle() should answer
+	* it even though it is removed for IE on win32 in checkStyle().
+	*/
+	return super.getStyle () | (userStyle & SWT.BORDER);
+}
+
+/**
+ * Returns a string with HTML that represents the content of the current page.
+ *
+ * @return HTML representing the current page or an empty <code>String</code>
+ * if this is empty
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
+ *    <li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
+public String getText () {
+	checkWidget();
+	return webBrowser.getText ();
 }
 
 /**

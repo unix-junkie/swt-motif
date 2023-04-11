@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -359,16 +359,18 @@ int drawLine(int lineIndex, int paintX, int paintY, GC gc, Color widgetBackgroun
 	int selectionStart = selection.x - lineOffset;
 	int selectionEnd = selection.y - lineOffset;
 	Rectangle client = styledText.getClientArea();  
-	Color lineBackground = getLineBackground(lineIndex, widgetBackground);
+	Color lineBackground = getLineBackground(lineIndex, null);
 	StyledTextEvent event = styledText.getLineBackgroundData(lineOffset, line);
 	if (event != null && event.lineBackground != null) lineBackground = event.lineBackground;
-	
 	int height = layout.getBounds().height;
-	gc.setBackground(lineBackground);
-	styledText.drawBackground(gc, client.x, paintY, client.width, height);
-	
+	if (lineBackground != null) {
+		gc.setBackground(lineBackground);
+		gc.fillRectangle(client.x, paintY, client.width, height);
+	} else {
+		gc.setBackground(widgetBackground);
+		styledText.drawBackground(gc, client.x, paintY, client.width, height);
+	}
 	gc.setForeground(widgetForeground);
-	gc.setBackground(lineBackground);
 	if (selectionStart == selectionEnd || (selectionEnd <= 0 && selectionStart > lineLength - 1)) {
 		layout.draw(gc, paintX, paintY);
 	} else {
@@ -631,8 +633,14 @@ StyleRange[] getStyleRanges(int start, int length, boolean includeRanges) {
 	}
 	style = newStyles[newStyles.length - 1];
 	if (end < style.start + style.length - 1) {
-		if (!includeRanges || ranges == null) newStyles[newStyles.length - 1] = style = (StyleRange)style.clone();
-		style.length = end - style.start + 1;
+		if (end < style.start) {
+			StyleRange[] tmp = new StyleRange[newStyles.length - 1];
+			System.arraycopy(newStyles, 0, tmp, 0, newStyles.length - 1);
+			newStyles = tmp;
+		} else {
+			if (!includeRanges || ranges == null) newStyles[newStyles.length - 1] = style = (StyleRange)style.clone();
+			style.length = end - style.start + 1;
+		}
 	}
 	return newStyles;
 }
@@ -836,6 +844,58 @@ TextLayout getTextLayout(int lineIndex, int orientation, int width, int lineSpac
 		}
 	}
 	if (lastOffset < length) layout.setStyle(null, lastOffset, length);
+	if (styledText != null && styledText.ime != null) {
+		IME ime = styledText.ime;
+		int compositionOffset = ime.getCompositionOffset();
+		if (compositionOffset != -1) {
+			int commitCount = ime.getCommitCount();
+			int compositionLength = ime.getText().length();
+			if (compositionLength != commitCount) {
+				int compositionLine = content.getLineAtOffset(compositionOffset);
+				if (compositionLine == lineIndex) {
+					int[] imeRanges = ime.getRanges();
+					TextStyle[] imeStyles = ime.getStyles();
+					if (imeRanges.length > 0) {
+						for (int i = 0; i < imeStyles.length; i++) {
+							int start = imeRanges[i*2] - lineOffset;
+							int end = imeRanges[i*2+1] - lineOffset;
+							TextStyle imeStyle = imeStyles[i], userStyle;
+							for (int j = start; j <= end; j++) {
+								userStyle = layout.getStyle(j);
+								if (userStyle == null && j > 0) userStyle = layout.getStyle(j - 1);
+								if (userStyle == null && j + 1 < length) userStyle = layout.getStyle(j + 1);
+								if (userStyle == null) {
+									layout.setStyle(imeStyle, j, j);
+								} else {
+									TextStyle newStyle = new TextStyle(imeStyle);
+									if (newStyle.font == null) newStyle.font = userStyle.font;
+									if (newStyle.foreground == null) newStyle.foreground = userStyle.foreground;
+									if (newStyle.background == null) newStyle.background = userStyle.background;
+									layout.setStyle(newStyle, j, j);
+								}
+							}
+						}
+					} else {
+						int start = compositionOffset - lineOffset;
+						int end = start + compositionLength - 1;
+						TextStyle userStyle = layout.getStyle(start);
+						if (userStyle == null) {
+							if (start > 0) userStyle = layout.getStyle(start - 1);
+							if (userStyle == null && end + 1 < length) userStyle = layout.getStyle(end + 1);
+							if (userStyle != null) {
+								TextStyle newStyle = new TextStyle();
+								newStyle.font = userStyle.font;
+								newStyle.foreground = userStyle.foreground;
+								newStyle.background = userStyle.background;
+								layout.setStyle(newStyle, start, end);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
 	if (styledText != null && styledText.isFixedLineHeight()) {
 		int index = -1;
 		int lineCount = layout.getLineCount();

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -30,6 +30,9 @@ import java.util.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample, Dialog tab</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class FontDialog extends Dialog {
 	private FontData [] fontData;
@@ -113,7 +116,7 @@ public class FontDialog extends Dialog {
  * </ul>
  */
 public FontDialog (Shell parent) {
-	this (parent, SWT.NONE);
+	this (parent, SWT.APPLICATION_MODAL);
 }
 
 /**
@@ -141,7 +144,7 @@ public FontDialog (Shell parent) {
  * </ul>
  */
 public FontDialog (Shell parent, int style) {
-	super (parent, style | SWT.TITLE | SWT.BORDER | SWT.APPLICATION_MODAL);
+	super (parent, checkStyle (parent, style));
 	checkSubclass ();
 }
 

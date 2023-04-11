@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -51,12 +51,13 @@ import org.eclipse.swt.internal.*;
  * </pre></code>
  * </p><p>
  * Note that although this class is a subclass of <code>Composite</code>,
- * it does not make sense to add <code>Control</code> children to it,
- * or set a layout on it.
+ * it does not normally make sense to add <code>Control</code> children to
+ * it, or set a layout on it, unless implementing something like a cell
+ * editor.
  * </p><p>
  * <dl>
  * <dt><b>Styles:</b></dt>
- * <dd>SINGLE, MULTI, CHECK, FULL_SELECTION, VIRTUAL</dd>
+ * <dd>SINGLE, MULTI, CHECK, FULL_SELECTION, VIRTUAL, NO_SCROLL</dd>
  * <dt><b>Events:</b></dt>
  * <dd>Selection, DefaultSelection, Collapse, Expand, SetData, MeasureItem, EraseItem, PaintItem</dd>
  * </dl>
@@ -65,6 +66,10 @@ import org.eclipse.swt.internal.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#tree">Tree, TreeItem, TreeColumn snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Tree extends Composite {
 	Canvas header;
@@ -149,11 +154,14 @@ public boolean isFocusControl() {
  * @see SWT#SINGLE
  * @see SWT#MULTI
  * @see SWT#CHECK
+ * @see SWT#FULL_SELECTION
+ * @see SWT#VIRTUAL
+ * @see SWT#NO_SCROLL
  * @see Widget#checkSubclass
  * @see Widget#getStyle
  */
 public Tree (Composite parent, int style) {
-	super (parent, checkStyle (style | SWT.H_SCROLL | SWT.V_SCROLL | SWT.NO_REDRAW_RESIZE | SWT.NO_BACKGROUND | SWT.DOUBLE_BUFFERED));
+	super (parent, checkStyle (style));
 	setForeground (null);	/* set foreground and background to chosen default colors */
 	setBackground (null);
 	GC gc = new GC (this);
@@ -208,14 +216,18 @@ public Tree (Composite parent, int style) {
 		}
 	};
 
-	ScrollBar vBar = getVerticalBar ();
 	ScrollBar hBar = getHorizontalBar ();
-	vBar.setValues (0, 0, 1, 1, 1, 1);
-	hBar.setValues (0, 0, 1, 1, 1, 1);
-	vBar.setVisible (false);
-	hBar.setVisible (false);
-	vBar.addListener (SWT.Selection, listener);
-	hBar.addListener (SWT.Selection, listener);
+	if (hBar != null) {
+		hBar.setValues (0, 0, 1, 1, 1, 1);
+		hBar.setVisible (false);
+		hBar.addListener (SWT.Selection, listener);
+	}
+	ScrollBar vBar = getVerticalBar ();
+	if (vBar != null) {
+		vBar.setValues (0, 0, 1, 1, 1, 1);
+		vBar.setVisible (false);
+		vBar.addListener (SWT.Selection, listener);
+	}
 }
 /**
  * Adds the listener to the collection of listeners who will
@@ -292,6 +304,21 @@ boolean checkData (TreeItem item, boolean redraw) {
 	return true;
 }
 static int checkStyle (int style) {
+	/*
+	* Feature in Windows.  Even when WS_HSCROLL or
+	* WS_VSCROLL is not specified, Windows creates
+	* trees and tables with scroll bars.  The fix
+	* is to set H_SCROLL and V_SCROLL.
+	* 
+	* NOTE: This code appears on all platforms so that
+	* applications have consistent scroll bar behavior.
+	*/
+	if ((style & SWT.NO_SCROLL) == 0) {
+		style |= SWT.H_SCROLL | SWT.V_SCROLL;
+	}
+	style |= SWT.NO_REDRAW_RESIZE | SWT.NO_BACKGROUND | SWT.DOUBLE_BUFFERED;
+	//TEMPORARY CODE
+	style |= SWT.FULL_SELECTION;
 	return checkBits (style, SWT.SINGLE, SWT.MULTI, 0, 0, 0, 0);
 }
 protected void checkSubclass () {
@@ -455,8 +482,8 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 		width = wHint;
 	} else {
 		if (columns.length == 0) {
-			for (int i = 0; i < items.length; i++) {
-				Rectangle itemBounds = items [i].getBounds (false);
+			for (int i = 0; i < availableItemsCount; i++) {
+				Rectangle itemBounds = availableItems [i].getBounds (false);
 				width = Math.max (width, itemBounds.x + itemBounds.width);
 			}
 		} else {
@@ -468,7 +495,7 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 	if (hHint != SWT.DEFAULT) {
 		height = hHint;
 	} else {
-		height = getHeaderHeight () + items.length * itemHeight;
+		height = getHeaderHeight () + availableItemsCount * itemHeight;
 	}
 	Rectangle result = computeTrim (0, 0, width, height);
 	return new Point (result.width, result.height);
@@ -567,7 +594,8 @@ void createItem (TreeItem item, int index) {
 	 */
 	if (item.availableIndex < topIndex) {
 		topIndex++;
-		getVerticalBar ().setSelection (topIndex);
+		ScrollBar vBar = getVerticalBar ();
+		if (vBar != null) vBar.setSelection (topIndex);
 		return;
 	}
 	/*
@@ -582,6 +610,30 @@ void createItem (TreeItem item, int index) {
 	int redrawIndex = index;
 	if (redrawIndex > 0 && item.isLastChild ()) redrawIndex--;
 	redrawFromItemDownwards (items [redrawIndex].availableIndex);
+}
+/**
+ * Deselects an item in the receiver.  If the item was already
+ * deselected, it remains deselected.
+ *
+ * @param item the item to be deselected
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the item is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the item has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
+public void deselect (TreeItem item) {
+	checkWidget ();
+	if (item == null) error (SWT.ERROR_NULL_ARGUMENT);
+	if (item.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
+	deselectItem (item);
+	redrawItem (item.availableIndex, true);
 }
 /**
  * Deselects all selected items in the receiver.
@@ -658,13 +710,15 @@ void destroyItem (TreeColumn column) {
 			newWidth += columns [i].width;
 		}
 		ScrollBar hBar = getHorizontalBar (); 
-		hBar.setMaximum (newWidth);
-		hBar.setVisible (clientArea.width < newWidth);
-		int selection = hBar.getSelection ();
-		if (selection != horizontalOffset) {
-			horizontalOffset = selection;
-			redraw ();
-			if (header.isVisible () && drawCount <= 0) header.redraw ();
+		if (hBar != null) {
+			hBar.setMaximum (newWidth);
+			hBar.setVisible (clientArea.width < newWidth);
+			int selection = hBar.getSelection ();
+			if (selection != horizontalOffset) {
+				horizontalOffset = selection;
+				redraw ();
+				if (header.isVisible () && drawCount <= 0) header.redraw ();
+			}
 		}
 	}
 	TreeColumn[] orderedColumns = getOrderedColumns ();
@@ -726,7 +780,8 @@ void destroyItem (TreeItem item) {
 		 */
 		if (availableIndex < topIndex) {
 			topIndex = oldTopIndex - 1;
-			getVerticalBar ().setSelection (topIndex);
+			ScrollBar vBar = getVerticalBar ();
+			if (vBar != null) vBar.setSelection (topIndex);
 		}
 	}
 	/* selectedItems array */
@@ -1318,10 +1373,11 @@ void handleEvents (Event event) {
 		case SWT.Resize:
 			onResize (event); break;
 		case SWT.Selection:
+			if (event.widget == getHorizontalBar ()) {
+				onScrollHorizontal (event);
+			}
 			if (event.widget == getVerticalBar ()) {
 				onScrollVertical (event);
-			} else {
-				onScrollHorizontal (event);
 			}
 			break;
 		case SWT.FocusOut:
@@ -1949,7 +2005,8 @@ void onArrowDown (int stateMask) {
 			if (availableItemsCount <= topIndex + visibleItemCount) return;	/* at bottom */
 			update ();
 			topIndex++;
-			getVerticalBar ().setSelection (topIndex);
+			ScrollBar vBar = getVerticalBar ();
+			if (vBar != null) vBar.setSelection (topIndex);
 			GC gc = new GC (this);
 			gc.copyArea (
 				0, 0,
@@ -1978,7 +2035,8 @@ void onArrowDown (int stateMask) {
 			if (availableItemsCount <= topIndex + visibleItemCount) return;	/* at bottom */
 			update ();
 			topIndex++;
-			getVerticalBar ().setSelection (topIndex);
+			ScrollBar vBar = getVerticalBar ();
+			if (vBar != null) vBar.setSelection (topIndex);
 			GC gc = new GC (this);
 			gc.copyArea (
 				0, 0,
@@ -2035,7 +2093,8 @@ void onArrowLeft (int stateMask) {
 			gc.dispose();
 		}
 		horizontalOffset = newSelection;
-		getHorizontalBar ().setSelection (horizontalOffset);
+		ScrollBar hBar = getHorizontalBar (); 
+		if (hBar != null) hBar.setSelection (horizontalOffset);
 		return;
 	}
 	/* Left Arrow with no modifiers, Shift+Left Arrow */
@@ -2061,30 +2120,32 @@ void onArrowRight (int stateMask) {
 	if ((stateMask & SWT.CTRL) != 0) {
 		/* CTRL+Right Arrow, CTRL+Shift+Right Arrow */
 		ScrollBar hBar = getHorizontalBar ();
-		int maximum = hBar.getMaximum ();
-		int clientWidth = clientArea.width;
-		if ((horizontalOffset + clientWidth) == maximum) return;
-		if (maximum <= clientWidth) return;
-		int newSelection = Math.min (horizontalOffset + SIZE_HORIZONTALSCROLL, maximum - clientWidth);
-		update ();
-		GC gc = new GC (this);
-		gc.copyArea (
-			0, 0,
-			clientArea.width, clientArea.height,
-			horizontalOffset - newSelection, 0);
-		gc.dispose ();
-		if (header.getVisible ()) {
-			Rectangle headerClientArea = header.getClientArea ();
-			header.update ();
-			gc = new GC (header);
+		if (hBar != null) {
+			int maximum = hBar.getMaximum ();
+			int clientWidth = clientArea.width;
+			if ((horizontalOffset + clientWidth) == maximum) return;
+			if (maximum <= clientWidth) return;
+			int newSelection = Math.min (horizontalOffset + SIZE_HORIZONTALSCROLL, maximum - clientWidth);
+			update ();
+			GC gc = new GC (this);
 			gc.copyArea (
 				0, 0,
-				headerClientArea.width, headerClientArea.height,
+				clientArea.width, clientArea.height,
 				horizontalOffset - newSelection, 0);
-			gc.dispose();
+			gc.dispose ();
+			if (header.getVisible ()) {
+				Rectangle headerClientArea = header.getClientArea ();
+				header.update ();
+				gc = new GC (header);
+				gc.copyArea (
+					0, 0,
+					headerClientArea.width, headerClientArea.height,
+					horizontalOffset - newSelection, 0);
+				gc.dispose();
+			}
+			horizontalOffset = newSelection;
+			hBar.setSelection (horizontalOffset);
 		}
-		horizontalOffset = newSelection;
-		hBar.setSelection (horizontalOffset);
 		return;
 	}
 	/* Right Arrow with no modifiers, Shift+Right Arrow */
@@ -2132,7 +2193,8 @@ void onArrowUp (int stateMask) {
 			if (topIndex == 0) return;	/* at top */
 			update ();
 			topIndex--;
-			getVerticalBar ().setSelection (topIndex);
+			ScrollBar vBar = getVerticalBar ();
+			if (vBar != null) vBar.setSelection (topIndex);
 			GC gc = new GC (this);
 			gc.copyArea (
 				0, 0,
@@ -2161,7 +2223,8 @@ void onArrowUp (int stateMask) {
 			if (topIndex == 0) return;	/* at top */
 			update ();
 			topIndex--;
-			getVerticalBar ().setSelection (topIndex);
+			ScrollBar vBar = getVerticalBar ();
+			if (vBar != null) vBar.setSelection (topIndex);
 			GC gc = new GC (this);
 			gc.copyArea (
 				0, 0,
@@ -2289,7 +2352,7 @@ void onEnd (int stateMask) {
 	for (int i = anchorIndex; i <= selectIndex; i++) {
 		newSelection [writeIndex++] = availableItems [i];
 	}
-	setSelection (newSelection);
+	setSelection (newSelection, false);
 	setFocusItem (selectedItem, true);
 	redrawItems (anchorIndex, selectIndex, true);
 	showItem (selectedItem);
@@ -2397,7 +2460,7 @@ void onHome (int stateMask) {
 	for (int i = anchorIndex; i >= 0; i--) {
 		newSelection [writeIndex++] = availableItems [i];
 	}
-	setSelection (newSelection);
+	setSelection (newSelection, false);
 	setFocusItem (selectedItem, true);
 	redrawItems (anchorIndex, selectIndex, true);
 	showItem (selectedItem);
@@ -2619,7 +2682,7 @@ void onMouseDown (Event event) {
 					newSelection [writeIndex++] = availableItems [i];
 				}
 				newSelection [writeIndex] = availableItems [selectIndex];
-				setSelection (newSelection);
+				setSelection (newSelection, false);
 				setFocusItem (selectedItem, true);
 				redrawItems (
 					Math.min (anchorIndex, selectIndex),
@@ -2679,7 +2742,7 @@ void onMouseDown (Event event) {
 			newSelection [writeIndex++] = availableItems [i];
 		}
 		newSelection [writeIndex] = availableItems [selectIndex];
-		setSelection (newSelection);
+		setSelection (newSelection, false);
 		setFocusItem (selectedItem, true);
 		redrawItems (
 			Math.min (anchorIndex, selectIndex),
@@ -2787,7 +2850,7 @@ void onPageDown (int stateMask) {
 		newSelection [writeIndex++] = availableItems [i];
 	}
 	newSelection [writeIndex] = availableItems [selectIndex];
-	setSelection (newSelection);
+	setSelection (newSelection, false);
 	setFocusItem (selectedItem, true);
 	showItem (selectedItem);
 	Event newEvent = new Event ();
@@ -2869,7 +2932,7 @@ void onPageUp (int stateMask) {
 		newSelection [writeIndex++] = availableItems [i];
 	}
 	newSelection [writeIndex] = availableItems [selectIndex];
-	setSelection (newSelection);
+	setSelection (newSelection, false);
 	setFocusItem (selectedItem, true);
 	showItem (selectedItem);
 	Event newEvent = new Event ();
@@ -3011,32 +3074,38 @@ void onResize (Event event) {
 	clientArea = getClientArea ();
 	/* vertical scrollbar */
 	ScrollBar vBar = getVerticalBar ();
-	int clientHeight = (clientArea.height - getHeaderHeight ()) / itemHeight;
-	int thumb = Math.min (clientHeight, availableItemsCount);
-	vBar.setThumb (thumb);
-	vBar.setPageIncrement (thumb);
-	int index = vBar.getSelection ();
-	if (index != topIndex) {
-		topIndex = index;
-		redraw ();
+	if (vBar != null) {
+		int clientHeight = (clientArea.height - getHeaderHeight ()) / itemHeight;
+		int thumb = Math.min (clientHeight, availableItemsCount);
+		vBar.setThumb (thumb);
+		vBar.setPageIncrement (thumb);
+		int index = vBar.getSelection ();
+		if (index != topIndex) {
+			topIndex = index;
+			redraw ();
+		}
+		boolean visible = clientHeight < availableItemsCount;
+		if (visible != vBar.getVisible ()) {
+			vBar.setVisible (visible);
+			clientArea = getClientArea ();
+		}
 	}
-	boolean visible = clientHeight < availableItemsCount;
-	if (visible != vBar.getVisible ()) {
-		vBar.setVisible (visible);
-		clientArea = getClientArea ();
-	}
+	
 	/* horizontal scrollbar */ 
-	ScrollBar hBar = getHorizontalBar ();
-	int hBarMaximum = hBar.getMaximum ();
-	thumb = Math.min (clientArea.width, hBarMaximum);
-	hBar.setThumb (thumb);
-	hBar.setPageIncrement (thumb);
-	horizontalOffset = hBar.getSelection ();
-	visible = clientArea.width < hBarMaximum;
-	if (visible != hBar.getVisible ()) {
-		hBar.setVisible (visible);
-		clientArea = getClientArea ();
+	ScrollBar hBar = getHorizontalBar (); 
+	if (hBar != null) {
+		int hBarMaximum = hBar.getMaximum ();
+		int thumb = Math.min (clientArea.width, hBarMaximum);
+		hBar.setThumb (thumb);
+		hBar.setPageIncrement (thumb);
+		horizontalOffset = hBar.getSelection ();
+		boolean visible = clientArea.width < hBarMaximum;
+		if (visible != hBar.getVisible ()) {
+			hBar.setVisible (visible);
+			clientArea = getClientArea ();
+		}
 	}
+	
 	/* header */
 	int headerHeight = Math.max (fontHeight, headerImageHeight) + 2 * getHeaderPadding ();
 	header.setSize (clientArea.width, headerHeight);
@@ -3045,7 +3114,9 @@ void onResize (Event event) {
 	if (availableItemsCount == 0 && isFocusControl ()) redraw ();
 }
 void onScrollHorizontal (Event event) {
-	int newSelection = getHorizontalBar ().getSelection ();
+	ScrollBar hBar = getHorizontalBar (); 
+	if (hBar == null) return;
+	int newSelection = hBar.getSelection ();
 	update ();
 	if (availableItemsCount > 0) {
 		GC gc = new GC (this);
@@ -3070,15 +3141,18 @@ void onScrollHorizontal (Event event) {
 	horizontalOffset = newSelection;
 }
 void onScrollVertical (Event event) {
-	int newSelection = getVerticalBar ().getSelection ();
-	update ();
-	GC gc = new GC (this);
-	gc.copyArea (
-		0, 0,
-		clientArea.width, clientArea.height,
-		0, (topIndex - newSelection) * itemHeight);
-	gc.dispose ();
-	topIndex = newSelection;
+	ScrollBar vBar = getVerticalBar ();
+	if (vBar != null) {
+		int newSelection = vBar.getSelection ();
+		update ();
+		GC gc = new GC (this);
+		gc.copyArea (
+			0, 0,
+			clientArea.width, clientArea.height,
+			0, (topIndex - newSelection) * itemHeight);
+		gc.dispose ();
+		topIndex = newSelection;
+	}
 }
 void onSpace () {
 	if (focusItem == null) return;
@@ -3222,13 +3296,17 @@ public void removeAll () {
 	lastSelectionEvent = null;
 	inExpand = false;
 	ScrollBar vBar = getVerticalBar ();
-	vBar.setMaximum (1);
-	vBar.setVisible (false);
+	if (vBar != null) {
+		vBar.setMaximum (1);
+		vBar.setVisible (false);
+	}
 	if (columns.length == 0) {
 		horizontalOffset = 0;
 		ScrollBar hBar = getHorizontalBar ();
-		hBar.setMaximum (1);
-		hBar.setVisible (false);
+		if (hBar != null) {
+			hBar.setMaximum (1);
+			hBar.setVisible (false);
+		}
 	}
 
 	setRedraw (true);
@@ -3284,6 +3362,30 @@ public void removeTreeListener (TreeListener listener) {
 	if (listener == null) error (SWT.ERROR_NULL_ARGUMENT);
 	removeListener (SWT.Expand, listener);
 	removeListener (SWT.Collapse, listener);
+}
+/**
+ * Selects an item in the receiver.  If the item was already
+ * selected, it remains selected.
+ *
+ * @param item the item to be selected
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the item is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the item has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
+public void select (TreeItem item) {
+	checkWidget ();
+	if (item == null) error (SWT.ERROR_NULL_ARGUMENT);
+	if (item.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
+	selectItem (item, (style & SWT.MULTI) != 0);
+	redrawItem (item.availableIndex, true);
 }
 /**
  * Selects all of the items in the receiver.
@@ -3446,13 +3548,15 @@ public void setFont (Font value) {
 	/* update scrollbars */
 	if (columns.length == 0) updateHorizontalBar ();
 	ScrollBar vBar = getVerticalBar ();
-	int thumb = (clientArea.height - getHeaderHeight ()) / itemHeight;
-	if (vBar.getThumb () != thumb) {
-		vBar.setThumb (thumb);
-		vBar.setPageIncrement (thumb);
+	if (vBar != null) {
+		int thumb = (clientArea.height - getHeaderHeight ()) / itemHeight;
+		if (vBar.getThumb () != thumb) {
+			vBar.setThumb (thumb);
+			vBar.setPageIncrement (thumb);
+		}
+		topIndex = vBar.getSelection ();
+		vBar.setVisible (thumb < vBar.getMaximum ());
 	}
-	topIndex = vBar.getSelection ();
-	vBar.setVisible (thumb < vBar.getMaximum ());
 	redraw ();
 }
 public void setForeground (Color color) {
@@ -3693,7 +3797,7 @@ public void setRedraw (boolean value) {
 public void setSelection (TreeItem item) {
 	checkWidget ();
 	if (item == null) error (SWT.ERROR_NULL_ARGUMENT);
-	setSelection (new TreeItem [] {item});
+	setSelection (new TreeItem [] {item}, true);
 }
 /**
  * Sets the receiver's selection to be the given array of items.
@@ -3720,6 +3824,10 @@ public void setSelection (TreeItem item) {
 public void setSelection (TreeItem[] items) {
 	checkWidget ();
 	if (items == null) error (SWT.ERROR_NULL_ARGUMENT);
+	setSelection (items, true);
+}
+
+void setSelection (TreeItem[] items, boolean updateViewport) {
 	if (items.length == 0 || ((style & SWT.SINGLE) != 0 && items.length > 1)) {
 		deselectAll ();
 		return;
@@ -3754,8 +3862,10 @@ public void setSelection (TreeItem[] items) {
 			}
 		}
 	}
-	showItem (selectedItems [0]);
-	setFocusItem (selectedItems [0], true);
+	if (updateViewport) {
+		showItem (selectedItems [0]);
+		setFocusItem (selectedItems [0], true);
+	}
 	for (int i = 0; i < selectedItems.length; i++) {
 		int availableIndex = selectedItems [i].availableIndex;
 		if (availableIndex != -1) {
@@ -3849,7 +3959,8 @@ public void setTopItem (TreeItem item) {
 	update ();
 	int change = topIndex - index;
 	topIndex = index;
-	getVerticalBar ().setSelection (topIndex);
+	ScrollBar vBar = getVerticalBar ();
+	if (vBar != null) vBar.setSelection (topIndex);
 	if (drawCount <= 0) {
 		GC gc = new GC (this);
 		gc.copyArea (0, 0, clientArea.width, clientArea.height, 0, change * itemHeight);
@@ -3895,7 +4006,8 @@ public void showColumn (TreeColumn column) {
 	} else {
 		horizontalOffset = absX + column.width - clientArea.width;
 	}
-	getHorizontalBar ().setSelection (horizontalOffset);
+	ScrollBar hBar = getHorizontalBar (); 
+	if (hBar != null) hBar.setSelection (horizontalOffset);
 	redraw ();
 	if (drawCount <= 0 && header.isVisible ()) header.redraw ();
 }
@@ -4012,18 +4124,20 @@ void updateColumnWidth (TreeColumn column, int width) {
 		maximum += columns [i].width;
 	}
 	ScrollBar hBar = getHorizontalBar ();
-	hBar.setMaximum (Math.max (1, maximum));	/* setting a value of 0 here is ignored */
-	if (hBar.getThumb () != clientArea.width) {
-		hBar.setThumb (clientArea.width);
-		hBar.setPageIncrement (clientArea.width);
-	}
-	int oldHorizontalOffset = horizontalOffset;	/* hBar.setVisible() can modify horizontalOffset */
-	hBar.setVisible (clientArea.width < maximum);
-	int selection = hBar.getSelection ();
-	if (selection != oldHorizontalOffset) {
-		horizontalOffset = selection;
-		redraw ();
-		if (drawCount <= 0 && header.getVisible ()) header.redraw ();
+	if (hBar != null) {
+		hBar.setMaximum (Math.max (1, maximum));	/* setting a value of 0 here is ignored */
+		if (hBar.getThumb () != clientArea.width) {
+			hBar.setThumb (clientArea.width);
+			hBar.setPageIncrement (clientArea.width);
+		}
+		int oldHorizontalOffset = horizontalOffset;	/* hBar.setVisible() can modify horizontalOffset */
+		hBar.setVisible (clientArea.width < maximum);
+		int selection = hBar.getSelection ();
+		if (selection != oldHorizontalOffset) {
+			horizontalOffset = selection;
+			redraw ();
+			if (drawCount <= 0 && header.getVisible ()) header.redraw ();
+		}
 	}
 
 	column.sendEvent (SWT.Resize);
@@ -4041,8 +4155,9 @@ void updateColumnWidth (TreeColumn column, int width) {
  */
 void updateHorizontalBar () {
 	if (drawCount > 0) return;
-
 	ScrollBar hBar = getHorizontalBar ();
+	if (hBar == null) return;
+
 	int maxX = 0;
 	if (columns.length > 0) {
 		for (int i = 0; i < columns.length; i++) {
@@ -4087,9 +4202,10 @@ void updateHorizontalBar () {
  */
 void updateHorizontalBar (int newRightX, int rightXchange) {
 	if (drawCount > 0) return;
+	ScrollBar hBar = getHorizontalBar ();
+	if (hBar == null) return;
 
 	newRightX += horizontalOffset;
-	ScrollBar hBar = getHorizontalBar ();
 	int barMaximum = hBar.getMaximum ();
 	if (newRightX > barMaximum) {	/* item has extended beyond previous maximum */
 		hBar.setMaximum (newRightX);
@@ -4119,10 +4235,11 @@ void updateHorizontalBar (int newRightX, int rightXchange) {
 }
 void updateVerticalBar () {
 	if (drawCount > 0) return;
+	ScrollBar vBar = getVerticalBar ();
+	if (vBar == null) return;
 
 	int pageSize = (clientArea.height - getHeaderHeight ()) / itemHeight;
 	int maximum = Math.max (1, availableItemsCount);
-	ScrollBar vBar = getVerticalBar ();
 	if (maximum != vBar.getMaximum ()) {
 		vBar.setMaximum (maximum);
 	}

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -16,6 +16,7 @@ import java.lang.reflect.Method;
 /* SWT Imports */
 import org.eclipse.swt.*;
 import org.eclipse.swt.internal.*;
+import org.eclipse.swt.internal.motif.OS;
 import org.eclipse.swt.graphics.Device;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.widgets.Shell;
@@ -25,10 +26,13 @@ import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Event;
 
 /* AWT Imports */
+import java.awt.AWTEvent;
 import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.Canvas;
 import java.awt.Frame;
+import java.awt.Window;
+import java.awt.event.AWTEventListener;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.WindowEvent;
@@ -37,6 +41,9 @@ import java.awt.event.WindowEvent;
 /**
  * This class provides a bridge between SWT and AWT, so that it
  * is possible to embed AWT components in SWT and vice versa.
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#awt">Swing/AWT snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 3.0
  */
@@ -56,7 +63,7 @@ public class SWT_AWT {
 
 static boolean loaded, swingInitialized;
 
-static native final int /*long*/ getAWTHandle (Canvas canvas);
+static native final int /*long*/ getAWTHandle (Object canvas);
 static native final void setDebug (Frame canvas, boolean debug);
 
 static synchronized void loadLibrary () {
@@ -172,6 +179,29 @@ public static Frame new_Frame (final Composite parent) {
 		Method method = clazz.getMethod("registerListeners", null);
 		if (method != null) method.invoke(value, null);
 	} catch (Throwable e) {}
+	final AWTEventListener awtListener = new AWTEventListener() {
+		public void eventDispatched(AWTEvent event) {
+			if (event.getID() == WindowEvent.WINDOW_OPENED) {
+				final Window window = (Window) event.getSource();
+				if (window.getParent() == frame) {
+					parent.getDisplay().asyncExec(new Runnable() {
+						public void run() {
+							Shell shell = parent.getShell();
+							loadLibrary();
+							int awtHandle =  getAWTHandle(window);
+							if (awtHandle == 0) return;
+							int xtParent = OS.XtParent (shell.handle);
+							while (xtParent != 0 && !OS.XtIsSubclass (xtParent, OS.shellWidgetClass ())) {
+								xtParent = OS.XtParent (xtParent);
+							}
+				        	OS.XSetTransientForHint(OS.XtDisplay(xtParent), awtHandle, OS.XtWindow(xtParent));
+						}
+					});
+				}
+			}
+		}
+	};
+	frame.getToolkit().addAWTEventListener(awtListener, AWTEvent.WINDOW_EVENT_MASK);
 	final Listener shellListener = new Listener () {
 		public void handleEvent (Event e) {
 			switch (e.type) {
@@ -206,6 +236,7 @@ public static Frame new_Frame (final Composite parent) {
 					parent.setVisible(false);
 					EventQueue.invokeLater(new Runnable () {
 						public void run () {
+							frame.getToolkit().removeAWTEventListener(awtListener);
 							frame.dispose ();
 						}
 					});

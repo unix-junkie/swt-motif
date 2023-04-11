@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -112,19 +112,22 @@ import org.eclipse.swt.events.*;
  *
  * @see Decorations
  * @see SWT
+ * @see <a href="http://www.eclipse.org/swt/snippets/#shell">Shell snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Shell extends Decorations {
 	int shellHandle, focusProxy;
 	boolean reparented, realized, moved, resized, opened;
 	int oldX, oldY, oldWidth, oldHeight;
 	Control lastActive;
-	Region region;
 
 	static final  int MAXIMUM_TRIM = 128;
 	static final  byte [] WM_DELETE_WINDOW = Converter.wcsToMbcs(null, "WM_DELETE_WINDOW\0");
 	static final  byte [] _NET_WM_STATE = Converter.wcsToMbcs(null, "_NET_WM_STATE\0");
 	static final  byte [] _NET_WM_STATE_MAXIMIZED_VERT = Converter.wcsToMbcs(null, "_NET_WM_STATE_MAXIMIZED_VERT\0");
 	static final  byte [] _NET_WM_STATE_MAXIMIZED_HORZ = Converter.wcsToMbcs(null, "_NET_WM_STATE_MAXIMIZED_HORZ\0");
+	static final  byte [] _NET_WM_STATE_FULLSCREEN = Converter.wcsToMbcs(null, "_NET_WM_STATE_FULLSCREEN\0");
 /**
  * Constructs a new instance of this class. This is equivalent
  * to calling <code>Shell((Display) null)</code>.
@@ -345,6 +348,7 @@ public Shell (Shell parent, int style) {
 
 static int checkStyle (int style) {
 	style = Decorations.checkStyle (style);
+	style &= ~SWT.TRANSPARENT;
 	if ((style & SWT.ON_TOP) != 0) style &= ~SWT.SHELL_TRIM;
 	int mask = SWT.SYSTEM_MODAL | SWT.APPLICATION_MODAL | SWT.PRIMARY_MODAL;
 	int bits = style & ~mask;
@@ -358,6 +362,23 @@ public static Shell motif_new (Display display, int handle) {
 	return new Shell (display, null, SWT.NO_TRIM, handle, true);
 }
 
+/**	 
+ * Invokes platform specific functionality to allocate a new shell
+ * that is not embedded.
+ * <p>
+ * <b>IMPORTANT:</b> This method is <em>not</em> part of the public
+ * API for <code>Shell</code>. It is marked public only so that it
+ * can be shared within the packages provided by SWT. It is not
+ * available on all platforms, and should never be called from
+ * application code.
+ * </p>
+ *
+ * @param display the display for the shell
+ * @param handle the handle for the shell
+ * @return a new shell object containing the specified display and handle
+ * 
+ * @since 3.3
+ */
 public static Shell internal_new (Display display, int handle) {
 	return new Shell (display, null, SWT.NO_TRIM, handle, false);
 }
@@ -828,6 +849,23 @@ public void forceActive () {
 	checkWidget ();
 	bringToTop (true);
 }
+/**
+ * Returns the receiver's alpha value. The alpha value
+ * is between 0 (transparent) and 255 (opaque).
+ *
+ * @return the alpha value
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public int getAlpha () {
+	checkWidget ();
+	return 255;
+}
 public int getBorderWidth () {
 	checkWidget();
 	int [] argList = {OS.XmNborderWidth, 0};
@@ -893,7 +931,49 @@ void getBounds(Point location, Point size, Rectangle bounds) {
 		bounds.height = height;
 	}
 }
-
+/**
+ * Returns <code>true</code> if the receiver is currently
+ * in fullscreen state, and false otherwise. 
+ * <p>
+ *
+ * @return the fullscreen state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
+public boolean getFullScreen () {
+	checkWidget();
+	int xDisplay = OS.XtDisplay (shellHandle);
+	int xWindow = OS.XtWindow (shellHandle);
+	if (xWindow != 0) {
+		int property = OS.XInternAtom (xDisplay, _NET_WM_STATE, true);
+		if (property != 0) { 
+			int[] type = new int[1], format = new int[1], nitems = new int[1], bytes_after = new int[1], atoms = new int[1];
+			OS.XGetWindowProperty (xDisplay, xWindow, property, 0, Integer.MAX_VALUE, false, OS.XA_ATOM, type, format, nitems, bytes_after, atoms);
+			boolean result = false;
+			if (type [0] != OS.None) {
+				int fullScreen = OS.XInternAtom (xDisplay, _NET_WM_STATE_FULLSCREEN, true);
+				if (fullScreen != 0) {
+					int[] atom = new int[1];
+					for (int i=0; i<nitems [0]; i++) {
+						OS.memmove(atom, atoms [0] + i * 4, 4);
+						if (atom [0] == fullScreen) {
+							result = true;
+							break;
+						}
+					}
+				}
+			}
+			if (atoms [0] != 0) OS.XFree (atoms [0]);
+			return result;
+		}
+	}
+	return false;
+}
 /**
  * Returns the receiver's input method editor mode. This
  * will be the result of bitwise OR'ing together one or
@@ -989,6 +1069,7 @@ public Point getMinimumSize () {
  *
  */
 public Region getRegion () {
+	/* This method is needed for the @since 3.0 Javadoc */
 	checkWidget ();
 	return region;
 }
@@ -1141,6 +1222,12 @@ public void open () {
 	if (isDisposed ()) return;
 	if (!restoreFocus () && !traverseGroup (true)) setFocus ();
 }
+public boolean print (GC gc) {
+	checkWidget ();
+	if (gc == null) error (SWT.ERROR_NULL_ARGUMENT);
+	if (gc.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
+	return false;
+}
 void propagateWidget (boolean enabled) {
 	super.propagateWidget (enabled);
 	/* Allow the busy cursor to be displayed in a disabled shell */
@@ -1177,7 +1264,6 @@ void releaseParent () {
 void releaseWidget () {
 	super.releaseWidget ();
 	lastActive = null;
-	region = null;
 }
 /**
  * Removes the listener from the collection of listeners who will
@@ -1274,6 +1360,27 @@ void setActiveControl (Control control) {
 	}
 }
 /**
+ * Sets the receiver's alpha value which must be
+ * between 0 (transparent) and 255 (opaque).
+ * <p>
+ * This operation requires the operating system's advanced
+ * widgets subsystem which may not be available on some
+ * platforms.
+ * </p>
+ * @param alpha the alpha value
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public void setAlpha (int alpha) {
+	checkWidget ();
+	/* Not implemented */
+}
+/**
  * Sets the input method editor mode to the argument which 
  * should be the result of bitwise OR'ing together one or more
  * of the following constants defined in class <code>SWT</code>:
@@ -1359,6 +1466,57 @@ public void setEnabled (boolean enabled) {
 		if (!restoreFocus ()) traverseGroup (false);
 	}
 }
+/**
+ * Sets the full screen state of the receiver.
+ * If the argument is <code>true</code> causes the receiver
+ * to switch to the full screen state, and if the argument is
+ * <code>false</code> and the receiver was previously switched
+ * into full screen state, causes the receiver to switch back
+ * to either the maximmized or normal states.
+ * <p>
+ * Note: The result of intermixing calls to <code>setFullScreen(true)</code>, 
+ * <code>setMaximized(true)</code> and <code>setMinimized(true)</code> will 
+ * vary by platform. Typically, the behavior will match the platform user's 
+ * expectations, but not always. This should be avoided if possible.
+ * </p>
+ * 
+ * @param fullScreen the new fullscreen state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
+public void setFullScreen (boolean fullScreen) {
+	checkWidget();
+	if (!OS.XtIsRealized (handle)) realizeWidget ();
+	int xDisplay = OS.XtDisplay (shellHandle);
+	int xWindow = OS.XtWindow (shellHandle);
+	if (xWindow == 0) return;
+	int property = OS.XInternAtom (xDisplay, _NET_WM_STATE, true);
+	if (property == 0) return;
+	int atom = OS.XInternAtom (xDisplay, _NET_WM_STATE_FULLSCREEN, true);
+	if (atom == 0) return;
+	XClientMessageEvent xEvent = new XClientMessageEvent ();
+	xEvent.type = OS.ClientMessage;
+	xEvent.send_event = 1;
+	xEvent.display = xDisplay;
+	xEvent.window = xWindow;
+	xEvent.message_type = property;
+	xEvent.format = 32;
+	xEvent.data [0] = fullScreen ? 1 : 0;
+	xEvent.data [1] = atom;
+	XWindowAttributes attributes = new XWindowAttributes ();
+	OS.XGetWindowAttributes (xDisplay, xWindow, attributes);
+	int rootWindow = OS.XRootWindowOfScreen (attributes.screen);
+	int event = OS.XtMalloc (XEvent.sizeof);
+	OS.memmove (event, xEvent, XClientMessageEvent.sizeof);
+	OS.XSendEvent (xDisplay, rootWindow, false, OS.SubstructureRedirectMask|OS.SubstructureNotifyMask, event);
+	OS.XSync (xDisplay, false);
+	OS.XtFree (event);
+}
 public void setMaximized (boolean maximized) {
 	checkWidget();
 	super.setMaximized (maximized);
@@ -1371,46 +1529,24 @@ public void setMaximized (boolean maximized) {
 	int hMaxAtom = OS.XInternAtom (xDisplay, _NET_WM_STATE_MAXIMIZED_HORZ, true);
 	int vMaxAtom = OS.XInternAtom (xDisplay, _NET_WM_STATE_MAXIMIZED_VERT, true);
 	if (hMaxAtom == 0 || vMaxAtom == 0) return;
-	int[] type = new int[1], format = new int[1], nitems = new int[1], bytes_after = new int[1], atomsPtr = new int[1];
-	OS.XGetWindowProperty (xDisplay, xWindow, property, 0, Integer.MAX_VALUE, false, OS.XA_ATOM, type, format, nitems, bytes_after, atomsPtr);
-	if (type [0] == OS.None) return;
-	int[] atoms = new int [nitems [0]];
-	OS.memmove (atoms, atomsPtr [0], nitems [0] * 4);
-	
-	if (maximized) {
-		boolean hasHmax = false;
-		boolean hasVmax = false;
-		for (int i = 0; i < nitems [0]; i++) {
-			int atom = atoms [i];
-			if (atom == hMaxAtom) hasHmax = true;
-			if (atom == vMaxAtom) hasVmax = true;
-		}
-		if (!hasHmax) {
-			int[] temp = new int [atoms.length + 1];
-			System.arraycopy (atoms, 0, temp, 0, atoms.length);
-			temp [atoms.length] = hMaxAtom;
-			atoms = temp;
-		}
-		if (!hasVmax) {
-			int[] temp = new int [atoms.length + 1];
-			System.arraycopy (atoms, 0, temp, 0, atoms.length);
-			temp [atoms.length] = vMaxAtom;
-			atoms = temp;
-		}
-	} else {
-		int[] temp = new int [nitems [0]];
-		int index = 0;
-		for (int i = 0; i < nitems [0]; i++) {
-			int atom = atoms [i];
-			if (atom != hMaxAtom && atom != vMaxAtom) {
-				temp [index++] = atom;
-			}
-		}
-		atoms = new int [index];
-		System.arraycopy (temp, 0, atoms, 0, index);
-	}
-
-	OS.XChangeProperty (xDisplay, xWindow, property, OS.XA_ATOM, 32, OS.PropModeReplace, atoms, atoms.length);
+	XClientMessageEvent xEvent = new XClientMessageEvent ();
+	xEvent.type = OS.ClientMessage;
+	xEvent.send_event = 1;
+	xEvent.display = xDisplay;
+	xEvent.window = xWindow;
+	xEvent.message_type = property;
+	xEvent.format = 32;
+	xEvent.data [0] = maximized ? 1 : 0;
+	xEvent.data [1] = hMaxAtom;
+	xEvent.data [2] = vMaxAtom;
+	XWindowAttributes attributes = new XWindowAttributes ();
+	OS.XGetWindowAttributes (xDisplay, xWindow, attributes);
+	int rootWindow = OS.XRootWindowOfScreen (attributes.screen);
+	int event = OS.XtMalloc (XEvent.sizeof);
+	OS.memmove (event, xEvent, XClientMessageEvent.sizeof);
+	OS.XSendEvent (xDisplay, rootWindow, false, OS.SubstructureRedirectMask|OS.SubstructureNotifyMask, event);
+	OS.XSync (xDisplay, false);
+	OS.XtFree (event);
 }
 public void setMinimized (boolean minimized) {
 	checkWidget();
@@ -1531,17 +1667,7 @@ public void setRegion (Region region) {
 	checkWidget ();
 	if ((style & SWT.NO_TRIM) == 0) return;
 	if (region != null && region.isDisposed()) error (SWT.ERROR_INVALID_ARGUMENT);
-	if (!OS.XtIsRealized (shellHandle)) realizeWidget ();
-	int xDisplay = OS.XtDisplay (shellHandle);
-	if (xDisplay == 0) return;
-	int xWindow = OS.XtWindow (shellHandle);
-	if (xWindow == 0) return;
-	if (region != null) {
-		OS.XShapeCombineRegion (xDisplay, xWindow, OS.ShapeBounding, 0, 0, region.handle, OS.ShapeSet);
-	} else {
-		OS.XShapeCombineMask (xDisplay, xWindow, OS.ShapeBounding, 0, 0, 0, OS.ShapeSet);
-	}
-	this.region = region;
+	super.setRegion (region);
 }
 public void setText (String string) {
 	checkWidget();

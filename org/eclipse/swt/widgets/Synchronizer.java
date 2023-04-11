@@ -12,6 +12,7 @@ package org.eclipse.swt.widgets;
 
 
 import org.eclipse.swt.*;
+import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.internal.Compatibility;
  
 /**
@@ -30,6 +31,7 @@ import org.eclipse.swt.internal.Compatibility;
  * </p>
  *
  * @see Display#setSynchronizer
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Synchronizer {
 	Display display;
@@ -37,6 +39,8 @@ public class Synchronizer {
 	RunnableLock [] messages;
 	Object messageLock = new Object ();
 	Thread syncThread;
+	static final int GROW_SIZE = 4;
+	static final int MESSAGE_LIMIT = 64;
 
 	//TEMPORARY CODE
 	static final boolean IS_CARBON = "carbon".equals (SWT.getPlatform ());
@@ -53,9 +57,9 @@ public Synchronizer (Display display) {
 void addLast (RunnableLock lock) {
 	boolean wake = false;
 	synchronized (messageLock) {
-		if (messages == null) messages = new RunnableLock [4];
+		if (messages == null) messages = new RunnableLock [GROW_SIZE];
 		if (messageCount == messages.length) {
-			RunnableLock[] newMessages = new RunnableLock [messageCount + 4];
+			RunnableLock[] newMessages = new RunnableLock [messageCount + GROW_SIZE];
 			System.arraycopy (messages, 0, newMessages, 0, messageCount);
 			messages = newMessages;
 		}
@@ -107,7 +111,7 @@ RunnableLock removeFirst () {
 		System.arraycopy (messages, 1, messages, 0, --messageCount);
 		messages [messageCount] = null;
 		if (messageCount == 0) {
-			if (messages.length > 64) messages = null;
+			if (messages.length > MESSAGE_LIMIT) messages = null;
 		}
 		return lock;
 	}
@@ -154,21 +158,27 @@ boolean runAsyncMessages (boolean all) {
  * @see #asyncExec
  */
 protected void syncExec (Runnable runnable) {
-	if (display.isValidThread ()) {
+	RunnableLock lock = null;
+	synchronized (Device.class) {
+		if (display == null || display.isDisposed ()) SWT.error (SWT.ERROR_DEVICE_DISPOSED);
+		if (!display.isValidThread ()) {
+			if (runnable == null) {
+				display.wake ();
+				return;
+			}
+			lock = new RunnableLock (runnable);
+			/*
+			 * Only remember the syncThread for syncExec.
+			 */
+			lock.thread = Thread.currentThread();
+			addLast (lock);
+		}
+	}
+	if (lock == null) {
 		if (runnable != null) runnable.run ();
 		return;
 	}
-	if (runnable == null) {
-		display.wake ();
-		return;
-	}
-	RunnableLock lock = new RunnableLock (runnable);
-	/*
-	 * Only remember the syncThread for syncExec.
-	 */
-	lock.thread = Thread.currentThread();
 	synchronized (lock) {
-		addLast (lock);
 		boolean interrupted = false;
 		while (!lock.done ()) {
 			try {

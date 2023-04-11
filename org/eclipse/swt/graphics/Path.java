@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -28,6 +28,10 @@ import org.eclipse.swt.internal.cairo.*;
  * This class requires the operating system's advanced graphics subsystem
  * which may not be available on some platforms.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#path">Path, Pattern snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: GraphicsExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 3.1
  */
@@ -70,16 +74,104 @@ public class Path extends Resource {
  * @see #dispose()
  */
 public Path (Device device) {
-	if (device == null) device = Device.getDevice();
-	if (device == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
-	this.device = device;
-	device.checkCairo();
+	super(device);
+	this.device.checkCairo();
 	int /*long*/ surface = Cairo.cairo_image_surface_create(Cairo.CAIRO_FORMAT_ARGB32, 1, 1);
 	if (surface == 0) SWT.error(SWT.ERROR_NO_HANDLES);
 	handle = Cairo.cairo_create(surface);
 	Cairo.cairo_surface_destroy(surface);
 	if (handle == 0) SWT.error(SWT.ERROR_NO_HANDLES);
-	if (device.tracking) device.new_Object(this);
+	init();
+}
+
+/**
+ * Constructs a new Path that is a copy of <code>path</code>. If
+ * <code>flatness</code> is less than or equal to zero, an unflatten
+ * copy of the path is created. Otherwise, it specifies the maximum
+ * error between the path and its flatten copy. Smaller numbers give
+ * better approximation.
+ * <p>
+ * This operation requires the operating system's advanced
+ * graphics subsystem which may not be available on some
+ * platforms.
+ * </p>
+ * 
+ * @param device the device on which to allocate the path
+ * @param path the path to make a copy
+ * @param flatness the flatness value
+ * 
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the device is null and there is no current device</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the path is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the path has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_NO_GRAPHICS_LIBRARY - if advanced graphics are not available</li>
+ * </ul>
+ * @exception SWTError <ul>
+ *    <li>ERROR_NO_HANDLES if a handle for the path could not be obtained</li>
+ * </ul>
+ * 
+ * @see #dispose()
+ * @since 3.4
+ */
+public Path (Device device, Path path, float flatness) {
+	super(device);
+	if (path == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
+	if (path.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+	int /*long*/ surface = Cairo.cairo_image_surface_create(Cairo.CAIRO_FORMAT_ARGB32, 1, 1);
+	if (surface == 0) SWT.error(SWT.ERROR_NO_HANDLES);
+	handle = Cairo.cairo_create(surface);
+	Cairo.cairo_surface_destroy(surface);
+	if (handle == 0) SWT.error(SWT.ERROR_NO_HANDLES);
+	int /*long*/ copy;
+	flatness = Math.max(0, flatness);
+	if (flatness == 0) {
+		copy = Cairo.cairo_copy_path(path.handle);		
+	} else {
+		double tolerance = Cairo.cairo_get_tolerance(path.handle);
+		Cairo.cairo_set_tolerance(path.handle, flatness);
+		copy = Cairo.cairo_copy_path_flat(path.handle);
+		Cairo.cairo_set_tolerance(path.handle, tolerance);
+	}
+	if (copy == 0) {
+		Cairo.cairo_destroy(handle);
+		SWT.error(SWT.ERROR_NO_HANDLES);
+	}
+	Cairo.cairo_append_path(handle, copy);
+	Cairo.cairo_path_destroy(copy);
+	init();
+}
+
+/**
+ * Constructs a new Path with the specifed PathData.
+ * <p>
+ * This operation requires the operating system's advanced
+ * graphics subsystem which may not be available on some
+ * platforms.
+ * </p>
+ * 
+ * @param device the device on which to allocate the path
+ * @param data the data for the path
+ * 
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the device is null and there is no current device</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the data is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_NO_GRAPHICS_LIBRARY - if advanced graphics are not available</li>
+ * </ul>
+ * @exception SWTError <ul>
+ *    <li>ERROR_NO_HANDLES if a handle for the path could not be obtained</li>
+ * </ul>
+ * 
+ * @see #dispose()
+ * @since 3.4
+ */
+public Path (Device device, PathData data) {
+	this(device);
+	if (data == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
+	init(data);
 }
 
 /**
@@ -548,17 +640,36 @@ public void quadTo(float cx, float cy, float x, float y) {
 	closed = false;
 }
 
-/**
- * Disposes of the operating system resources associated with
- * the Path. Applications must dispose of all Paths that
- * they allocate.
- */
-public void dispose() {
-	if (handle == 0) return;
+void destroy() {
 	Cairo.cairo_destroy(handle);
 	handle = 0;
-	if (device.tracking) device.dispose_Object(this);
-	device = null;
+}
+
+void init(PathData data) {
+	byte[] types = data.types;
+	float[] points = data.points;
+	for (int i = 0, j = 0; i < types.length; i++) {
+		switch (types[i]) {
+			case SWT.PATH_MOVE_TO:
+				moveTo(points[j++], points[j++]);
+				break;
+			case SWT.PATH_LINE_TO:
+				lineTo(points[j++], points[j++]);
+				break;
+			case SWT.PATH_CUBIC_TO:
+				cubicTo(points[j++], points[j++], points[j++], points[j++], points[j++], points[j++]);
+				break;
+			case SWT.PATH_QUAD_TO:
+				quadTo(points[j++], points[j++], points[j++], points[j++]);
+				break;
+			case SWT.PATH_CLOSE:
+				close();
+				break;
+			default:
+				dispose();
+				SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+		}
+	}
 }
 
 /**

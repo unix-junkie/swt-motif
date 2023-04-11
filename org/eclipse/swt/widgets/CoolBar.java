@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -36,6 +36,10 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/snippets/#coolbar">CoolBar snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class CoolBar extends Composite {
 	CoolItem[][] items = new CoolItem[0][0];
@@ -116,7 +120,7 @@ public CoolBar (Composite parent, int style) {
 		addListener(events[i], listener);	
 	}
 }
-private static int checkStyle (int style) {
+static int checkStyle (int style) {
 	style |= SWT.NO_FOCUS;
 	return (style | SWT.NO_REDRAW_RESIZE) & ~(SWT.V_SCROLL | SWT.H_SCROLL);
 }
@@ -303,7 +307,7 @@ public int indexOf (CoolItem item) {
 void insertItemIntoRow(CoolItem item, int rowIndex, int x_root) {
 	int barWidth = getWidth();
 	int rowY = items[rowIndex][0].internalGetBounds().y;
-	int x = Math.max(0, x_root - toDisplay(new Point(0, 0)).x);
+	int x = Math.max(0, Math.abs(x_root - toDisplay(new Point(0, 0)).x));
 	
 	/* Find the insertion index and add the item. */
 	int index;
@@ -603,7 +607,7 @@ void onMouseMove(Event event) {
 	fixEvent(event);
 	CoolItem grabbed = getGrabbedItem(event.x, event.y);
 	if (dragging != null) {
-		int left_root = toDisplay(new Point(event.x, event.y)).x - itemXOffset;
+		int left_root = toDisplay(new Point(event.x - itemXOffset, event.y)).x;
 		Rectangle bounds = dragging.internalGetBounds();
 		if (event.y < bounds.y) {
 			moveUp(dragging, left_root);

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -31,6 +31,8 @@ import org.eclipse.swt.internal.*;
  * <em>HINT</em> may change from release to release, although we typically
  * will not withdraw support for a <em>HINT</em> once it is made available.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
  
 /* NOTE:
@@ -405,7 +407,9 @@ public class SWT {
 	 * @see org.eclipse.swt.widgets.Display#addFilter
 	 * @see org.eclipse.swt.widgets.Event
 	 * 
+	 * @see org.eclipse.swt.custom.CCombo#addVerifyListener
 	 * @see org.eclipse.swt.widgets.Combo#addVerifyListener
+	 * @see org.eclipse.swt.custom.StyledText#addVerifyListener
 	 * @see org.eclipse.swt.widgets.Text#addVerifyListener
 	 * @see org.eclipse.swt.events.VerifyListener#verifyText
 	 * @see org.eclipse.swt.events.VerifyEvent
@@ -611,7 +615,74 @@ public class SWT {
 	 */
 	public static final int PaintItem = 42;	
 	
+	/**
+	 * The IME composition event type (value is 43).  
+	 * <p>
+	 * The IME composition event is sent to allow
+	 * custom text editors to implement in-line
+	 * editing of international text. 
+	 * </p> 
+	 * 
+	 * The detail field indicates the action to be taken:
+	 * <p><ul>
+	 * <li>{@link SWT#COMPOSITION_CHANGED}</li>
+	 * <li>{@link SWT#COMPOSITION_OFFSET}</li>
+	 * <li>{@link SWT#COMPOSITION_SELECTION}</li>
+	 * </ul></p>
+	 * 
+	 * @see org.eclipse.swt.widgets.Widget#addListener
+	 * @see org.eclipse.swt.widgets.Display#addFilter
+	 * @see org.eclipse.swt.widgets.Event
+	 * 
+	 * @since 3.4
+	 */
+	public static final int ImeComposition = 43;
+	
 	/* Event Details */
+	
+	/**
+	 * The IME composition event detail that indicates
+	 * a change in the IME composition. The text field
+	 * of the event is the new composition text. 
+	 * The start and end indicate the offsets where the
+	 * composition text should be inserted.
+	 * The styles and ranges are stored in the IME 
+	 * object (value is 1).
+	 * 
+	 * @see SWT#ImeComposition
+	 * 
+	 * @since 3.4
+	 */
+	public static final int COMPOSITION_CHANGED = 1;
+	
+	/**
+	 * The IME composition event detail that indicates
+	 * that the IME needs the offset for a given location.
+	 * The x and y fields of the event are used by the 
+	 * application to determine the offset.
+	 * 
+	 * The index field of the event should be set to the 
+	 * text offset at that location. The count field should 
+	 * be set to indicate whether the location is closer to
+	 * the leading edge (0) or the trailing edge (1) (value is 2).
+	 * 
+	 * @see SWT#ImeComposition
+	 * @see org.eclipse.swt.graphics.TextLayout#getOffset(int, int, int[])
+	 * 
+	 * @since 3.4
+	 */
+	public static final int COMPOSITION_OFFSET = 2;
+	
+	/**
+	 * The IME composition event detail that indicates
+	 * that IME needs the selected text and its start
+	 * and end offsets (value is 3).
+	 * 
+	 * @see SWT#ImeComposition
+	 * 
+	 * @since 3.4
+	 */
+	public static final int COMPOSITION_SELECTION = 3;
 
 	/**
 	 * Indicates that a user-interface component is being dragged,
@@ -1106,6 +1177,23 @@ public class SWT {
 	public static final int V_SCROLL = 1 << 9;
 
 	/**
+	 * Style constant for no scrollbar behavior (value is 1&lt;&lt;4).
+	 * <p>
+	 * When neither H_SCROLL or V_SCROLL are specified, controls
+	 * are free to create the default scroll bars for the control.
+	 * Using NO_SCROLL overrides the default and forces the control
+	 * to have no scroll bars.
+	 * 
+	 * <b>Used By:</b><ul>
+	 * <li><code>Tree</code></li>
+	 * <li><code>Table</code></li>
+	 * </ul></p>
+	 *
+	 * @since 3.4
+	 */
+	public static final int NO_SCROLL = 1 << 4;
+	
+	/**
 	 * Style constant for bordered behavior (value is 1&lt;&lt;11).
 	 * <br>Note that this is a <em>HINT</em>.
 	 * <p><b>Used By:</b><ul>
@@ -1260,7 +1348,15 @@ public class SWT {
 
 	/**
 	 * Style constant for no focus from the mouse behavior (value is 1&lt;&lt;19).
+	 * <p>
+	 * Normally, when the user clicks on a control, focus is assigned to that
+	 * control, providing the control has no children.  Some controls, such as
+	 * tool bars and sashes, don't normally take focus when the mouse is clicked
+	 * or accept focus when assigned from within the program.  This style allows
+	 * Composites to implement "no focus" mouse behavior.
+	 * 
 	 * <br>Note that this is a <em>HINT</em>.
+	 * </p>
 	 * <p><b>Used By:</b><ul>
 	 * <li><code>Composite</code></li>
 	 * </ul></p>
@@ -1275,6 +1371,8 @@ public class SWT {
 	 * the SWT.Paint event is not sent. When it gets bigger, an SWT.Paint event is
 	 * sent with a GC clipped to only the new areas to be painted. Without this
 	 * style, the entire client area will be repainted.
+	 * 
+	 * <br>Note that this is a <em>HINT</em>.
 	 * </p><p><b>Used By:</b><ul>
 	 * <li><code>Composite</code></li>
 	 * </ul></p>
@@ -1283,6 +1381,8 @@ public class SWT {
 
 	/**
 	 * Style constant for no paint event merging behavior (value is 1&lt;&lt;21).
+	 * 
+	 * <br>Note that this is a <em>HINT</em>.
 	 * <p><b>Used By:</b><ul>
 	 * <li><code>Composite</code></li>
 	 * </ul></p>
@@ -1380,15 +1480,103 @@ public class SWT {
 	public static final int DOUBLE_BUFFERED = 1 << 29;
 	
 	/**
+	 * Style constant for transparent behavior (value is 1&lt;&lt;30).
+	 * <p>
+	 * By default, before a widget paints, the client area is filled with the current background.
+	 * When this style is specified, the background is not filled and widgets that are obscured
+	 * will draw through.
+	 * </p><p><b>Used By:</b><ul>
+	 * <li><code>Composite</code></li>
+	 * </ul></p>
+	 *
+	 * @since 3.4
+	 * 
+	 * WARNING: THIS API IS UNDER CONSTRUCTION AND SHOULD NOT BE USED
+	 */
+	public static final int TRANSPARENT = 1 << 30;
+	
+	/**
 	 * Style constant for align up behavior (value is 1&lt;&lt;7,
 	 * since align UP and align TOP are considered the same).
 	 * <p><b>Used By:</b><ul>
 	 * <li><code>Button</code> with <code>ARROW</code> style</li>
 	 * <li><code>Tracker</code></li>
+	 * <li><code>Table</code></li>
+	 * <li><code>Tree</code></li>
 	 * </ul></p>
 	 */
 	public static final int UP = 1 << 7;
+	
+	/**
+	 * Style constant to indicate single underline (value is 0).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>TextStyle</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.4
+	 */
+	public static final int UNDERLINE_SINGLE = 0;
 
+	/**
+	 * Style constant to indicate double underline (value is 1).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>TextStyle</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.4
+	 */
+	public static final int UNDERLINE_DOUBLE = 1;
+	
+	/**
+	 * Style constant to indicate error underline (value is 2).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>TextStyle</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.4
+	 */
+	public static final int UNDERLINE_ERROR = 2;
+	
+	/**
+	 * Style constant to indicate squiggle underline (value is 3).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>TextStyle</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.4
+	 */
+	public static final int UNDERLINE_SQUIGGLE = 3;
+	
+	/**
+	 * Style constant to indicate solid border (value is 1).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>TextStyle</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.4
+	 */
+	public static final int BORDER_SOLID = 1;
+
+	/**
+	 * Style constant to indicate dashed border (value is 2).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>TextStyle</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.4
+	 */
+	public static final int BORDER_DASH = 2;
+	
+	/**
+	 * Style constant to indicate dotted border (value is 4).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>TextStyle</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.4
+	 */
+	public static final int BORDER_DOT = 4;
+	
 	/**
 	 * Style constant for align top behavior (value is 1&lt;&lt;7,
 	 * since align UP and align TOP are considered the same).
@@ -1404,6 +1592,8 @@ public class SWT {
 	 * <p><b>Used By:</b><ul>
 	 * <li><code>Button</code> with <code>ARROW</code> style</li>
 	 * <li><code>Tracker</code></li>
+	 * <li><code>Table</code></li>
+	 * <li><code>Tree</code></li>
 	 * </ul></p>
 	 */
 	public static final int DOWN               = 1 << 10;
@@ -2921,8 +3111,32 @@ public class SWT {
 	public static final int IMAGE_GRAY = 2;
 	
 	/**
+	 * Constant to indicate an error state (value is 1).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>ProgressBar</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.4
+	 */
+	public static final int ERROR = 1;
+	
+	/**
+	 * Constant to a indicate a paused state (value is 4).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>ProgressBar</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.4
+	 */
+	public static final int PAUSED = 1 << 2;
+	
+	/**
 	 * The font style constant indicating a normal weight, non-italic font
-	 * (value is 0).
+	 * (value is 0). This constant is also used with <code>ProgressBar</code>
+	 * to indicate a normal state.
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>ProgressBar</code></li>
+	 * </ul></p>
 	 */
 	public static final int NORMAL = 0;
 	

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -27,7 +27,11 @@ import org.eclipse.swt.*;
  * when those instances are no longer required.
  * </p>
  * 
- *  @since 3.0
+ * @see <a href="http://www.eclipse.org/swt/snippets/#textlayout">TextLayout, TextStyle snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: CustomControlExample, StyledText tab</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ * 
+ * @since 3.0
  */
 public final class TextLayout extends Resource {
 	Font font;
@@ -72,20 +76,18 @@ public final class TextLayout extends Resource {
  * @see #dispose()
  */
 public TextLayout (Device device) {
-	if (device == null) device = Device.getDevice();
-	if (device == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
-	this.device = device;
+	super(device);
 	wrapWidth = ascent = descent = -1;
 	lineSpacing = 0;
 	orientation = SWT.LEFT_TO_RIGHT;
-	XFontStruct fontStruct = getFontHeigth(device.getSystemFont());
+	XFontStruct fontStruct = getFontHeigth(this.device.getSystemFont());
 	defaultAscent = fontStruct.ascent;
 	defaultDescent = fontStruct.descent;
 	styles = new StyleItem[2];
 	styles[0] = new StyleItem();
 	styles[1] = new StyleItem();
 	text = ""; //$NON-NLS-1$
-	if (device.tracking) device.new_Object(this);
+	init();
 }
 
 void checkLayout () {
@@ -266,12 +268,7 @@ void computeRuns () {
 	}
 }
 
-/**
- * Disposes of the operating system resources associated with
- * the text layout. Applications must dispose of all allocated text layouts.
- */
-public void dispose () {
-	if (device == null) return;
+void destroy() {
 	freeRuns();
 	font = null;
 	text = null;
@@ -280,8 +277,6 @@ public void dispose () {
 	lineOffset = null;
 	lineY = null;
 	lineWidth = null;
-	if (device.tracking) device.dispose_Object(this);
-	device = null;
 }
 
 /**
@@ -423,14 +418,7 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 						if (!run.tab && !(run.style != null && run.style.metrics != null)) {
 							gc.setForeground(selectionForeground);
 							gc.drawString(string, drawX, drawRunY, true);
-							if (run.style != null && run.style.underline) {
-								int underlineY = drawRunY + run.baseline + 1 - run.style.rise;
-								gc.drawLine (drawX, underlineY, drawX + run.width, underlineY);								
-							}
-							if (run.style != null && run.style.strikeout) {
-								int strikeoutY = drawRunY + run.height - run.height/2 - 1;
-								gc.drawLine (drawX, strikeoutY, drawX + run.width, strikeoutY);
-							}
+							drawLines(gc, run, drawX, drawRunY, run.width, true);
 						}
 					} else {
 						if (run.style != null && run.style.background != null) {
@@ -441,17 +429,10 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 						if (!run.tab) {
 							Color fg = foreground;
 							if (run.style != null && run.style.foreground != null) fg = run.style.foreground;
-							gc.setForeground(fg);
 							if (!(run.style != null && run.style.metrics != null)) {
+								gc.setForeground(fg);
 								gc.drawString(string, drawX, drawRunY, true);
-								if (run.style != null && run.style.underline) {
-									int underlineY = drawRunY + run.baseline + 1 - run.style.rise;
-									gc.drawLine (drawX, underlineY, drawX + run.width, underlineY);
-								}
-								if (run.style != null && run.style.strikeout) {
-									int strikeoutY = drawRunY + run.height - run.height/2 - 1;
-									gc.drawLine (drawX, strikeoutY, drawX + run.width, strikeoutY);
-								}
+								drawLines(gc, run, drawX, drawRunY, run.width, false);
 							}
 							boolean partialSelection = hasSelection && !(selectionStart > end || run.start > selectionEnd);
 							if (partialSelection) {
@@ -466,18 +447,12 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 								if (fg != selectionForeground && !(run.style != null && run.style.metrics != null)) {
 									gc.setForeground(selectionForeground);
 									gc.drawString(string, selX, drawRunY, true);
-									if (run.style != null && run.style.underline) {
-										int underlineY = drawRunY + run.baseline + 1 - run.style.rise;
-										gc.drawLine (selX, underlineY, selX + selWidth, underlineY);
-									}
-									if (run.style != null && run.style.strikeout) {
-										int strikeoutY = drawRunY + run.height - run.height/2 - 1;
-										gc.drawLine (selX, strikeoutY, selX + selWidth, strikeoutY);
-									}
+									drawLines(gc, run, selX, drawRunY, selWidth, true);
 								}
 							}
 						}
 					}
+					drawBorder(gc, lineRuns, i, drawX, drawY, lineHeight, foreground);
 				}
 			}
 			drawX += run.width;
@@ -486,6 +461,104 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 	gc.setForeground(foreground);
 	gc.setBackground(background);
 	gc.setFont(gcFont);
+}
+
+void drawBorder(GC gc, StyleItem[] line, int index, int x, int y, int lineHeight, Color color) {
+	StyleItem run = line[index];
+	TextStyle style = run.style;
+	if (style == null) return;
+	if (style.borderStyle != SWT.NONE && (index + 1 >= line.length || !style.isAdherentBorder(line[index + 1].style))) {
+		int width = run.width;
+		for (int i = index; i > 0 && style.isAdherentBorder(line[i - 1].style); i--) {
+			x -= line[i - 1].width;
+			width += line[i - 1].width;
+		}
+		if (style.borderColor != null) {
+			color = style.borderColor; 
+		} else {
+			if (style.foreground != null) {
+				color = style.foreground;
+			}
+		}
+		gc.setForeground(color);
+		int lineStyle = gc.getLineStyle();
+		int[] dashes = null;
+		if (lineStyle == SWT.LINE_CUSTOM) {
+			dashes = gc.getLineDash();
+		}
+		switch (style.borderStyle) {
+			case SWT.BORDER_SOLID:
+				gc.setLineStyle(SWT.LINE_SOLID);
+				break;
+			case SWT.BORDER_DASH:
+				gc.setLineStyle(SWT.LINE_DASH);
+				break;
+			case SWT.BORDER_DOT:
+				gc.setLineStyle(SWT.LINE_DOT);
+				break;
+		}
+		gc.drawRectangle(x, y, width - 1, lineHeight - 1);
+		gc.setLineStyle(lineStyle);
+		if (dashes != null) {
+			gc.setLineDash(dashes);
+		}
+	}
+} 
+
+void drawLines(GC gc, StyleItem run, int x, int y, int width, boolean selection) {
+	TextStyle style = run.style;
+	if (style == null) return;
+	if (style.underline) {
+		int underlineY = y + run.baseline + 1 - style.rise;
+		if (!selection && style.underlineColor != null) {
+			gc.setForeground(style.underlineColor);
+		}
+		switch (style.underlineStyle) {
+			case SWT.UNDERLINE_SQUIGGLE:
+			case SWT.UNDERLINE_ERROR:
+				int squigglyThickness = 1;
+				int squigglyHeight = 2 * squigglyThickness;
+				int squigglyY = Math.min(underlineY, y + run.height - squigglyHeight - 1);
+				int[] points = computePolyline(x, squigglyY, x + width, squigglyY + squigglyHeight);
+				gc.drawPolyline(points);
+				break;
+			case SWT.UNDERLINE_DOUBLE:
+				gc.drawLine (x, underlineY + 2, x + width, underlineY + 2);
+				//FALLTHROU
+			case SWT.UNDERLINE_SINGLE:	
+				gc.drawLine (x, underlineY, x + width, underlineY);
+		}
+	}
+	if (style.strikeout) {
+		int strikeoutY = y + run.height - run.height/2 - 1;
+		if (!selection && style.strikeoutColor != null) {
+			gc.setForeground(style.strikeoutColor);
+		}
+		gc.drawLine (x, strikeoutY, x + width, strikeoutY);
+	}
+}
+
+int[] computePolyline(int left, int top, int right, int bottom) {
+	int height = bottom - top; // can be any number
+	int width = 2 * height; // must be even
+	int peaks = (right - left) / width;
+	if (peaks == 0 && right - left > 2) {
+		peaks = 1;
+	}
+	int length = ((2 * peaks) + 1) * 2;
+	if (length < 0) return new int[0];
+	
+	int[] coordinates = new int[length];
+	for (int i = 0; i < peaks; i++) {
+		int index = 4 * i;
+		coordinates[index] = left + (width * i);
+		coordinates[index+1] = bottom;
+		coordinates[index+2] = coordinates[index] + width / 2;
+		coordinates[index+3] = top;
+	}
+	coordinates[length-2] = Math.min(Math.max(0, right - 1), left + (width * peaks));
+	coordinates[length-1] = bottom;
+	return coordinates;
 }
 
 void freeRuns() {
@@ -528,13 +601,18 @@ public int getAscent () {
 }
 
 /**
- * Returns the bounds of the receiver.
+ * Returns the bounds of the receiver. The width returned is either the
+ * width of the longest line or the width set using {@link TextLayout#setWidth(int)}.
+ * To obtain the text bounds of a line use {@link TextLayout#getLineBounds(int)}.
  * 
  * @return the bounds of the receiver
  * 
  * @exception SWTException <ul>
  *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
  * </ul>
+ * 
+ * @see #setWidth(int)
+ * @see #getLineBounds(int)
  */
 public Rectangle getBounds () {
 	checkLayout();
@@ -1540,10 +1618,11 @@ public void setDescent (int descent) {
 public void setFont (Font font) {
 	checkLayout ();
 	if (font != null && font.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
-	if (this.font == font) return;
-	if (font != null && font.equals(this.font)) return;
-	freeRuns();
+	Font oldFont = this.font;
+	if (oldFont == font) return;
 	this.font = font;
+	if (oldFont != null && oldFont.equals(font)) return;
+	freeRuns();
 	XFontStruct fontStruct = getFontHeigth(font != null ? font : device.systemFont);
 	defaultAscent = fontStruct.ascent;
 	defaultDescent = fontStruct.descent;

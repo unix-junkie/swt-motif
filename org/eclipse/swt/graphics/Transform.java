@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -26,6 +26,9 @@ import org.eclipse.swt.internal.cairo.*;
  * This class requires the operating system's advanced graphics subsystem
  * which may not be available on some platforms.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: GraphicsExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 3.1
  */
@@ -127,14 +130,12 @@ public Transform(Device device, float[] elements) {
  * @see #dispose()
  */
 public Transform (Device device, float m11, float m12, float m21, float m22, float dx, float dy) {
-	if (device == null) device = Device.getDevice();
-	if (device == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
-	this.device = device;
-	device.checkCairo();
+	super(device);
+	this.device.checkCairo();
 	handle = new double[6];
 	if (handle == null) SWT.error(SWT.ERROR_NO_HANDLES);
 	Cairo.cairo_matrix_init(handle, m11, m12, m21, m22, dx, dy);
-	if (device.tracking) device.new_Object(this);
+	init();
 }
 
 static float[] checkTransform(float[] elements) {
@@ -143,17 +144,8 @@ static float[] checkTransform(float[] elements) {
 	return elements;
 }
 
-/**
- * Disposes of the operating system resources associated with
- * the Transform. Applications must dispose of all Transforms that
- * they allocate.
- */
-public void dispose() {
-	if (handle == null) return;
-	if (device.isDisposed()) return;
+void destroy() {
 	handle = null;
-	if (device.tracking) device.dispose_Object(this);
-	device = null;
 }
 
 /**
@@ -184,6 +176,21 @@ public void getElements(float[] elements) {
 
 /**
  * Modifies the receiver such that the matrix it represents becomes the
+ * identity matrix. 
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public void identity() {
+	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
+	Cairo.cairo_matrix_init(handle, 1, 0, 0, 1, 0, 0);
+}
+
+/**
+ * Modifies the receiver such that the matrix it represents becomes
  * the mathematical inverse of the matrix it previously represented. 
  *
  * @exception SWTException <ul>
@@ -299,6 +306,25 @@ public void scale(float scaleX, float scaleY) {
 public void setElements(float m11, float m12, float m21, float m22, float dx, float dy) {
 	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	Cairo.cairo_matrix_init(handle, m11, m12, m21, m22, dx, dy);
+}
+
+/**
+ * Modifies the receiver so that it represents a transformation that is
+ * equivalent to its previous transformation sheared by (shearX, shearY).
+ * 
+ * @param shearX the shear factor in the X direction
+ * @param shearY the shear factor in the Y direction
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
+public void shear(float shearX, float shearY) {
+	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
+	double[] matrix = {1, shearX, shearY, 1, 0, 0};
+	Cairo.cairo_matrix_multiply(handle, matrix, handle);
 }
 
 /** 

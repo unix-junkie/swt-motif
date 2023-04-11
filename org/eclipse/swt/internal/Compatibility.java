@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2007 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -16,6 +16,7 @@ import java.text.MessageFormat;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 import java.util.zip.InflaterInputStream;
+import java.util.zip.DeflaterOutputStream;
 
 import org.eclipse.swt.SWT;
 
@@ -98,6 +99,17 @@ public static int ceil(int p, int q) {
 }
 
 /**
+ * Answers whether the indicated file exists or not.
+ * 
+ * @param parent the file's parent directory
+ * @param child the file's name
+ * @return true if the file exists
+ */
+public static boolean fileExists(String parent, String child) {
+	return new File (parent, child).exists();
+}
+
+/**
  * Answers the most positive (i.e. closest to positive infinity)
  * integer value which is less than the number obtained by dividing
  * the first argument p by the second argument q.
@@ -147,6 +159,19 @@ public static int pow2(int n) {
 }
 
 /**
+ * Create an DeflaterOutputStream if such things are supported.
+ * 
+ * @param stream the output stream
+ * @return a deflater stream or <code>null</code>
+ * @exception IOException
+ * 
+ * @since 3.4
+ */
+public static OutputStream newDeflaterOutputStream(OutputStream stream) throws IOException {
+	return new DeflaterOutputStream(stream);
+}
+
+/**
  * Open a file if such things are supported.
  * 
  * @param filename the name of the file to open
@@ -178,7 +203,7 @@ public static OutputStream newFileOutputStream(String filename) throws IOExcepti
  * @since 3.3
  */
 public static InputStream newInflaterInputStream(InputStream stream) throws IOException {
-	return new InflaterInputStream(stream);
+	return new BufferedInputStream(new InflaterInputStream(stream));
 }
 
 /**

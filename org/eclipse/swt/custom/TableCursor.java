@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -130,14 +130,19 @@ import org.eclipse.swt.events.*;
  * </dl>
  * 
  * @since 2.0
- * 
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#tablecursor">TableCursor snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a> 
  */
 public class TableCursor extends Canvas {
 	Table table;
 	TableItem row = null;
 	TableColumn column = null;
 	Listener tableListener, resizeListener, disposeItemListener, disposeColumnListener;
-	
+
+	Color background = null;
+	Color foreground = null;
+
 	// By default, invert the list selection colors
 	static final int BACKGROUND = SWT.COLOR_LIST_SELECTION_TEXT;
 	static final int FOREGROUND = SWT.COLOR_LIST_SELECTION;
@@ -228,6 +233,7 @@ public TableCursor(Table parent, int style) {
 
 	disposeItemListener = new Listener() {
 		public void handleEvent(Event event) {
+			unhookRowColumnListeners();
 			row = null;
 			column = null;
 			_resize();
@@ -235,6 +241,7 @@ public TableCursor(Table parent, int style) {
 	};
 	disposeColumnListener = new Listener() {
 		public void handleEvent(Event event) {
+			unhookRowColumnListeners();
 			row = null;
 			column = null;
 			_resize();
@@ -294,16 +301,7 @@ public void addSelectionListener(SelectionListener listener) {
 void dispose(Event event) {
 	table.removeListener(SWT.FocusIn, tableListener);
 	table.removeListener(SWT.MouseDown, tableListener);
-	if (column != null) {
-		column.removeListener(SWT.Dispose, disposeColumnListener);
-		column.removeListener(SWT.Move, resizeListener);
-		column.removeListener(SWT.Resize, resizeListener);
-		column = null;
-	}
-	if (row != null) {
-		row.removeListener(SWT.Dispose, disposeItemListener);
-		row = null;
-	}
+	unhookRowColumnListeners();
 	ScrollBar hBar = table.getHorizontalBar();
 	if (hBar != null) {
 		hBar.removeListener(SWT.Selection, resizeListener);
@@ -463,10 +461,11 @@ void paint(Event event) {
 }
 
 void tableFocusIn(Event event) {
-	if (isDisposed())
-		return;
-	if (isVisible())
+	if (isDisposed()) return;
+	if (isVisible()) {
+		if (row == null && column == null) return;
 		setFocus();
+	}
 }
 
 void tableMouseDown(Event event) {
@@ -493,7 +492,14 @@ void tableMouseDown(Event event) {
 	}
 	TableColumn newColumn = null;
 	int columnCount = table.getColumnCount();
-	if (columnCount > 0) {
+	if (columnCount == 0) {
+		if ((table.getStyle() & SWT.FULL_SELECTION) == 0) {
+			Rectangle rect = item.getBounds(0);
+			rect.width += lineWidth;
+			rect.height += lineWidth;
+			if (!rect.contains(pt)) return;
+		}
+	} else {
 		for (int i = 0; i < columnCount; i++) {
 			Rectangle rect = item.getBounds(i);
 			rect.width += lineWidth;
@@ -504,6 +510,7 @@ void tableMouseDown(Event event) {
 			}
 		}
 		if (newColumn == null) {
+			if ((table.getStyle() & SWT.FULL_SELECTION) == 0) return;
 			newColumn = table.getColumn(0);
 		}
 	}
@@ -609,6 +616,30 @@ public int getColumn() {
 	return column == null ? 0 : table.indexOf(column);
 }
 /**
+ * Returns the background color that the receiver will use to draw.
+ *
+ * @return the receiver's background color
+ */
+public Color getBackground() {
+	checkWidget();
+	if (background == null) {
+		return getDisplay().getSystemColor(BACKGROUND);
+	}
+	return background;
+}
+/**
+ * Returns the foreground color that the receiver will use to draw.
+ *
+ * @return the receiver's foreground color
+ */
+public Color getForeground() {
+	checkWidget();
+	if (foreground == null) {
+		return getDisplay().getSystemColor(FOREGROUND);
+	}
+	return foreground;
+}
+/**
  * Returns the row over which the TableCursor is positioned.
  *
  * @return the item for the current position
@@ -622,14 +653,49 @@ public TableItem getRow() {
 	checkWidget();
 	return row;
 }
+/**
+ * Sets the receiver's background color to the color specified
+ * by the argument, or to the default system color for the control
+ * if the argument is null.
+ * <p>
+ * Note: This operation is a hint and may be overridden by the platform.
+ * For example, on Windows the background of a Button cannot be changed.
+ * </p>
+ * @param color the new color (or null)
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li> 
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
 public void setBackground (Color color) {
-	if (color == null) color = getDisplay().getSystemColor(BACKGROUND);
-	super.setBackground(color);
+	background = color;
+	super.setBackground(getBackground());
 	redraw();
 }
+/**
+ * Sets the receiver's foreground color to the color specified
+ * by the argument, or to the default system color for the control
+ * if the argument is null.
+ * <p>
+ * Note: This operation is a hint and may be overridden by the platform.
+ * </p>
+ * @param color the new color (or null)
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li> 
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
 public void setForeground (Color color) {
-	if (color == null) color = getDisplay().getSystemColor(FOREGROUND);
-	super.setForeground(color);
+	foreground = color;
+	super.setForeground(getForeground());
 	redraw();
 }
 /**
@@ -677,5 +743,17 @@ public void setSelection(TableItem row, int column) {
 		|| column > maxColumnIndex)
 		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	setRowColumn(table.indexOf(row), column, false);
+}
+void unhookRowColumnListeners() {
+	if (column != null) {
+		column.removeListener(SWT.Dispose, disposeColumnListener);
+		column.removeListener(SWT.Move, resizeListener);
+		column.removeListener(SWT.Resize, resizeListener);
+		column = null;
+	}
+	if (row != null) {
+		row.removeListener(SWT.Dispose, disposeItemListener);
+		row = null;
+	}
 }
 }
