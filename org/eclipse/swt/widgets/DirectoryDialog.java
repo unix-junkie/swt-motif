@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -30,10 +30,10 @@ import org.eclipse.swt.*;
  * </p>
  */
 public class DirectoryDialog extends Dialog {
-	String filterPath = "";
+	String filterPath = ""; //$NON-NLS-1$
 	boolean cancel = true;
-	String message = "";
-	static final String SEPARATOR = System.getProperty ("file.separator");
+	String message = ""; //$NON-NLS-1$
+	static final String SEPARATOR = System.getProperty ("file.separator"); //$NON-NLS-1$
 	
 /**
  * Constructs a new instance of this class given only its parent.
@@ -89,6 +89,8 @@ int activate (int widget, int client, int call) {
  * the directories it shows.
  *
  * @return the filter path
+ * 
+ * @see #setFilterPath
  */
 public String getFilterPath () {
 	return filterPath;
@@ -116,18 +118,6 @@ public String getMessage () {
  * </ul>
  */
 public String open () {
-
-	/* Get the parent */
-	boolean destroyContext;
-	Display appContext = Display.getCurrent ();
-	if (destroyContext = (appContext == null)) appContext = new Display ();
-	int display = appContext.xDisplay;
-	int parentHandle = appContext.shellHandle;
-	if ((parent != null) && (parent.display == appContext)) {
-		if (OS.IsAIX) parent.realizeWidget ();		/* Fix for bug 17507 */
-		parentHandle = parent.shellHandle;
-	}
-
 	/* Compute the dialog title */	
 	/*
 	* Feature in Motif.  It is not possible to set a shell
@@ -135,7 +125,7 @@ public String open () {
 	* to be a single space.
 	*/
 	String string = title;
-	if (string.length () == 0) string = " ";
+	if (string.length () == 0) string = " "; //$NON-NLS-1$
 
 	/* Use the character encoding for the default locale */
 	byte [] buffer1 = Converter.wcsToMbcs (null, string, true);
@@ -150,7 +140,7 @@ public String open () {
 
 	/* Compute the filter */
 	/* Use the character encoding for the default locale */
-	byte [] buffer2 = Converter.wcsToMbcs (null, "*", true);
+	byte [] buffer2 = Converter.wcsToMbcs (null, "*", true); //$NON-NLS-1$
 	int xmStringPtr2 = OS.XmStringParseText (
 		buffer2,
 		0,
@@ -161,7 +151,7 @@ public String open () {
 		0);
 
 	/* Compute the filter path */
-	if (filterPath == null) filterPath = "";
+	if (filterPath == null) filterPath = ""; //$NON-NLS-1$
 	/* Use the character encoding for the default locale */
 	byte [] buffer3 = Converter.wcsToMbcs (null, filterPath, true);
 	int xmStringPtr3 = OS.XmStringParseText (
@@ -174,7 +164,7 @@ public String open () {
 		0);
 
 	/* Use the character encoding for the default locale */
-	byte [] buffer7 = Converter.wcsToMbcs (null, "Selection", true);
+	byte [] buffer7 = Converter.wcsToMbcs (null, SWT.getMessage ("SWT_Selection"), true);
 	int xmStringPtr4 = OS.XmStringParseText (
 		buffer7,
 		0,
@@ -185,10 +175,11 @@ public String open () {
 		0);
 
 	/* Create the dialog */
+	Display display = parent.display;
 	int [] argList1 = {
 		OS.XmNresizePolicy, OS.XmRESIZE_NONE,
 		OS.XmNdialogStyle, OS.XmDIALOG_PRIMARY_APPLICATION_MODAL,
-		OS.XmNwidth, OS.XDisplayWidth (display, OS.XDefaultScreen (display)) * 4 / 9,
+		OS.XmNwidth, OS.XDisplayWidth (display.xDisplay, OS.XDefaultScreen (display.xDisplay)) * 4 / 9,
 		OS.XmNdialogTitle, xmStringPtr1,
 		OS.XmNpattern, xmStringPtr2,
 		OS.XmNdirectory, xmStringPtr3,
@@ -196,6 +187,12 @@ public String open () {
 		OS.XmNfilterLabelString, xmStringPtr4
 	};
 
+	/*
+	* Bug in AIX. The dialog does not responde to input, if the parent
+	* is not realized.  The fix is to realized the parent.  
+	*/
+	if (OS.IsAIX) parent.realizeWidget ();
+	int parentHandle = parent.shellHandle;
 	/*
 	* Feature in Linux.  For some reason, the XmCreateFileSelectionDialog()
 	* will not accept NULL for the widget name.  This works fine on the other
@@ -235,8 +232,9 @@ public String open () {
 	OS.XmStringFree (xmString1);
 
 	/* Hook the callbacks. */
-	Callback callback = new Callback (this, "activate", 3);
+	Callback callback = new Callback (this, "activate", 3); //$NON-NLS-1$
 	int address = callback.getAddress ();
+	if (address == 0) SWT.error (SWT.ERROR_NO_MORE_CALLBACKS);
 	OS.XtAddCallback (dialog, OS.XmNokCallback, address, OS.XmDIALOG_OK_BUTTON);
 	OS.XtAddCallback (dialog, OS.XmNcancelCallback, address, OS.XmDIALOG_CANCEL_BUTTON);
 
@@ -246,15 +244,15 @@ public String open () {
 
 	/* Should be a pure OS message loop (no SWT AppContext) */
 	while (OS.XtIsRealized (dialog) && OS.XtIsManaged (dialog))
-		if (!appContext.readAndDispatch ()) appContext.sleep ();
+		if (!display.readAndDispatch ()) display.sleep ();
 
 	/* Set the new path, file name and filter. */
-	String directoryPath="";
+	String directoryPath=""; //$NON-NLS-1$
 	if (!cancel) {
 		int [] argList2 = {OS.XmNdirMask, 0};
 		OS.XtGetValues (dialog, argList2, argList2.length / 2);
 		int xmString3 = argList2 [1];
-		int [] table = new int [] {appContext.tabMapping, appContext.crMapping};
+		int [] table = new int [] {display.tabMapping, display.crMapping};
 		int ptr = OS.XmStringUnparse (
 			xmString3,
 			null,
@@ -285,16 +283,21 @@ public String open () {
 
 	/* Destroy the dialog and update the display. */
 	if (OS.XtIsRealized (dialog)) OS.XtDestroyWidget (dialog);
-	if (destroyContext) appContext.dispose ();
 	callback.dispose ();
 	
 	if (cancel) return null;
 	return directoryPath;
 }
 /**
- * Sets the path which the dialog will use to filter
- * the directories it shows to the argument, which may be
- * null.
+ * Sets the path that the dialog will use to filter
+ * the directories it shows to the argument, which may
+ * be null. If the string is null, then the operating
+ * system's default filter path will be used.
+ * <p>
+ * Note that the path string is platform dependent.
+ * For convenience, either '/' or '\' can be used
+ * as a path separator.
+ * </p>
  *
  * @param string the filter path
  */

@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -99,9 +99,10 @@ public class Event {
 	public int height;
 
 	/**
-	 * the number of following paint events which
-     * are pending which may always be zero on
-	 * some platforms
+	 * depending on the event type, the number of following
+	 * paint events which are pending which may always be zero
+	 * on some platforms or the number of lines or pages to
+	 * scroll using the mouse wheel
 	 */
 	public int count;
 	
@@ -179,22 +180,19 @@ public class Event {
 	public Object data;
 	
 /**
-* Gets the bounds.
-* <p>
-* @return a rectangle that is the bounds.
-*/
+ * Gets the bounds.
+ * 
+ * @return a rectangle that is the bounds.
+ */
 public Rectangle getBounds () {
 	return new Rectangle (x, y, width, height);
 }
 
 /**
-* Sets the bounds.
-* <p>
-* @param x the new x position
-* @param y the new y position
-* @param width the new width
-* @param height the new height
-*/
+ * Sets the bounds.
+ * 
+ * @param rect the new rectangle
+ */
 public void setBounds (Rectangle rect) {
 	this.x = rect.x;
 	this.y = rect.y;
@@ -203,10 +201,11 @@ public void setBounds (Rectangle rect) {
 }
 
 /**
-* Returns a string representation of the object.
-*
-* @return a string representation of the object
-*/
+ * Returns a string containing a concise, human-readable
+ * description of the receiver.
+ *
+ * @return a string representation of the event
+ */
 public String toString () {
 	return "Event {type=" + type + ",widget=" + widget + ",x=" + x + ",y=" + y + ",width=" + width + ",height=" + height + "}";  //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$ //$NON-NLS-6$ //$NON-NLS-7$
 }

@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -47,10 +47,10 @@ public final class FillLayout extends Layout {
 	 *
 	 * The default value is HORIZONTAL.
 	 *
-	 * Possible values are:
-	 *
-	 * HORIZONTAL: Position the controls horizontally from left to right
-	 * VERTICAL: Position the controls vertically from top to bottom
+	 * Possible values are: <ul>
+	 *    <li>HORIZONTAL: Position the controls horizontally from left to right</li>
+	 *    <li>VERTICAL: Position the controls vertically from top to bottom</li>
+	 * </ul>
 	 */
 	public int type = SWT.HORIZONTAL;
 	
@@ -107,7 +107,16 @@ protected Point computeSize (Composite composite, int wHint, int hHint, boolean 
 	int maxWidth = 0, maxHeight = 0;
 	for (int i=0; i<count; i++) {
 		Control child = children [i];
-		Point size = child.computeSize (SWT.DEFAULT, SWT.DEFAULT, flushCache);
+		int w = wHint, h = hHint;
+		if (count > 0) {
+			if (type == SWT.HORIZONTAL && wHint != SWT.DEFAULT) {
+				w = Math.max (0, (wHint - (count - 1) * spacing) / count);
+			}
+			if (type == SWT.VERTICAL && hHint != SWT.DEFAULT) {
+				h = Math.max (0, (hHint - (count - 1) * spacing) / count);
+			}
+		}
+		Point size = computeChildSize (child, w, h, flushCache);
 		maxWidth = Math.max (maxWidth, size.x);
 		maxHeight = Math.max (maxHeight, size.y);
 	}
@@ -123,7 +132,48 @@ protected Point computeSize (Composite composite, int wHint, int hHint, boolean 
 	}
 	width += marginWidth * 2;
 	height += marginHeight * 2;
+	if (wHint != SWT.DEFAULT) width = wHint;
+	if (hHint != SWT.DEFAULT) height = hHint;
 	return new Point (width, height);
+}
+
+Point computeChildSize (Control control, int wHint, int hHint, boolean flushCache) {
+	FillData data = (FillData)control.getLayoutData ();
+	if (data == null) {
+		data = new FillData ();
+		control.setLayoutData (data);
+	}
+	Point size = null;
+	if (wHint == SWT.DEFAULT && hHint == SWT.DEFAULT) {
+		size = data.computeSize (control, wHint, hHint, flushCache);
+	} else {
+		// TEMPORARY CODE
+		int trimX, trimY;
+		if (control instanceof Scrollable) {
+			Rectangle rect = ((Scrollable) control).computeTrim (0, 0, 0, 0);
+			trimX = rect.width;
+			trimY = rect.height;
+		} else {
+			trimX = trimY = control.getBorderWidth () * 2;
+		}
+		int w = wHint == SWT.DEFAULT ? wHint : Math.max (0, wHint - trimX);
+		int h = hHint == SWT.DEFAULT ? hHint : Math.max (0, hHint - trimY);
+		size = data.computeSize (control, w, h, flushCache);
+	}
+	return size;
+}
+
+protected boolean flushCache (Control control) {
+	Object data = control.getLayoutData();
+	if (data != null) ((FillData)data).flushCache();
+	return true;
+}
+
+String getName () {
+	String string = getClass ().getName ();
+	int index = string.lastIndexOf ('.');
+	if (index == -1) return string;
+	return string.substring (index + 1, string.length ());
 }
 
 protected void layout (Composite composite, boolean flushCache) {
@@ -166,4 +216,20 @@ protected void layout (Composite composite, boolean flushCache) {
 	}
 }
 
+/**
+ * Returns a string containing a concise, human-readable
+ * description of the receiver.
+ *
+ * @return a string representation of the event
+ */
+public String toString () {
+ 	String string = getName ()+" {";
+ 	string += "type="+((type == SWT.VERTICAL) ? "SWT.VERTICAL" : "SWT.HORIZONTAL")+" ";
+ 	if (marginWidth != 0) string += "marginWidth="+marginWidth+" ";
+ 	if (marginHeight != 0) string += "marginHeight="+marginHeight+" ";
+ 	if (spacing != 0) string += "spacing="+spacing+" ";
+ 	string = string.trim();
+ 	string += "}";
+ 	return string;
+}
 }

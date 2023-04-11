@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -33,7 +33,7 @@ public class Caret extends Widget {
 	Canvas parent;
 	int x, y, width, height;
 	boolean isVisible, isShowing;
-	int blinkRate = 500;
+	int blinkRate;
 	Image image;
 	Font font;
 /**
@@ -77,6 +77,7 @@ boolean blinkCaret () {
 }
 void createWidget (int index) {
 	super.createWidget (index);
+	blinkRate = display.getCaretBlinkTime ();
 	isVisible = true;
 	if (parent.getCaret () == null) {
 		parent.setCaret (this);
@@ -295,11 +296,11 @@ public void setBounds (int x, int y, int width, int height) {
 	checkWidget();
 	if (this.x == x && this.y == y && this.width == width && this.height == height) return;
 	boolean isFocus = isFocusCaret ();
-	if (isFocus) hideCaret ();
+	if (isFocus && isVisible) hideCaret ();
 	this.x = x; this.y = y;
 	this.width = width; this.height = height;
 	if (isVisible) parent.updateIM ();
-	if (isFocus) showCaret ();
+	if (isFocus && isVisible) showCaret ();
 }
 /**
  * Sets the receiver's size and location to the rectangular
@@ -368,9 +369,9 @@ public void setImage (Image image) {
 		error (SWT.ERROR_INVALID_ARGUMENT);
 	}
 	boolean isFocus = isFocusCaret ();
-	if (isFocus) hideCaret ();
+	if (isFocus && isVisible) hideCaret ();
 	this.image = image;
-	if (isFocus) showCaret ();
+	if (isFocus && isVisible) showCaret ();
 }
 /**
  * Sets the receiver's location to the point specified by

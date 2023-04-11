@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -176,11 +176,24 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 		int [] argList1 = {OS.XmNlabelString, 0};
 		OS.XtGetValues (handle, argList1, argList1.length / 2);
 		int xmString = argList1 [1];
-		if (OS.XmStringEmpty (xmString)) height += getFontHeight (font.handle);
-		if (xmString != 0) OS.XmStringFree (xmString);
+		if (xmString != 0) {
+			if (OS.XmStringEmpty (xmString)) {
+				int xmString2 = OS.XmStringCreateLocalized (new byte[]{' ', '\0'});
+				if (xmString2 != 0) {
+					height += OS.XmStringHeight (font.handle, xmString2);
+					OS.XmStringFree(xmString2);
+				}
+			}
+			OS.XmStringFree (xmString);
+		}
 	}
 	if (wHint != SWT.DEFAULT || hHint != SWT.DEFAULT) {	
-		int [] argList4 = new int [] {OS.XmNmarginLeft, 0, OS.XmNmarginRight, 0, OS.XmNmarginTop, 0, OS.XmNmarginBottom, 0};
+		int [] argList4 = new int [] {
+			OS.XmNmarginLeft, 0,
+			OS.XmNmarginRight, 0,
+			OS.XmNmarginTop, 0,
+			OS.XmNmarginBottom, 0,
+		};
 		OS.XtGetValues (handle, argList4, argList4.length / 2);
 		if (wHint != SWT.DEFAULT) width = wHint + argList4 [1] + argList4 [3] + (border * 2);
 		if (hHint != SWT.DEFAULT) height = hHint + argList4 [5] + argList4 [7] + (border * 2);
@@ -456,7 +469,7 @@ void releaseWidget () {
  * Removes the listener from the collection of listeners who will
  * be notified when the control is selected.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -555,10 +568,14 @@ void setBitmap (Image image) {
 		if (image.isDisposed()) error(SWT.ERROR_INVALID_ARGUMENT);
 		switch (image.type) {
 			case SWT.BITMAP:
-				labelPixmap = image.pixmap;
-				disabled = new Image (display, image, SWT.IMAGE_DISABLE);
-				labelInsensitivePixmap = disabled.pixmap;
-				break;
+				ImageData data = image.getImageData ();
+				if (data.alpha == -1 && data.alphaData == null && data.transparentPixel == -1) {
+					labelPixmap = image.pixmap;
+					disabled = new Image (display, image, SWT.IMAGE_DISABLE);
+					labelInsensitivePixmap = disabled.pixmap;
+					break;
+				}
+				//FALL THROUGH
 			case SWT.ICON:
 				Rectangle rect = image.getBounds ();
 				bitmap = new Image (display, rect.width, rect.height);
@@ -576,7 +593,7 @@ void setBitmap (Image image) {
 		}
 	}
 	int [] argList = {
-		OS.XmNlabelType, OS.XmPIXMAP,
+		OS.XmNlabelType, image == null ? OS.XmSTRING : OS.XmPIXMAP,
 		OS.XmNlabelPixmap, labelPixmap,
 		OS.XmNlabelInsensitivePixmap, labelInsensitivePixmap,
 	};
@@ -615,9 +632,9 @@ public void setFont (Font font) {
 }
 /**
  * Sets the receiver's image to the argument, which may be
- * null indicating that no image should be displayed.
+ * <code>null</code> indicating that no image should be displayed.
  *
- * @param image the image to display on the receiver (may be null)
+ * @param image the image to display on the receiver (may be <code>null</code>)
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_INVALID_ARGUMENT - if the image has been disposed</li>
@@ -693,6 +710,13 @@ public void setText (String string) {
 	checkWidget();
 	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
 	if ((style & SWT.ARROW) != 0) return;
+	/*
+	* Feature in Motif.  Motif does not optimize the case
+	* when the same text is set into a button causing
+	* it to flash.  The fix is to test for equality and
+	* do nothing.
+	*/
+	if (text.equals (string)) return;
 	text = string;
 	char [] text = new char [string.length ()];
 	string.getChars (0, text.length, text, 0);

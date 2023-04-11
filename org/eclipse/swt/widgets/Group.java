@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -89,6 +89,26 @@ static int checkStyle (int style) {
 protected void checkSubclass () {
 	if (!isValidSubclass ()) error (SWT.ERROR_INVALID_SUBCLASS);
 }
+public Point computeSize (int wHint, int hHint, boolean changed) {
+	Point size = super.computeSize (wHint, hHint, changed);
+	if (OS.XtIsManaged (labelHandle)) {
+		int [] argList = {
+			OS.XmNshadowThickness, 0, 
+			OS.XmNmarginWidth, 0, 
+		};
+		OS.XtGetValues (handle, argList, argList.length / 2);
+		int thickness = argList [1];
+		int marginWidth = argList [3];
+		int borderWidth = getBorderWidth ();
+		int [] argList2 = {OS.XmNchildHorizontalSpacing, 0};
+		OS.XtGetValues (labelHandle, argList2, argList2.length / 2);
+		XtWidgetGeometry result = new XtWidgetGeometry ();
+		OS.XtQueryGeometry (labelHandle, null, result);
+		int titleWidth = result.width + 2 * (argList2 [1] + marginWidth + thickness + borderWidth);
+		size.x = Math.max (size.x, titleWidth);
+	}
+	return size;
+}
 public Rectangle computeTrim (int x, int y, int width, int height) {
 	checkWidget();
 	int trimX, trimY, trimWidth, trimHeight;	
@@ -112,10 +132,6 @@ public Rectangle computeTrim (int x, int y, int width, int height) {
 		int titleHeight = ((short) argList2 [1]) + argList2 [3];
 		trimY = y - titleHeight;
 		trimHeight = height + titleHeight + (marginHeight + thickness + borderWidth);
-		XtWidgetGeometry result = new XtWidgetGeometry ();
-		OS.XtQueryGeometry (labelHandle, null, result);
-		int titleWidth = result.width + 2 * (argList2 [5] + marginWidth + thickness + borderWidth);
-		trimWidth = Math.max (trimWidth, titleWidth);
 	}
 	return new Rectangle (trimX, trimY, trimWidth, trimHeight);
 }
@@ -149,6 +165,9 @@ void createHandle (int index) {
 	int [] argList3 = {OS.XmNframeChildType, OS.XmFRAME_TITLE_CHILD};
 	labelHandle = OS.XmCreateLabel (handle, null, argList3, argList3.length / 2);
 	if (labelHandle == 0) error (SWT.ERROR_NO_HANDLES);
+	int [] argList4 = {OS.XmNforeground, 0, OS.XmNbackground, 0};
+	OS.XtGetValues (handle, argList4, argList4.length / 2);
+	OS.XtSetValues (labelHandle, argList4, argList4.length / 2);
 }
 void enableWidget (boolean enabled) {
 	super.enableWidget (enabled);
@@ -217,13 +236,13 @@ void propagateWidget (boolean enabled) {
 	super.propagateWidget (enabled);
 	propagateHandle (enabled, labelHandle, OS.None);
 }
-void redrawWidget (int x, int y, int width, int height, boolean all) {
-	super.redrawWidget (x, y, width, height, all);
+void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren) {
+	super.redrawWidget (x, y, width, height, redrawAll, allChildren);
 	short [] root_x = new short [1], root_y = new short [1];
 	OS.XtTranslateCoords (handle, (short) x, (short) y, root_x, root_y);
 	short [] label_x = new short [1], label_y = new short [1];
 	OS.XtTranslateCoords (labelHandle, (short) 0, (short) 0, label_x, label_y);
-	redrawHandle (root_x [0] - label_x [0], root_y [0] - label_y [0], width, height, labelHandle);
+	redrawHandle (root_x [0] - label_x [0], root_y [0] - label_y [0], width, height, redrawAll, labelHandle);
 }
 void releaseHandle () {
 	super.releaseHandle ();

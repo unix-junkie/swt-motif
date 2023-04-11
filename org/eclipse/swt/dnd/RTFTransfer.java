@@ -1,16 +1,16 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 package org.eclipse.swt.dnd;
 
-import org.eclipse.swt.internal.Converter;
+import org.eclipse.swt.internal.*;
 import org.eclipse.swt.internal.motif.*;
  
 /**
@@ -58,14 +58,15 @@ public static RTFTransfer getInstance () {
  */
 public void javaToNative (Object object, TransferData transferData){
 	transferData.result = 0;
-	if (object == null || !(object instanceof String) || !isSupportedType(transferData)) return;
+	if (!checkRTF(object) || !isSupportedType(transferData)) {
+		DND.error(DND.ERROR_INVALID_DATA);
+	}
 	String string = (String)object;
-	if (string.length() == 0) return;
 	byte [] buffer = Converter.wcsToMbcs (null, string, true);
 	int pValue = OS.XtMalloc(buffer.length);
 	if (pValue == 0) return;
 	OS.memmove(pValue, buffer, buffer.length);
-	transferData.length = buffer.length;
+	transferData.length = buffer.length - 1;
 	transferData.format = 8;
 	transferData.pValue = pValue;
 	transferData.result = 1;
@@ -92,11 +93,20 @@ public Object nativeToJava(TransferData transferData){
 	int end = string.indexOf('\0');
 	return (end == -1) ? string : string.substring(0, end);
 }
+
 protected int[] getTypeIds() {
 	return new int[] {TEXT_RTF_ID, TEXT_RTF2_ID, APPLICATION_RTF_ID};
 }
 
 protected String[] getTypeNames() {
 	return new String[] {TEXT_RTF, TEXT_RTF2, APPLICATION_RTF};
+}
+
+boolean checkRTF(Object object) {
+	return (object != null && object instanceof String && ((String)object).length() > 0);
+}
+
+protected boolean validate(Object object) {
+	return checkRTF(object);
 }
 }

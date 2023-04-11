@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -81,6 +81,7 @@ public final class FormAttachment {
 	 * equation, y = ax + b, which defines the attachment.
 	 */
 	public int numerator;
+	
 	/**
 	 * denominator specifies the denominator of the "a" term in the
 	 * equation, y = ax + b, which defines the attachment.
@@ -88,6 +89,7 @@ public final class FormAttachment {
 	 * The default value is 100.
 	 */
 	public int denominator = 100;
+	
 	/**
 	 * offset specifies the offset, in pixels, of the control side
 	 * from the attachment position.
@@ -100,27 +102,30 @@ public final class FormAttachment {
 	 * The default value is 0.
 	 */
 	public int offset;
+	
 	/**
 	 * control specifies the control to which the control side is
 	 * attached.
 	 */
 	public Control control;
+	
 	/**
 	 * alignment specifies the alignment of the control side that is
 	 * attached to a control.
+	 * <p>
 	 * For top and bottom attachments, TOP, BOTTOM and CENTER are used. For left 
 	 * and right attachments, LEFT, RIGHT and CENTER are used. If any other case
 	 * occurs, the default will be used instead.
+	 * </p>
 	 * 
-	 * Possible values are:
-	 * 
-	 * TOP: Attach the side to the top side of the specified control.
-	 * BOTTOM : Attach the side to the bottom side of the specified control.
-	 * LEFT: Attach the side to the left side of the specified control.
-	 * RIGHT: Attach the side to the right side of the specified control.
-	 * CENTER: Attach the side at a position which will center the control on
-	 * the specified control.
-	 * DEFAULT: Attach the side to the adjacent side of the specified control.
+	 * <br>Possible values are: <ul>
+	 *    <li>TOP: Attach the side to the top side of the specified control.</li>
+	 *    <li>BOTTOM : Attach the side to the bottom side of the specified control.</li>
+	 *    <li>LEFT: Attach the side to the left side of the specified control.</li>
+	 *    <li>RIGHT: Attach the side to the right side of the specified control.</li>
+	 *    <li>CENTER: Attach the side at a position which will center the control on the specified control.</li>
+	 *    <li>DEFAULT: Attach the side to the adjacent side of the specified control.</li>
+	 * </ul>
 	 */
 	public int alignment;
 	
@@ -134,7 +139,6 @@ FormAttachment () {
  * denominator of 100. The offset is zero.
  * 
  * @param numerator the percentage of the position
- * @param offset the offset of the side from the position
  * 
  * @since 3.0
  */
@@ -273,9 +277,15 @@ int solveY (int value) {
 	return (value - offset) * denominator / numerator;
 }
 	
+/**
+ * Returns a string containing a concise, human-readable
+ * description of the receiver.
+ *
+ * @return a string representation of the event
+ */
 public String toString () {
  	String string = control != null ? control.toString () : numerator + "/" + denominator;
-	return "y = (" + string + (offset >= 0 ? ")x + " + offset: ")x - " + (-offset));
+	return "{y = (" + string + (offset >= 0 ? ")x + " + offset: ")x - " + (-offset))+"}";
 }
 
 }

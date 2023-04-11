@@ -1,10 +1,10 @@
 /*******************************************************************************
  * Copyright (c) 2000, 2004 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -12,9 +12,9 @@ package org.eclipse.swt.dnd;
 
 
 import org.eclipse.swt.*;
-import org.eclipse.swt.widgets.*;
 import org.eclipse.swt.internal.*;
 import org.eclipse.swt.internal.motif.*;
+import org.eclipse.swt.widgets.*;
 
 /**
  * The <code>Clipboard</code> provides a mechanism for transferring data from one
@@ -24,8 +24,7 @@ import org.eclipse.swt.internal.motif.*;
  */
 public class Clipboard {
 
-	private Display display;
-	private int shellHandle;
+	Display display;
 
 /**
  * Constructs a new instance of this class.  Creating an instance of a Clipboard
@@ -42,24 +41,19 @@ public class Clipboard {
  * @see Clipboard#dispose
  * @see Clipboard#checkSubclass
  */
-public Clipboard(Display display) {	
-	checkSubclass ();
-	if (display == null) {
-		display = Display.getCurrent();
+	public Clipboard(Display display) {	
+		checkSubclass ();
 		if (display == null) {
-			display = Display.getDefault();
+			display = Display.getCurrent();
+			if (display == null) {
+				display = Display.getDefault();
+			}
 		}
+		if (display.getThread() != Thread.currentThread()) {
+			DND.error(SWT.ERROR_THREAD_INVALID_ACCESS);
+		}
+		this.display = display;
 	}
-	if (display.getThread() != Thread.currentThread()) {
-		DND.error(SWT.ERROR_THREAD_INVALID_ACCESS);
-	}
-	this.display = display;
-	
-	int widgetClass = OS.topLevelShellWidgetClass ();
-	shellHandle = OS.XtAppCreateShell (null, null, widgetClass, display.xDisplay, null, 0);
-	OS.XtSetMappedWhenManaged (shellHandle, false);
-	OS.XtRealizeWidget (shellHandle);
-}
 
 /**
  * Checks that this class can be subclassed.
@@ -95,6 +89,7 @@ protected void checkSubclass () {
 		DND.error (SWT.ERROR_INVALID_SUBCLASS);
 	}
 }
+
 /**
  * Throws an <code>SWTException</code> if the receiver can not
  * be accessed by the caller. This may include both checks on
@@ -118,9 +113,60 @@ protected void checkSubclass () {
  * </ul>
  */
 protected void checkWidget () {
+	Display display = this.display;
 	if (display == null) DND.error (SWT.ERROR_WIDGET_DISPOSED);
 	if (display.getThread() != Thread.currentThread ()) DND.error (SWT.ERROR_THREAD_INVALID_ACCESS);
 	if (display.isDisposed()) DND.error(SWT.ERROR_WIDGET_DISPOSED);
+}
+
+/**
+ * If this clipboard is currently the owner of the data on the system clipboard,
+ * clear the contents.  If this clipboard is not the owner, then nothing is done.
+ * Note that there are clipboard assistant applications that take ownership of 
+ * data or make copies of data when it is placed on the clipboard.  In these 
+ * cases, it may not be possible to clear the clipboard.
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void clearContents() {
+	clearContents(DND.CLIPBOARD);
+}
+
+/**
+ * If this clipboard is currently the owner of the data on the specified 
+ * clipboard, clear the contents.  If this clipboard is not the owner, then 
+ * nothing is done.
+ * 
+ * <p>Note that there are clipboard assistant applications that take ownership
+ * of data or make copies of data when it is placed on the clipboard.  In these 
+ * cases, it may not be possible to clear the clipboard.</p>
+ * 
+ * <p>The clipboards value is either one of the clipboard constants defined in
+ * class <code>DND</code>, or must be built by <em>bitwise OR</em>'ing together 
+ * (that is, using the <code>int</code> "|" operator) two or more
+ * of those <code>DND</code> clipboard constants.</p>
+ * 
+ * @param clipboards to be cleared
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @see DND#CLIPBOARD
+ * @see DND#SELECTION_CLIPBOARD
+ * 
+ * @since 3.1
+ */
+public void clearContents(int clipboards) {
+	checkWidget();
+	ClipboardProxy proxy = ClipboardProxy._getInstance(display);
+	proxy.clear(this, clipboards);
 }
 
 /**
@@ -138,16 +184,16 @@ protected void checkWidget () {
 public void dispose () {
 	if (isDisposed()) return;
 	if (display.getThread() != Thread.currentThread()) DND.error(SWT.ERROR_THREAD_INVALID_ACCESS);
-	if (shellHandle != 0) OS.XtDestroyWidget (shellHandle);
-	shellHandle = 0;
 	display = null;
 }
 
 /**
- * Retrieve the data of the specified type currently available on the system clipboard.  Refer to the 
- * specific subclass of <code>Tramsfer</code> to determine the type of object returned.
+ * Retrieve the data of the specified type currently available on the system 
+ * clipboard.  Refer to the specific subclass of <code>Transfer</code> to 
+ * determine the type of object returned.
  * 
- * <p>The following snippet shows text and RTF text being retrieved from the clipboard:</p>
+ * <p>The following snippet shows text and RTF text being retrieved from the 
+ * clipboard:</p>
  * 
  *    <code><pre>
  *    Clipboard clipboard = new Clipboard(display);
@@ -160,10 +206,7 @@ public void dispose () {
  *    clipboard.dispose();
  *    </code></pre>
  * 
- * @see Transfer
- * 
  * @param transfer the transfer agent for the type of data being requested
- * 
  * @return the data obtained from the clipboard or null if no data of this type is available
  * 
  * @exception SWTException <ul>
@@ -173,58 +216,69 @@ public void dispose () {
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if transfer is null</li>
  * </ul>
+ * 
+ * @see Transfer
  */
 public Object getContents(Transfer transfer) {
+	return getContents(transfer, DND.CLIPBOARD);
+}
+
+/**
+ * Retrieve the data of the specified type currently available on the specified 
+ * clipboard.  Refer to the specific subclass of <code>Transfer</code> to 
+ * determine the type of object returned.
+ * 
+ * <p>The following snippet shows text and RTF text being retrieved from the 
+ * clipboard:</p>
+ * 
+ *    <code><pre>
+ *    Clipboard clipboard = new Clipboard(display);
+ *    TextTransfer textTransfer = TextTransfer.getInstance();
+ *    String textData = (String)clipboard.getContents(textTransfer);
+ *    if (textData != null) System.out.println("Text is "+textData);
+ *    RTFTransfer rtfTransfer = RTFTransfer.getInstance();
+ *    String rtfData = (String)clipboard.getContents(rtfTransfer, DND.CLIPBOARD);
+ *    if (rtfData != null) System.out.println("RTF Text is "+rtfData);
+ *    clipboard.dispose();
+ *    </code></pre>
+ * 
+ * <p>The clipboards value is either one of the clipboard constants defined in
+ * class <code>DND</code>, or must be built by <em>bitwise OR</em>'ing together 
+ * (that is, using the <code>int</code> "|" operator) two or more
+ * of those <code>DND</code> clipboard constants.</p>
+ * 
+ * @param transfer the transfer agent for the type of data being requested
+ * @param clipboards on which to look for data
+ *  
+ * @return the data obtained from the clipboard or null if no data of this type is available
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if transfer is null</li>
+ * </ul>
+ * 
+ * @see Transfer
+ * @see DND#CLIPBOARD
+ * @see DND#SELECTION_CLIPBOARD
+ * 
+ * @since 3.1
+ */
+public Object getContents(Transfer transfer, int clipboards) {
 	checkWidget();
 	if (transfer == null) DND.error(SWT.ERROR_NULL_ARGUMENT);
-	int xDisplay = OS.XtDisplay (shellHandle);
-	if (xDisplay == 0) return null;
-	int xWindow = OS.XtWindow (shellHandle);
-	if (xWindow == 0) return null;
-	
-	// Open clipboard for retrieval
-	if (OS.XmClipboardStartRetrieve(xDisplay, xWindow, OS.XtLastTimestampProcessed(xDisplay)) != OS.XmClipboardSuccess) return null;
-	byte[] data = null;
-	byte[] type = null;
-	try {
-		// Does Clipboard have data in required format?
-		int[] length = new int[1];
-		String[] supportedTypes = transfer.getTypeNames();
-		for (int i = 0; i < supportedTypes.length; i++) {
-			byte[] bName = Converter.wcsToMbcs(null, supportedTypes[i], true);
-			if (OS.XmClipboardInquireLength(xDisplay, xWindow, bName, length) == OS.XmClipboardSuccess) {
-				type = bName;
-				break;
-			}
-		}
-		// Retrieve data from Clipboard
-		if (type == null) return null;
-		data = new byte[length[0]];
-		if (OS.XmClipboardRetrieve(xDisplay, xWindow, type, data, length[0], new int[1], new int[1]) != OS.XmClipboardSuccess) {
-			return null;
-		}
-	} finally {
-		// Close Clipboard
-		OS.XmClipboardEndRetrieve(xDisplay, xWindow);
+	ClipboardProxy proxy = ClipboardProxy._getInstance(display);
+	Object result = null;
+	if ((clipboards & DND.CLIPBOARD) != 0) {
+		 result = proxy.getContents(transfer, DND.CLIPBOARD);
 	}
-	
-	// Pass data to transfer agent for conversion to a Java Object
-	// Memory is allocated here to emulate the way Drag and Drop transfers data.
-	int pValue = OS.XtMalloc(data.length);
-	if (pValue == 0) return null;
-	try {
-		OS.memmove(pValue, data, data.length);
-		TransferData transferData = new TransferData();
-		transferData.type = OS.XmInternAtom (xDisplay, type, true);
-		transferData.length = data.length;
-		transferData.format = 8;
-		transferData.pValue = pValue;
-		transferData.result = 1;
-		return transfer.nativeToJava(transferData);
-	} finally {
-		// Clean up allocated memory
-		OS.XtFree(pValue);
+	if (result != null) return result;
+	if ((clipboards & DND.SELECTION_CLIPBOARD) != 0) {
+		result = proxy.getContents(transfer, DND.SELECTION_CLIPBOARD);
 	}
+	return result;
 }
 
 /**
@@ -245,91 +299,10 @@ public boolean isDisposed () {
 }
 
 /**
- * Place data of the specified type on the system clipboard.  More than one type of
- * data can be placed on the system clipboard at the same time.  Setting the data 
- * clears any previous data of the same type from the system clipboard and also
- * clears data of any other type currently on the system clipboard.
- * 
- * <p>NOTE: On some platforms, the data is immediately copied to the system
- * clipboard but on other platforms it is provided upon request.  As a result, if the 
- * application modifes the data object it has set on the clipboard, that modification 
- * may or may not be available when the data is subsequently requested.</p>
+ * Returns an array of the data types currently available on the system 
+ * clipboard. Use with Transfer.isSupportedType.
  *
- * <p>The following snippet shows text and RTF text being set on the clipboard:</p>
- * 
- * <code><pre>
- * 	Clipboard clipboard = new Clipboard(display);
- *		String textData = "Hello World";
- *		String rtfData = "{\\rtf1\\b\\i Hello World}";
- *		TextTransfer textTransfer = TextTransfer.getInstance();
- *		RTFTransfer rtfTransfer = RTFTransfer.getInstance();
- *		clipboard.setContents(new Object[]{textData, rtfData}, new Transfer[]{textTransfer, rtfTransfer});
- *		clipboard.dispose();
- * </code></pre>
- *
- * @param data the data to be set in the clipboard
- * @param dataTypes the transfer agents that will convert the data to its platform 
- * specific format; each entry in the data array must have a corresponding dataType
- * 
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_INVALID_ARGUMENT - if data is null or datatypes is null 
- *          or the length of data is not the same as the length of dataTypes</li>
- *   </ul>
- *  @exception SWTError <ul>
- *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- *    <li>ERROR_CANNOT_SET_CLIPBOARD - if the clipboard is locked or otherwise unavailable</li>
-  * </ul>
- */
-public void setContents(Object[] data, Transfer[] dataTypes) {
-	checkWidget();
-	if (data == null || dataTypes == null || data.length != dataTypes.length) {
-		DND.error(SWT.ERROR_INVALID_ARGUMENT);
-	}
-
-	int xDisplay = OS.XtDisplay (shellHandle);
-	if (xDisplay == 0) DND.error(DND.ERROR_CANNOT_SET_CLIPBOARD);
-	int xWindow = OS.XtWindow (shellHandle);
-	if (xWindow == 0) DND.error(DND.ERROR_CANNOT_SET_CLIPBOARD);	
-	// Open clipboard for setting
-	int[] item_id = new int[1];			
-	if (OS.XmClipboardStartCopy(xDisplay, xWindow, 0, OS.XtLastTimestampProcessed(xDisplay), shellHandle, 0, item_id) != OS.XmClipboardSuccess){
-		DND.error(DND.ERROR_CANNOT_SET_CLIPBOARD);
-	}
-	try {
-		// copy data directly over to System clipboard (not deferred)
-		for (int i = 0; i < dataTypes.length; i++) {
-			int[] ids = dataTypes[i].getTypeIds();
-			String[] names = dataTypes[i].getTypeNames();
-			for (int j = 0; j < names.length; j++) {
-				TransferData transferData = new TransferData();
-				transferData.type = ids[j];
-				dataTypes[i].javaToNative(data[i], transferData);
-				if (transferData.result != 1) DND.error(DND.ERROR_CANNOT_SET_CLIPBOARD);
-				try {
-					if (transferData.format != 8) DND.error(DND.ERROR_CANNOT_SET_CLIPBOARD);
-					byte[] buffer = new byte[transferData.length];
-					OS.memmove(buffer, transferData.pValue, transferData.length);
-					byte[] bName = Converter.wcsToMbcs(null, names[j], true);
-					if (OS.XmClipboardCopy(xDisplay, xWindow, item_id[0], bName, buffer, transferData.length, 0, null) != OS.XmClipboardSuccess) {
-						DND.error(DND.ERROR_CANNOT_SET_CLIPBOARD);
-					}
-				} finally {
-					OS.XtFree(transferData.pValue);
-				}
-			}
-		}
-	} finally {
-		// close clipboard  for setting
-		OS.XmClipboardEndCopy(xDisplay, xWindow, item_id[0]);
-	}
-}
-
-/**
- * Returns an array of the data types currently available on the system clipboard. Use
- * with Transfer.isSupportedType.
- *
- * @return array of TransferData
+ * @return array of data types currently available on the system clipboard
  * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -341,15 +314,55 @@ public void setContents(Object[] data, Transfer[] dataTypes) {
  * @since 3.0
  */
 public TransferData[] getAvailableTypes() {
+	return getAvailableTypes(DND.CLIPBOARD);
+}
+
+/**
+ * Returns an array of the data types currently available on the specified 
+ * clipboard. Use with Transfer.isSupportedType.
+ * 
+ * <p>The clipboards value is either one of the clipboard constants defined in
+ * class <code>DND</code>, or must be built by <em>bitwise OR</em>'ing together 
+ * (that is, using the <code>int</code> "|" operator) two or more
+ * of those <code>DND</code> clipboard constants.</p>
+ * 
+ * @param clipboards from which to get the data types
+ * @return array of data types currently available on the specified clipboard
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @see Transfer#isSupportedType
+ * @see DND#CLIPBOARD
+ * @see DND#SELECTION_CLIPBOARD
+ * 
+ * @since 3.1
+ */
+public TransferData[] getAvailableTypes(int clipboards) {
 	checkWidget();
-	int xDisplay = OS.XtDisplay(shellHandle);
-	if (xDisplay == 0) return new TransferData[0];
-	byte[][] types = _getAvailableTypes();
+	ClipboardProxy proxy = ClipboardProxy._getInstance(display);
+	int[] types = null;
+	if ((clipboards & DND.CLIPBOARD) != 0) {
+		types = proxy.getAvailableTypes(DND.CLIPBOARD);
+	}
+	if ((clipboards & DND.SELECTION_CLIPBOARD) != 0) {
+		int[] primaryTypes = proxy.getAvailableTypes(DND.SELECTION_CLIPBOARD);
+		if (types == null) {
+			types = primaryTypes;
+		} else {
+			int[] newTypes = new int[types.length + primaryTypes.length];
+			System.arraycopy(types, 0, newTypes, 0, types.length);
+			System.arraycopy(primaryTypes, 0, newTypes, types.length, primaryTypes.length);
+			types = newTypes;
+		}
+	}
+	if (types == null) return new TransferData[0];
 	TransferData[] result = new TransferData[types.length];
 	for (int i = 0; i < types.length; i++) {
-		int atom = OS.XmInternAtom(xDisplay, types[i], true);
 		result[i] = new TransferData();
-		result[i].type = atom;
+		result[i].type = types[i];
 	}
 	return result;
 }
@@ -372,46 +385,156 @@ public TransferData[] getAvailableTypes() {
  */
 public String[] getAvailableTypeNames() {
 	checkWidget();
-	byte[][] types = _getAvailableTypes();
-	String[] names = new String[types.length];
-	for (int i = 0; i < names.length; i++) {
+	ClipboardProxy proxy = ClipboardProxy._getInstance(display);
+	int[] types = proxy.getAvailableTypes(DND.CLIPBOARD);
+	int[] primaryTypes = proxy.getAvailableTypes(DND.SELECTION_CLIPBOARD);
+	String[] names = new String[types.length + primaryTypes.length];
+	int index = 0;
+	int xDisplay = display.xDisplay;
+	for (int i = 0; i < types.length; i++) {
+		int ptr = OS.XmGetAtomName(xDisplay, types[i]);
+		int length = OS.strlen(ptr);
+		byte[] nameBuf = new byte[length];
+		OS.memmove(nameBuf, ptr, length);
+		OS.XtFree(ptr);
 		/* Use the character encoding for the default locale */
-		names[i] = new String(Converter.mbcsToWcs(null, types[i]));
+		String name = new String(Converter.mbcsToWcs(null, nameBuf));
+		names[index++] = "CLIPBOARD "+name;
+	}
+	for (int i = 0; i < primaryTypes.length; i++) {
+		int ptr = OS.XmGetAtomName(xDisplay, primaryTypes[i]);
+		int length = OS.strlen(ptr);
+		byte[] nameBuf = new byte[length];
+		OS.memmove(nameBuf, ptr, length);
+		OS.XtFree(ptr);
+		/* Use the character encoding for the default locale */
+		String name = new String(Converter.mbcsToWcs(null, nameBuf));
+		names[index++] = "PRIMARY "+name;
 	}
 	return names;
 }
 
-private byte[][] _getAvailableTypes() {
-	byte[][] types = new byte[0][];
-	int[] count = new int[1];
-	int[] max_length = new int[1];
-	int xDisplay = OS.XtDisplay (shellHandle);
-	if (xDisplay == 0) return types;
-	int xWindow = OS.XtWindow (shellHandle);
-	if (xWindow == 0) return types;
-	if (OS.XmClipboardInquireCount(xDisplay, xWindow, count, max_length) == 0) {
-		return types;
+/**
+ * Place data of the specified type on the system clipboard.  More than one type
+ * of data can be placed on the system clipboard at the same time.  Setting the
+ * data clears any previous data from the system clipboard, regardless of type.
+ * 
+ * <p>NOTE: On some platforms, the data is immediately copied to the system
+ * clipboard but on other platforms it is provided upon request.  As a result,
+ * if the application modifes the data object it has set on the clipboard, that 
+ * modification may or may not be available when the data is subsequently 
+ * requested.</p>
+ *
+ * <p>The following snippet shows text and RTF text being set on the copy/paste
+ * clipboard:
+ * </p>
+ * 
+ * <code><pre>
+ * 	Clipboard clipboard = new Clipboard(display);
+ *	String textData = "Hello World";
+ *	String rtfData = "{\\rtf1\\b\\i Hello World}";
+ *	TextTransfer textTransfer = TextTransfer.getInstance();
+ *	RTFTransfer rtfTransfer = RTFTransfer.getInstance();
+ *	Transfer[] transfers = new Transfer[]{textTransfer, rtfTransfer};
+ *	Object[] data = new Object[]{textData, rtfData};
+ *	clipboard.setContents(data, transfers);
+ *	clipboard.dispose();
+ * </code></pre>
+ *
+ * @param data the data to be set in the clipboard
+ * @param dataTypes the transfer agents that will convert the data to its 
+ * platform specific format; each entry in the data array must have a 
+ * corresponding dataType
+ * 
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if data is null or datatypes is null 
+ *          or the length of data is not the same as the length of dataTypes</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *  @exception SWTError <ul>
+ *    <li>ERROR_CANNOT_SET_CLIPBOARD - if the clipboard is locked or otherwise unavailable</li>
+ * </ul>
+ * 
+ * <p>NOTE: ERROR_CANNOT_SET_CLIPBOARD should be an SWTException, since it is a
+ * recoverable error, but can not be changed due to backward compatability.</p>
+ */
+public void setContents(Object[] data, Transfer[] dataTypes) {
+	setContents(data, dataTypes, DND.CLIPBOARD);
+}
+
+/**
+ * Place data of the specified type on the specified clipboard.  More than one 
+ * type of data can be placed on the specified clipboard at the same time.
+ * Setting the data clears any previous data from the specified
+ * clipboard, regardless of type.
+ * 
+ * <p>NOTE: On some platforms, the data is immediately copied to the specified
+ * clipboard but on other platforms it is provided upon request.  As a result, 
+ * if the application modifes the data object it has set on the clipboard, that 
+ * modification may or may not be available when the data is subsequently 
+ * requested.</p>
+ *
+ * <p>The clipboards value is either one of the clipboard constants defined in
+ * class <code>DND</code>, or must be built by <em>bitwise OR</em>'ing together 
+ * (that is, using the <code>int</code> "|" operator) two or more
+ * of those <code>DND</code> clipboard constants.</p>
+ * 
+ * <p>The following snippet shows text and RTF text being set on the copy/paste
+ * clipboard:
+ * </p>
+ * 
+ * <code><pre>
+ * 	Clipboard clipboard = new Clipboard(display);
+ *	String textData = "Hello World";
+ *	String rtfData = "{\\rtf1\\b\\i Hello World}";
+ *	TextTransfer textTransfer = TextTransfer.getInstance();
+ *	RTFTransfer rtfTransfer = RTFTransfer.getInstance();
+ *	Transfer[] transfers = new Transfer[]{textTransfer, rtfTransfer};
+ *	Object[] data = new Object[]{textData, rtfData};
+ *	clipboard.setContents(data, transfers, DND.CLIPBOARD);
+ *	clipboard.dispose();
+ * </code></pre>
+ *
+ * @param data the data to be set in the clipboard
+ * @param dataTypes the transfer agents that will convert the data to its 
+ * platform specific format; each entry in the data array must have a 
+ * corresponding dataType
+ * @param clipboards on which to set the data
+ * 
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if data is null or datatypes is null 
+ *          or the length of data is not the same as the length of dataTypes</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *  @exception SWTError <ul>
+ *    <li>ERROR_CANNOT_SET_CLIPBOARD - if the clipboard is locked or otherwise unavailable</li>
+ * </ul>
+ * 
+ * <p>NOTE: ERROR_CANNOT_SET_CLIPBOARD should be an SWTException, since it is a
+ * recoverable error, but can not be changed due to backward compatability.</p>
+ * 
+ * @see DND#CLIPBOARD
+ * @see DND#SELECTION_CLIPBOARD
+ * 
+ * @since 3.1
+ */
+public void setContents(Object[] data, Transfer[] dataTypes, int clipboards) {
+	checkWidget();
+	if (data == null || dataTypes == null || data.length != dataTypes.length || data.length == 0) {
+		DND.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
-	if (count[0] == 0) return types;
-	types = new byte[count[0]][];
-	int index = -1;
-	for (int i = 0; i < count[0]; i++) {
-		byte[] buffer = new byte[max_length[0]];
-		int[] copied_length = new int[1];
-		int rc = OS.XmClipboardInquireFormat(xDisplay, xWindow, i + 1, buffer, buffer.length, copied_length);
-		if (rc != OS.XmClipboardSuccess) continue;
-		index++;
-		byte[] buffer2 = new byte[copied_length[0]];
-		System.arraycopy(buffer, 0, buffer2, 0, copied_length[0]);
-		types[index] = buffer2;
+	for (int i = 0; i < data.length; i++) {
+		if (data[i] == null || dataTypes[i] == null || !dataTypes[i].validate(data[i])) {
+			DND.error(SWT.ERROR_INVALID_ARGUMENT);
+		}
 	}
-	if (index == -1) {
-		types = new byte[0][0];
-	} else if (index + 1 < types.length) {
-		byte[][] newTypes = new byte[index + 1][];
-		System.arraycopy(types, 0, newTypes, 0, index + 1);
-		types = newTypes;
-	}
-	return types;
+	ClipboardProxy proxy = ClipboardProxy._getInstance(display);
+	proxy.setContents(this, data, dataTypes, clipboards);
 }
 }

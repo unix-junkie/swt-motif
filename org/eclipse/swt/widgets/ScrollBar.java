@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -21,7 +21,7 @@ import org.eclipse.swt.events.*;
  * objects that represent a range of positive, numeric values. 
  * <p>
  * At any given moment, a given scroll bar will have a 
- * single <em>selection</em> that is considered to be its
+ * single 'selection' that is considered to be its
  * value, which is constrained to be within the range of
  * values the scroll bar represents (that is, between its
  * <em>minimum</em> and <em>maximum</em> values).
@@ -96,7 +96,7 @@ ScrollBar (Scrollable parent, int style) {
  * interface.
  * <p>
  * When <code>widgetSelected</code> is called, the event object detail field contains one of the following values:
- * <code>0</code> - for the end of a drag.
+ * <code>SWT.NONE</code> - for the end of a drag.
  * <code>SWT.DRAG</code>.
  * <code>SWT.HOME</code>.
  * <code>SWT.END</code>.
@@ -233,7 +233,7 @@ public int getPageIncrement () {
 	return argList [1];
 }
 /**
- * Returns the receiver's parent, which must be scrollable.
+ * Returns the receiver's parent, which must be a Scrollable.
  *
  * @return the receiver's parent
  *
@@ -247,7 +247,7 @@ public Scrollable getParent () {
 	return parent;
 }
 /**
- * Returns the single <em>selection</em> that is the receiver's value.
+ * Returns the single 'selection' that is the receiver's value.
  *
  * @return the selection
  *
@@ -371,7 +371,26 @@ public boolean isVisible () {
 	return getVisible () && parent.isVisible ();
 }
 void manageChildren () {
+	/*
+	* Feature in Motif.  Hiding or showing a scroll bar
+	* can cause the widget to automatically resize in
+	* the OS.  This behavior is unwanted.  The fix is
+	* to force the widget to resize to original size.
+	*/
+	int scrolledHandle = parent.scrolledHandle;
+	int [] argList = {OS.XmNwidth, 0, OS.XmNheight, 0, OS.XmNborderWidth, 0};
+	if (scrolledHandle != 0) {
+		OS.XtGetValues (scrolledHandle, argList, argList.length / 2);
+	}
 	OS.XtManageChild (handle);
+	/*
+	* Feature in Motif.  When XtSetValues() is used to restore the width and
+	* height of the widget, the new width and height are sometimes ignored.
+	* The fix is to use XtResizeWidget().
+	*/
+	if (scrolledHandle != 0) {
+		OS.XtResizeWidget (scrolledHandle, argList [1], argList [3], argList [5]);
+	}
 }
 void propagateWidget (boolean enabled) {
 	propagateHandle (enabled, handle, OS.None);
@@ -646,7 +665,7 @@ public void setValues (int selection, int minimum, int maximum, int thumb, int i
  */
 public void setVisible (boolean visible) {
 	checkWidget();
-	parent.setScrollbarVisible (this, visible);
+	parent.setScrollBarVisible (this, visible);
 }
 int XmNdecrementCallback (int w, int client_data, int call_data) {
 	sendScrollEvent (SWT.ARROW_UP);

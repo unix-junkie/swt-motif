@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -18,9 +18,9 @@ import org.eclipse.swt.internal.SWTEventListener;
  * that deal with the hiding and showing of menus.
  * <p>
  * After creating an instance of a class that implements
- * this interface it can be added to a control using the
+ * this interface it can be added to a menu using the
  * <code>addMenuListener</code> method and removed using
- * the <code>removeMenuListener</code> method. When a
+ * the <code>removeMenuListener</code> method. When the
  * menu is hidden or shown, the appropriate method will
  * be invoked.
  * </p>

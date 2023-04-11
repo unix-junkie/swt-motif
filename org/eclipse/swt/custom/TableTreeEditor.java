@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -76,6 +76,8 @@ import org.eclipse.swt.events.*;
 *		}
 *	});
 * </pre></code>
+* 
+* @deprecated As of 3.1 use TreeEditor with Tree, TreeItem and TreeColumn
 */
 public class TableTreeEditor extends ControlEditor {
 
@@ -105,15 +107,13 @@ public TableTreeEditor (TableTree tableTree) {
 		};
 		public void treeCollapsed(TreeEvent e) {
 			if (editor == null || editor.isDisposed ()) return;
-			Display display = TableTreeEditor.this.tableTree.getDisplay();
 			editor.setVisible(false);
-			display.asyncExec(runnable);
+			e.display.asyncExec(runnable);
 		}
 		public void treeExpanded(TreeEvent e) {
 			if (editor == null || editor.isDisposed ()) return;
-			Display display = TableTreeEditor.this.tableTree.getDisplay();
 			editor.setVisible(false);
-			display.asyncExec(runnable);
+			e.display.asyncExec(runnable);
 		}
 	};
 	tableTree.addTreeListener(treeListener);

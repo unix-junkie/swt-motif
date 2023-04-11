@@ -1,16 +1,17 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 package org.eclipse.swt.graphics;
 
  
+import org.eclipse.swt.internal.cairo.*;
 import org.eclipse.swt.internal.motif.*;
 import org.eclipse.swt.*;
 import java.io.*;
@@ -53,7 +54,7 @@ import java.io.*;
  * loading process should use the support provided in class
  * <code>ImageLoader</code>.
  * </p><p>
- * Application code must explicitely invoke the <code>Image.dispose()</code> 
+ * Application code must explicitly invoke the <code>Image.dispose()</code> 
  * method to release the operating system resources managed by each instance
  * when those instances are no longer required.
  * </p>
@@ -62,7 +63,7 @@ import java.io.*;
  * @see ImageData
  * @see ImageLoader
  */
-public final class Image implements Drawable {
+public final class Image extends Resource implements Drawable {
 	/**
 	 * specifies whether the receiver is a bitmap or an icon
 	 * (one of <code>SWT.BITMAP</code>, <code>SWT.ICON</code>)
@@ -71,48 +72,52 @@ public final class Image implements Drawable {
 	
 	/**
 	 * The handle to the OS pixmap resource.
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public int pixmap;
 	
 	/**
 	 * The handle to the OS mask resource.
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public int mask;
 
-	/**
-	 * The device where this image was created.
-	 */
-	Device device;
+	int /*long*/ surface;
 	
 	/**
 	 * specifies the transparent pixel
-	 * (Warning: This field is platform dependent)
 	 */
 	int transparentPixel = -1;
 	
 	/**
 	 * The GC the image is currently selected in.
-	 * Warning: This field is platform dependent.
 	 */
 	GC memGC;
 
 	/**
 	 * The alpha data of the image.
-	 * Warning: This field is platform dependent.
 	 */
 	byte[] alphaData;
 	
 	/**
 	 * The global alpha value to be used for every pixel.
-	 * Warning: This field is platform dependent.
 	 */
 	int alpha = -1;
 	
 	/**
 	 * Specifies the default scanline padding.
-	 * Warning: This field is platform dependent.
 	 */
 	static final int DEFAULT_SCANLINE_PAD = 4;
 	
@@ -240,10 +245,16 @@ public Image(Device device, Image srcImage, int flag) {
 			OS.memmove(srcData, srcXImage.data, srcData.length);
 			/* Create destination image */
 			int destPixmap = OS.XCreatePixmap(xDisplay, drawable, width, height, srcXImage.depth);
+			int visualPtr = OS.XDefaultVisual(xDisplay, OS.XDefaultScreen(xDisplay));
+			int screenDepth = OS.XDefaultDepthOfScreen(OS.XDefaultScreenOfDisplay(xDisplay));			
+			int destXImagePtr = OS.XCreateImage(xDisplay, visualPtr, screenDepth, OS.ZPixmap, 0, 0, width, height, srcXImage.bitmap_pad, 0);
 			XImage destXImage = new XImage();
-			int destXImagePtr = OS.XGetImage(xDisplay, drawable, 0, 0, width, height, OS.AllPlanes, OS.ZPixmap);
 			OS.memmove(destXImage, destXImagePtr, XImage.sizeof);
-			byte[] destData = new byte[destXImage.bytes_per_line * destXImage.height];
+			int bufSize = destXImage.bytes_per_line * destXImage.height;
+			int bufPtr = OS.XtMalloc(bufSize);
+			destXImage.data = bufPtr;
+			OS.memmove(destXImagePtr, destXImage, XImage.sizeof);
+			byte[] destData = new byte[bufSize];
 			/* Find the colors to map to */
 			Color zeroColor = device.getSystemColor(SWT.COLOR_WIDGET_NORMAL_SHADOW);
 			Color oneColor = device.getSystemColor(SWT.COLOR_WIDGET_BACKGROUND);
@@ -301,8 +312,6 @@ public Image(Device device, Image srcImage, int flag) {
 					index = 0;
 					/* Get masks */
 					Visual visual = new Visual();
-					int screenNum = OS.XDefaultScreen(xDisplay);
-					int visualPtr = OS.XDefaultVisual(xDisplay, screenNum);
 					OS.memmove(visual, visualPtr, Visual.sizeof);
 					int redMask = visual.red_mask;
 					int greenMask = visual.green_mask;
@@ -346,8 +355,6 @@ public Image(Device device, Image srcImage, int flag) {
 					index = 0;
 					/* Get masks */
 					visual = new Visual();
-					screenNum = OS.XDefaultScreen(xDisplay);
-					visualPtr = OS.XDefaultVisual(xDisplay, screenNum);
 					OS.memmove(visual, visualPtr, Visual.sizeof);
 					redMask = visual.red_mask;
 					greenMask = visual.green_mask;
@@ -428,6 +435,7 @@ public Image(Device device, Image srcImage, int flag) {
 				newData = new ImageData(width, height, 8, new PaletteData(rgbs));
 				newData.maskData = data.maskData;
 				newData.maskPad = data.maskPad;
+				if (data.transparentPixel != -1) newData.transparentPixel = 254; 
 
 				/* Convert the pixels. */
 				int[] scanline = new int[width];
@@ -442,14 +450,20 @@ public Image(Device device, Image srcImage, int flag) {
 					data.getPixels(0, y, width, scanline, 0);
 					for (int x=0; x<width; x++) {
 						int pixel = scanline[x];
-						int red = pixel & redMask;
-						red = (redShift < 0) ? red >>> -redShift : red << redShift;
-						int green = pixel & greenMask;
-						green = (greenShift < 0) ? green >>> -greenShift : green << greenShift;
-						int blue = pixel & blueMask;
-						blue = (blueShift < 0) ? blue >>> -blueShift : blue << blueShift;
-						newData.data[offset++] =
-							(byte)((red+red+green+green+green+green+green+blue) >> 3);
+						if (pixel != data.transparentPixel) {
+							int red = pixel & redMask;
+							red = (redShift < 0) ? red >>> -redShift : red << redShift;
+							int green = pixel & greenMask;
+							green = (greenShift < 0) ? green >>> -greenShift : green << greenShift;
+							int blue = pixel & blueMask;
+							blue = (blueShift < 0) ? blue >>> -blueShift : blue << blueShift;
+							int intensity = (red+red+green+green+green+green+green+blue) >> 3;
+							if (newData.transparentPixel == intensity) intensity = 255;
+							newData.data[offset] = (byte)intensity;
+						} else {
+							newData.data[offset] = (byte)254;
+						}
+						offset++;
 					}
 				}
 			}
@@ -508,11 +522,11 @@ public Image(Device device, Rectangle bounds) {
  *    <li>ERROR_NULL_ARGUMENT - if device is null and there is no current device</li>
  *    <li>ERROR_NULL_ARGUMENT - if the image data is null</li>
  * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_NO_HANDLES if a handle could not be obtained for image creation</li>
- * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_UNSUPPORTED_DEPTH - if the depth of the ImageData is not supported</li>
+ * </ul>
+ * @exception SWTError <ul>
+ *    <li>ERROR_NO_HANDLES if a handle could not be obtained for image creation</li>
  * </ul>
  */
 public Image(Device device, ImageData image) {
@@ -524,10 +538,8 @@ public Image(Device device, ImageData image) {
 /**
  * Constructs an instance of this class, whose type is 
  * <code>SWT.ICON</code>, from the two given <code>ImageData</code>
- * objects. The two images must be the same size, and the mask image
- * must have a color depth of 1. Pixel transparency in either image
- * will be ignored. If either image is an icon to begin with, an
- * exception is thrown.
+ * objects. The two images must be the same size. Pixel transparency
+ * in either image will be ignored.
  * <p>
  * The mask image should contain white wherever the icon is to be visible,
  * and black wherever the icon is to be transparent. In addition,
@@ -542,9 +554,7 @@ public Image(Device device, ImageData image) {
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if device is null and there is no current device</li>
  *    <li>ERROR_NULL_ARGUMENT - if either the source or mask is null </li>
- *    <li>ERROR_INVALID_ARGUMENT - if source and mask are different sizes or
- *          if the mask is not monochrome, or if either the source or mask
- *          is already an icon</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if source and mask are different sizes</li>
  * </ul>
  * @exception SWTError <ul>
  *    <li>ERROR_NO_HANDLES if a handle could not be obtained for image creation</li>
@@ -558,7 +568,7 @@ public Image(Device device, ImageData source, ImageData mask) {
 	if (source.width != mask.width || source.height != mask.height) {
 		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
-	if (mask.depth != 1) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+	mask = ImageData.convertMask(mask);
 	ImageData image = new ImageData(source.width, source.height, source.depth, source.palette, source.scanlinePad, source.data);
 	image.maskPad = mask.scanlinePad;
 	image.maskData = mask.data;
@@ -569,7 +579,8 @@ public Image(Device device, ImageData source, ImageData mask) {
  * Constructs an instance of this class by loading its representation
  * from the specified input stream. Throws an error if an error
  * occurs while loading the image, or if the result is an image
- * of an unsupported type.
+ * of an unsupported type.  Application code is still responsible
+ * for closing the input stream.
  * <p>
  * This constructor is provided for convenience when loading a single
  * image only. If the stream contains multiple images, only the first
@@ -579,7 +590,20 @@ public Image(Device device, ImageData source, ImageData mask) {
  * This constructor may be used to load a resource as follows:
  * </p>
  * <pre>
- *     new Image(device, clazz.getResourceAsStream("file.gif"));
+ *     static Image loadImage (Display display, Class clazz, String string) {
+ *          InputStream stream = clazz.getResourceAsStream (string);
+ *          if (stream == null) return null;
+ *          Image image = null;
+ *          try {
+ *               image = new Image (display, stream);
+ *          } catch (SWTException ex) {
+ *          } finally {
+ *               try {
+ *                    stream.close ();
+ *               } catch (IOException ex) {}
+ *          }
+ *          return image;
+ *     }
  * </pre>
  *
  * @param device the device on which to create the image
@@ -593,7 +617,8 @@ public Image(Device device, ImageData source, ImageData mask) {
  *    <li>ERROR_INVALID_IMAGE - if the image file contains invalid data </li>
  *    <li>ERROR_IO - if an IO error occurs while reading data</li>
  *    <li>ERROR_UNSUPPORTED_DEPTH - if the InputStream describes an image with an unsupported depth</li>
- * </ul>
+ *    <li>ERROR_UNSUPPORTED_FORMAT - if the image file contains an unrecognized format</li>
+ *  * </ul>
  * @exception SWTError <ul>
  *    <li>ERROR_NO_HANDLES if a handle could not be obtained for image creation</li>
  * </ul>
@@ -625,6 +650,7 @@ public Image(Device device, InputStream stream) {
  *    <li>ERROR_INVALID_IMAGE - if the image file contains invalid data </li>
  *    <li>ERROR_IO - if an IO error occurs while reading data</li>
  *    <li>ERROR_UNSUPPORTED_DEPTH - if the image file has an unsupported depth</li>
+ *    <li>ERROR_UNSUPPORTED_FORMAT - if the image file contains an unrecognized format</li>
  * </ul>
  * @exception SWTError <ul>
  *    <li>ERROR_NO_HANDLES if a handle could not be obtained for image creation</li>
@@ -653,6 +679,14 @@ void createMask() {
 	OS.XFreeGC(xDisplay, gc);
 	this.mask = maskPixmap;
 }
+void createSurface() {
+	if (surface != 0) return;
+	int xDisplay = device.xDisplay;
+	int xDrawable = pixmap;
+	int xVisual = OS.XDefaultVisual(xDisplay, OS.XDefaultScreen(xDisplay));
+	int xColormap = OS.XDefaultColormap(xDisplay, OS.XDefaultScreen (xDisplay));
+	surface = Cairo.cairo_xlib_surface_create(xDisplay, xDrawable, xVisual, 0, xColormap);
+}
 /**
  * Disposes of the operating system resources associated with
  * the image. Applications must dispose of all images which
@@ -665,8 +699,9 @@ public void dispose () {
 	int xDisplay = device.xDisplay;
 	if (pixmap != 0) OS.XFreePixmap (xDisplay, pixmap);
 	if (mask != 0) OS.XFreePixmap (xDisplay, mask);
+	if (surface != 0) Cairo.cairo_surface_destroy(surface);
+	surface = pixmap = mask = 0;
 	memGC = null;
-	pixmap = mask = 0;
 	if (device.tracking) device.dispose_Object(this);
 	device = null;
 }
@@ -959,7 +994,7 @@ static boolean getOffsetForMask(int bitspp, int mask, int byteOrder, int[] poff)
 }
 /**
  * Returns an integer hash code for the receiver. Any two 
- * objects which return <code>true</code> when passed to 
+ * objects that return <code>true</code> when passed to 
  * <code>equals</code> must return the same value for this
  * method.
  *
@@ -972,7 +1007,7 @@ public int hashCode () {
 }
 void init(Device device, int width, int height) {
 	this.device = device;
-	if (width <= 0 | height <= 0) {
+	if (width <= 0 || height <= 0) {
 		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
 
@@ -1068,6 +1103,8 @@ public int internal_new_GC (GCData data) {
 		data.device = device;
 		data.display = xDisplay;
 		data.drawable = pixmap;
+		data.background = device.COLOR_WHITE.handle.pixel;
+		data.foreground = device.COLOR_BLACK.handle.pixel;
 		data.font = device.systemFont;
 		data.colormap = OS.XDefaultColormap (xDisplay, OS.XDefaultScreen (xDisplay));
 		data.image = this;

@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -38,11 +38,17 @@ public class Synchronizer {
 	Object messageLock = new Object ();
 	Thread syncThread;
 
+/**
+ * Constructs a new instance of this class.
+ * 
+ * @param display the display to create the synchronizer on
+ */
 public Synchronizer (Display display) {
 	this.display = display;
 }
 	
 void addLast (RunnableLock lock) {
+	boolean wake = false;
 	synchronized (messageLock) {
 		if (messages == null) messages = new RunnableLock [4];
 		if (messageCount == messages.length) {
@@ -51,8 +57,9 @@ void addLast (RunnableLock lock) {
 			messages = newMessages;
 		}
 		messages [messageCount++] = lock;
-		if (messageCount == 1) display.wakeThread ();
-	}
+		wake = messageCount == 1;
+	}	
+	if (wake) display.wakeThread ();
 }
 
 /**
@@ -75,7 +82,9 @@ protected void asyncExec (Runnable runnable) {
 }
 
 int getMessageCount () {
-	return messageCount;
+	synchronized (messageLock) {
+		return messageCount;
+	}
 }
 
 void releaseSynchronizer () {
@@ -91,30 +100,38 @@ RunnableLock removeFirst () {
 		RunnableLock lock = messages [0];
 		System.arraycopy (messages, 1, messages, 0, --messageCount);
 		messages [messageCount] = null;
-		if (messageCount == 0) messages = null;
+		if (messageCount == 0) {
+			if (messages.length > 64) messages = null;
+		}
 		return lock;
 	}
 }
 
 boolean runAsyncMessages () {
-	if (messageCount == 0) return false;
-	RunnableLock lock = removeFirst ();
-	if (lock == null) return true;
-	synchronized (lock) {
-		syncThread = lock.thread;
-		try {
-			lock.run ();
-		} catch (Throwable t) {
-			lock.throwable = t;
-			SWT.error (SWT.ERROR_FAILED_EXEC, t);
-		} finally {
-			syncThread = null;
-			lock.notifyAll ();
-		}
-	}
-	return true;
+	return runAsyncMessages (false);
 }
 
+boolean runAsyncMessages (boolean all) {
+	boolean run = false;
+	do {
+		RunnableLock lock = removeFirst ();
+		if (lock == null) return run;
+		run = true;
+		synchronized (lock) {
+			syncThread = lock.thread;
+			try {
+				lock.run ();
+			} catch (Throwable t) {
+				lock.throwable = t;
+				SWT.error (SWT.ERROR_FAILED_EXEC, t);
+			} finally {
+				syncThread = null;
+				lock.notifyAll ();
+			}
+		}
+	} while (all);
+	return run;
+}
 
 /**
  * Causes the <code>run()</code> method of the runnable to

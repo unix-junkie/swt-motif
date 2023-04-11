@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -327,11 +327,18 @@ void keyDown(Event event) {
         	{	
         		int columnCount = table.getColumnCount();
         		if (columnCount == 0) break;
+        		int[] order = table.getColumnOrder();
+        		int index = 0;
+        		while (index < order.length) {
+        			if (order[index] == columnIndex) break;
+        			index++;
+				}
+				if (index == order.length) index = 0;
 		        int leadKey = (getStyle() & SWT.RIGHT_TO_LEFT) != 0 ? SWT.ARROW_RIGHT : SWT.ARROW_LEFT;
 		        if (event.keyCode == leadKey) {
-		           setRowColumn(rowIndex, Math.max(0, columnIndex - 1), true);
+		           setRowColumn(rowIndex, order[Math.max(0, index - 1)], true);
 		        } else {
-		           setRowColumn(rowIndex, Math.min(columnCount - 1, columnIndex + 1), true);
+		           setRowColumn(rowIndex, order[Math.min(columnCount - 1, index + 1)], true);
 		        }
 		        break;
         	}

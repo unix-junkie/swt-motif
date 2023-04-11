@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -43,11 +43,6 @@ import org.eclipse.swt.internal.*;
  */
 public class SWT {
 	
-	/* Initialize the class */
-//	static {
-//		/* NOTE: the static initialization is at the end of file */
-//	}
-	
 	/* Widget Event Constants */
 	
 	/**
@@ -68,7 +63,7 @@ public class SWT {
 	public static final int KeyUp = 2;
 	
 	/**
-	 * mouse down event type (value is 3)
+	 * The mouse down event type (value is 3)
 	 */
 	public static final int MouseDown = 3;
 	
@@ -119,11 +114,28 @@ public class SWT {
 	
 	/**
 	 * The selection event type (value is 13).
+	 * <p>
+	 * This event is sent when selection occurs.
+	 * For example, selection occurs in a List when the user selects
+	 * an item or items with the keyboard or mouse.  On some platforms,
+	 * the event occurs when a mouse button or key is pressed.  On others,
+	 * it happens when the mouse or key is released.  The exact key or
+	 * mouse gesture that causes this event is platform specific.
+	 * </p>
 	 */
 	public static final int Selection = 13;
 	
 	/**
 	 * The default selection event type (value is 14).
+	 * <p>
+	 * This event is sent when default selection occurs.
+	 * For example, on some platforms default selection occurs in a List
+	 * when the user double-clicks an item or types return in a Text.
+	 * On some platforms, the event occurs when a mouse button or key is
+	 * pressed.  On others, it happens when the mouse or key is released.
+	 * The exact key or mouse gesture that causes this event is platform
+	 * specific.
+	 * </p>
 	 */
 	public static final int DefaultSelection = 14;
 	
@@ -240,7 +252,14 @@ public class SWT {
 	 * @since 3.0
 	 */
 	public static final int SetData = 36;
-		
+
+	/**
+	 * The mouse wheel event type  (value is 37).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int MouseWheel = 37;
+
 	/* Event Details */
 	
 	/**
@@ -265,6 +284,34 @@ public class SWT {
 	 * Indicates that a default should be used (value is -1).
 	 */
 	public static final int DEFAULT = -1;
+
+	/**
+	 * Indicates that a property is off (value is 0).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int OFF = 0;
+	
+	/**
+	 * Indicates that a property is on (value is 1).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int ON = 1;
+
+	/**
+	 * Indicates low quality (value is 1).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int LOW = 1;
+
+	/**
+	 * Indicates high quality (value is 2).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int HIGH = 2;
 
 	/**
 	 * Style constant for menu bar behavior (value is 1&lt;&lt;1).
@@ -397,6 +444,7 @@ public class SWT {
 	 * <li><code>Label</code></li>
 	 * <li><code>Text</code></li>
 	 * <li><code>ToolBar</code></li>
+	 * <li><code>Spinner</code></li>
 	 * </ul></p>
 	 */
 	public static final int WRAP = 1 << 6;
@@ -676,7 +724,7 @@ public class SWT {
 	 * <p><b>Used By:</b><ul>
 	 * <li><code>StyledText</code></li>
 	 * <li><code>Table</code></li>
-	 * <li><code>TableTree</code></li>
+	 * <li><code>Tree</code></li>
 	 * </ul></p>
 	 */
 	public static final int FULL_SELECTION = 1 << 16;
@@ -696,6 +744,7 @@ public class SWT {
 	 * <br>Note that this is a <em>HINT</em>.
 	 * <p><b>Used By:</b><ul>
 	 * <li><code>ProgressBar</code></li>
+	 * <li><code>Sash</code></li>
 	 * </ul></p>
 	 */
 	public static final int SMOOTH = 1 << 16;
@@ -715,7 +764,7 @@ public class SWT {
 	public static final int NO_BACKGROUND = 1 << 18;
 
 	/**
-	 * Style constant for does not take focus behavior (value is 1&lt;&lt;19).
+	 * Style constant for no focus from the mouse behavior (value is 1&lt;&lt;19).
 	 * <br>Note that this is a <em>HINT</em>.
 	 * <p><b>Used By:</b><ul>
 	 * <li><code>Composite</code></li>
@@ -761,6 +810,7 @@ public class SWT {
 	 * orientation of their parent.  To override this behavior and
 	 * force an orientation for a child, explicitly set the orientation
 	 * of the child when that child is created.
+	 * <br>Note that this is a <em>HINT</em>.
 	 * </p>
 	 * <p><b>Used By:</b><ul>
 	 * <li><code>Control</code></li>
@@ -780,6 +830,7 @@ public class SWT {
 	 * orientation of their parent.  To override this behavior and
 	 * force an orientation for a child, explicitly set the orientation
 	 * of the child when that child is created.
+	 * <br>Note that this is a <em>HINT</em>.
 	 * </p>
 	 * <p><b>Used By:</b><ul>
 	 * <li><code>Control</code></li>
@@ -822,6 +873,16 @@ public class SWT {
 	 */
 	public static final int VIRTUAL = 1 << 28;
 
+	/**
+	 * Style constant to indicate double buffering (value is 1&lt;&lt;29).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>Control</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.1
+	 */
+	public static final int DOUBLE_BUFFERED = 1 << 29;
+	
 	/**
 	 * Style constant for align up behavior (value is 1&lt;&lt;7,
 	 * since align UP and align TOP are considered the same).
@@ -1103,6 +1164,22 @@ public class SWT {
 	public static final int BUTTON3 = 1 << 21;
 
 	/**
+	 * Keyboard and/or mouse event mask indicating that mouse button four
+	 * was pushed when the event was generated. (value is 1&lt;&lt;23).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int BUTTON4 = 1 << 23;
+
+	/**
+	 * Keyboard and/or mouse event mask indicating that mouse button five
+	 * was pushed when the event was generated. (value is 1&lt;&lt;25).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int BUTTON5 = 1 << 25;
+
+	/**
 	 * Keyboard and/or mouse event mask indicating all possible
 	 * mouse buttons.
 	 * 
@@ -1153,6 +1230,26 @@ public class SWT {
 	 * @since 2.1
 	 */
 	public static final int MOD4;
+	
+	/**
+	 * Constants to indicate line scrolling (value is 1).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>Control</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.1
+	 */
+	public static final int SCROLL_LINE = 1;
+
+	/**
+	 * Constants to indicate page scrolling (value is 2).
+	 * <p><b>Used By:</b><ul>
+	 * <li><code>Control</code></li>
+	 * </ul></p>
+	 * 
+	 * @since 3.1
+	 */
+	public static final int SCROLL_PAGE = 2;
 	
 	/**
 	 * Accelerator constant used to differentiate a key code from a
@@ -1904,6 +2001,14 @@ public class SWT {
 	public static final int ERROR_CANNOT_GET_SELECTION = 9;
 
 	/** 
+	 * SWT error constant indicating that the matrix is not invertible
+	 * (value is 10).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int ERROR_CANNOT_INVERT_MATRIX = 10;
+
+	/** 
 	 * SWT error constant indicating that the underlying operating
 	 * system was unable to provide the height of an item
 	 * (value is 11).
@@ -1937,6 +2042,13 @@ public class SWT {
 	 * (value is 15).
 	 */
 	public static final int ERROR_ITEM_NOT_REMOVED = 15;
+
+	/** 
+	 * SWT error constant indicating that the graphics library
+	 * is not available
+	 * (value is 16).
+	 */
+	public static final int ERROR_NO_GRAPHICS_LIBRARY = 16;
 
 	/** 
 	 * SWT error constant indicating that a particular feature has
@@ -2100,9 +2212,19 @@ public class SWT {
 	 * SWT error constant indicating that an unsatisfied link
 	 * error occured while attempting to load a library
 	 * (value is 47).
+	 * 
+	 * @since 3.1
 	 */
 	public static final int ERROR_FAILED_LOAD_LIBRARY = 47;
-	
+
+	/** 
+	 * SWT error constant indicating that a font is not valid
+	 * (value is 48).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int ERROR_INVALID_FONT = 48;
+
 	/**
 	 * Traversal event detail field value indicating that no 
 	 * traversal action should be taken
@@ -2348,6 +2470,66 @@ public class SWT {
 	public static final int CURSOR_HAND = 21;
 		
 	/**
+	 * Line drawing style for flat end caps (value is 1).
+	 * 
+	 * @see org.eclipse.swt.graphics.GC#setLineCap(int)
+	 * @see org.eclipse.swt.graphics.GC#getLineCap()
+	 * 
+	 * @since 3.1
+	 */
+	public static final int CAP_FLAT = 1;
+
+	/**
+	 * Line drawing style for rounded end caps (value is 2).
+	 * 
+	 * @see org.eclipse.swt.graphics.GC#setLineCap(int)
+	 * @see org.eclipse.swt.graphics.GC#getLineCap()
+	 * 
+	 * @since 3.1
+	 */
+	public static final int CAP_ROUND = 2;
+
+	/**
+	 * Line drawing style for square end caps (value is 3).
+	 * 
+	 * @see org.eclipse.swt.graphics.GC#setLineCap(int)
+	 * @see org.eclipse.swt.graphics.GC#getLineCap()
+	 * 
+	 * @since 3.1
+	 */
+	public static final int CAP_SQUARE = 3;
+
+	/**
+	 * Line drawing style for miter joins (value is 1).
+	 * 
+	 * @see org.eclipse.swt.graphics.GC#setLineJoin(int)
+	 * @see org.eclipse.swt.graphics.GC#getLineJoin()
+	 * 
+	 * @since 3.1
+	 */
+	public static final int JOIN_MITER = 1;
+
+	/**
+	 * Line drawing  style for rounded joins (value is 2).
+	 * 
+	 * @see org.eclipse.swt.graphics.GC#setLineJoin(int)
+	 * @see org.eclipse.swt.graphics.GC#getLineJoin()
+	 * 
+	 * @since 3.1
+	 */
+	public static final int JOIN_ROUND = 2;
+
+	/**
+	 * Line drawing style for bevel joins (value is 3).
+	 * 
+	 * @see org.eclipse.swt.graphics.GC#setLineJoin(int)
+	 * @see org.eclipse.swt.graphics.GC#getLineJoin()
+	 * 
+	 * @since 3.1
+	 */
+	public static final int JOIN_BEVEL = 3;
+
+	/**
 	 * Line drawing style for solid lines  (value is 1).
 	 */
 	public static final int LINE_SOLID = 1;
@@ -2371,6 +2553,65 @@ public class SWT {
 	 * Line drawing style for dash-dot-dot lines (value is 5).
 	 */
 	public static final int LINE_DASHDOTDOT = 5;
+
+	/**
+	 * Line drawing style for custom dashed lines (value is 6).
+	 * 
+	 * @see org.eclipse.swt.graphics.GC#setLineDash(int[])
+	 * @see org.eclipse.swt.graphics.GC#getLineDash()
+	 * 
+	 * @since 3.1
+	 */
+	public static final int LINE_CUSTOM = 6;
+	
+	/**
+	 * Path constant that represents a "move to" operation (value is 1).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int PATH_MOVE_TO = 1;
+
+	/**
+	 * Path constant that represents a "line to" operation (value is 2).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int PATH_LINE_TO = 2;
+
+	/**
+	 * Path constant that represents a "quadratic curve to" operation (value is 3).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int PATH_QUAD_TO = 3;
+
+	/**
+	 * Path constant that represents a "cubic curve to" operation (value is 4).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int PATH_CUBIC_TO = 4;
+
+	/**
+	 * Path constant that represents a "close" operation (value is 5).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int PATH_CLOSE = 5;
+
+	/**
+	 * Even odd rule for filling operations (value is 1).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int FILL_EVEN_ODD = 1;
+
+	/**
+	 * Winding rule for filling operations (value is 2).
+	 * 
+	 * @since 3.1
+	 */
+	public static final int FILL_WINDING = 2;
 
 	/**
 	 * Image format constant indicating an unknown image type (value is -1).
@@ -2412,6 +2653,11 @@ public class SWT {
 	 * Image format constant indicating a TIFF format image (value is 6).
 	 */
 	public static final int IMAGE_TIFF = 6;
+
+	/**
+	 * Image format constant indicating an OS/2 BMP format image (value is 7).
+	 */
+	public static final int IMAGE_OS2_BMP = 7;
 
 	/**
 	 * GIF image disposal method constants indicating that the
@@ -2540,6 +2786,9 @@ static String findErrorText (int code) {
 		case ERROR_DEVICE_DISPOSED:        return "Device is disposed"; //$NON-NLS-1$
 		case ERROR_FAILED_EXEC:            return "Failed to execute runnable"; //$NON-NLS-1$
 		case ERROR_FAILED_LOAD_LIBRARY:    return "Unable to load library"; //$NON-NLS-1$
+		case ERROR_CANNOT_INVERT_MATRIX:    return "Cannot invert matrix"; //$NON-NLS-1$
+		case ERROR_NO_GRAPHICS_LIBRARY:    return "Unable to load graphics library"; //$NON-NLS-1$
+		case ERROR_INVALID_FONT:    		return "Font not valid"; //$NON-NLS-1$
 	}
 	return "Unknown error"; //$NON-NLS-1$
 }
@@ -2565,7 +2814,7 @@ public static String getMessage(String key) {
  * @return the SWT platform name
  */
 public static String getPlatform () {
-	return Library.getPlatform ();
+	return Platform.PLATFORM;
 }
 
 /**
@@ -2575,7 +2824,7 @@ public static String getPlatform () {
  * @return the SWT version number
  */
 public static int getVersion () {
-	return Library.getVersion ();
+	return Library.SWT_VERSION;
 }
 
 /**
@@ -2677,7 +2926,7 @@ public static void error (int code, Throwable throwable, String detail) {
 			throw new IllegalArgumentException (message);
 		}
 		
-		/* SWT Errors (non-fatal) */
+		/* SWT Exceptions (non-fatal) */
 		case ERROR_INVALID_SUBCLASS:
 		case ERROR_THREAD_INVALID_ACCESS:
 		case ERROR_WIDGET_DISPOSED:
@@ -2687,13 +2936,15 @@ public static void error (int code, Throwable throwable, String detail) {
 		case ERROR_UNSUPPORTED_DEPTH:
 		case ERROR_UNSUPPORTED_FORMAT:
 		case ERROR_FAILED_EXEC:
+		case ERROR_CANNOT_INVERT_MATRIX:
+		case ERROR_NO_GRAPHICS_LIBRARY:
 		case ERROR_IO: {
 			SWTException exception = new SWTException (code, message);
 			exception.throwable = throwable;
 			throw exception;
 		}
 		
-		/* OS Failure/Limit (fatal, may occur only on some platforms) */
+		/* Operation System Errors (fatal, may occur only on some platforms) */
 		case ERROR_CANNOT_GET_COUNT:
 		case ERROR_CANNOT_GET_ENABLED:
 		case ERROR_CANNOT_GET_ITEM:
@@ -2709,7 +2960,7 @@ public static void error (int code, Throwable throwable, String detail) {
 		case ERROR_NO_HANDLES:
 		//FALL THROUGH
 		
-		/* SWT Failure/Limit (fatal, may occur only on some platforms) */
+		/* SWT Errors (fatal, may occur only on some platforms) */
 		case ERROR_FAILED_LOAD_LIBRARY:
 		case ERROR_NO_MORE_CALLBACKS:
 		case ERROR_NOT_IMPLEMENTED:
@@ -2732,7 +2983,7 @@ static {
 	* expand in the future.  Therefore they are not initialized
 	* in the declaration to stop the compiler from inlining.
 	*/
-	BUTTON_MASK = BUTTON1 | BUTTON2 | BUTTON3;
+	BUTTON_MASK = BUTTON1 | BUTTON2 | BUTTON3 | BUTTON4 | BUTTON5;
 	MODIFIER_MASK = ALT | SHIFT | CTRL | COMMAND;
 	
 	/*

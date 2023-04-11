@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -21,7 +21,7 @@ import org.eclipse.swt.graphics.*;
  * objects that represent a range of positive, numeric values. 
  * <p>
  * At any given moment, a given slider will have a 
- * single <em>selection</em> that is considered to be its
+ * single 'selection' that is considered to be its
  * value, which is constrained to be within the range of
  * values the slider represents (that is, between its
  * <em>minimum</em> and <em>maximum</em> values).
@@ -104,7 +104,7 @@ public Slider (Composite parent, int style) {
  * interface.
  * <p>
  * When <code>widgetSelected</code> is called, the event object detail field contains one of the following values:
- * <code>0</code> - for the end of a drag.
+ * <code>SWT.NONE</code> - for the end of a drag.
  * <code>SWT.DRAG</code>.
  * <code>SWT.HOME</code>.
  * <code>SWT.END</code>.
@@ -238,7 +238,7 @@ public int getPageIncrement () {
 	return argList [1];
 }
 /**
- * Returns the single <em>selection</em> that is the receiver's value.
+ * Returns the 'selection', which is the receiver's value.
  *
  * @return the selection
  *
@@ -312,7 +312,7 @@ public void removeSelectionListener(SelectionListener listener) {
 void sendScrollEvent (int detail) {
 	Event event = new Event ();
 	event.detail = detail;
-	sendEvent (SWT.Selection, event);
+	postEvent (SWT.Selection, event);
 }
 /**
  * Sets the amount that the receiver's value will be
@@ -416,8 +416,8 @@ public void setPageIncrement (int value) {
 	OS.XtSetValues (handle, argList, argList.length / 2);
 }
 /**
- * Sets the single <em>selection</em> that is the receiver's
- * value to the argument which must be greater than or equal
+ * Sets the 'selection', which is the receiver's
+ * value, to the argument which must be greater than or equal
  * to zero.
  *
  * @param value the new selection (must be zero or greater)

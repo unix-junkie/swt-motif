@@ -1,9 +1,9 @@
 #*******************************************************************************
-# Copyright (c) 2000, 2004 IBM Corporation and others.
+# Copyright (c) 2000, 2005 IBM Corporation and others.
 # All rights reserved. This program and the accompanying materials
-# are made available under the terms of the Common Public License v1.0
+# are made available under the terms of the Eclipse Public License v1.0
 # which accompanies this distribution, and is available at
-# http://www.eclipse.org/legal/cpl-v10.html
+# http://www.eclipse.org/legal/epl-v10.html
 # 
 # Contributors:
 #     IBM Corporation - initial API and implementation
@@ -15,54 +15,69 @@ include make_common.mak
 
 SWT_VERSION=$(maj_ver)$(min_ver)
 
-# Define the installation directories for various products.
+# This makefile expects the following environment variables set:
 #    JAVA_HOME  - The JDK > 1.3
 #    MOTIF_HOME - Motif includes and libraries
-#    QT_HOME    - identifier namespace package (used by KDE)
-JAVA_HOME   = /bluebird/teamswt/swt-builddir/IBMJava2-141
-MOTIF_HOME = /bluebird/teamswt/swt-builddir/motif21
-# Redhat 9
-QT_HOME    = /usr/lib/qt-3.1
-# SuSE 8.2
-#QT_HOME    = /usr/lib/qt3
 
 # Define the various DLL (shared) libraries to be made.
 
-SWT_PREFIX   = swt
-WS_PREFIX    = motif
-SWT_LIB      = lib$(SWT_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
-SWT_OBJS      = swt.o callback.o os.o os_structs.o os_custom.o os_stats.o
-SWT_LIBS      = -L$(MOTIF_HOME)/lib -lXm -L/usr/lib -L/usr/X11R6/lib \
+SWT_PREFIX = swt
+WS_PREFIX = motif
+SWT_LIB = lib$(SWT_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
+SWT_OBJS = swt.o callback.o os.o os_structs.o os_custom.o os_stats.o
+SWT_LIBS = -L$(MOTIF_HOME)/lib -lXm -L/usr/lib -L/usr/X11R6/lib \
 	           -rpath . -x -shared -lX11 -lm -lXext -lXt -lXp -ldl -lXinerama -lXtst
-CFLAGS = -O -s -DSWT_VERSION=$(SWT_VERSION) -DLINUX -DMOTIF  -fpic -I./ \
+
+# Uncomment for Native Stats tool
+#NATIVE_STATS = -DNATIVE_STATS
+
+CFLAGS = -O -s -Wall -DSWT_VERSION=$(SWT_VERSION) $(NATIVE_STATS) -DLINUX -DMOTIF  -fpic \
 	-I$(JAVA_HOME)/include -I$(MOTIF_HOME)/include -I/usr/X11R6/include 
 
+# Do not use pkg-config to get libs because it includes unnecessary dependencies (i.e. pangoxft-1.0)
 GNOME_PREFIX = swt-gnome
-GNOME_LIB    = lib$(GNOME_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
-GNOME_OBJECTS= swt.o gnome.o gnome_structs.o gnome_stats.o
-GNOME_CFLAGS = `pkg-config --cflags gnome-vfs-module-2.0 libgnome-2.0 libgnomeui-2.0`
-GNOME_LIBS = -shared -fpic -fPIC `pkg-config --libs gnome-vfs-module-2.0 libgnome-2.0 libgnomeui-2.0`
+GNOME_LIB = lib$(GNOME_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
+GNOME_OBJECTS = swt.o gnome.o gnome_structs.o gnome_stats.o
+GNOME_CFLAGS = -O -Wall -DSWT_VERSION=$(SWT_VERSION) $(NATIVE_STATS) -DLINUX -DGTK -I$(JAVA_HOME)/include `pkg-config --cflags gnome-vfs-module-2.0 libgnome-2.0 libgnomeui-2.0`
+GNOME_LIBS = -shared -fpic -fPIC `pkg-config --libs-only-L gnome-vfs-module-2.0 libgnome-2.0 libgnomeui-2.0` -lgnomevfs-2 -lgnome-2 -lgnomeui-2
 
-KDE_PREFIX   = swt-kde
-KDE_LIB      = lib$(KDE_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
-KDE_OBJS      = kde.o
-KDE_LIBS      = -L/usr/lib  -L$(QT_HOME)/lib -shared  -lkdecore -lqt
-KDE_CFLAGS   = -fno-rtti -c -O -I/usr/include/kde -I$(QT_HOME)/include -I$(JAVA_HOME)/include
+AWT_PREFIX = swt-awt
+AWT_LIB = lib$(AWT_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
+AWT_OBJS = swt_awt.o
+AWT_LIBS = -L$(JAVA_HOME)/jre/bin -ljawt -shared
 
-AWT_PREFIX   = swt-awt
-AWT_LIB      = lib$(AWT_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
-AWT_OBJS      = swt_awt.o
-AWT_LIBS      = -L$(JAVA_HOME)/jre/bin -ljawt -shared
+GTK_PREFIX = swt-gtk
+GTK_LIB = lib$(GTK_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
+GTK_OBJS = swt.o gtk.o
+GTK_CFLAGS = `pkg-config --cflags gtk+-2.0`
+GTK_LIBS = -x -shared `pkg-config --libs-only-L gtk+-2.0` -lgtk-x11-2.0
 
-GTK_PREFIX  = swt-gtk
-GTK_LIB     = lib$(GTK_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
-GTK_OBJS     = swt.o gtk.o
-GTK_CFLAGS  = `pkg-config --cflags gtk+-2.0`
-GTK_LIBS     = -x -shared `pkg-config --libs-only-l --libs-only-L gtk+-2.0`
-	
+CAIRO_PREFIX = swt-cairo
+CAIRO_LIB = lib$(CAIRO_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
+CAIRO_OBJECTS = swt.o cairo.o cairo_structs.o cairo_stats.o cairo_custom.o
+CAIROCFLAGS = `pkg-config --cflags cairo`
+CAIROLIBS = -shared -fpic -fPIC -s `pkg-config --libs-only-L cairo` -lcairo
+
+MOZILLA_PREFIX = swt-mozilla
+MOZILLA_LIB = lib$(MOZILLA_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
+MOZILLA_OBJECTS = swt.o xpcom.o xpcom_custom.o xpcom_structs.o xpcom_stats.o
+MOZILLACFLAGS = -O \
+	-DXPCOM_GLUE=1 \
+	-DMOZILLA_STRICT_API=1 \
+	-fno-rtti \
+	-fno-exceptions \
+	-Wall \
+	-DSWT_VERSION=$(SWT_VERSION) $(NATIVE_STATS) \
+	-Wno-non-virtual-dtor \
+	-fPIC \
+	-I./ \
+	-I$(JAVA_HOME)/include \
+	-I$(JAVA_HOME)/include/linux \
+	${GECKO_INCLUDES} \
+	${SWT_PTR_CFLAGS}
+MOZILLALIBS = -shared -s -Wl,--version-script=mozilla_exports -Bsymbolic ${GECKO_LIBS}
+
 all: make_swt make_awt make_gnome make_gtk
-
-kde: make_kde
 
 make_swt: $(SWT_LIB)
 
@@ -86,21 +101,13 @@ $(GNOME_LIB): $(GNOME_OBJECTS)
 	gcc -o $@ $(GNOME_OBJECTS) $(GNOME_LIBS)
 
 gnome.o: gnome.c
-	gcc -O -Wall -DSWT_VERSION=$(SWT_VERSION) -DLINUX -DGTK -I$(JAVA_HOME)/include $(GNOME_CFLAGS) -c -o gnome.o gnome.c
+	gcc $(GNOME_CFLAGS) -c -o gnome.o gnome.c
 
 gnome_structs.o: gnome_structs.c
-	gcc -O -Wall -DSWT_VERSION=$(SWT_VERSION) -DLINUX -DGTK -I$(JAVA_HOME)/include $(GNOME_CFLAGS) -c -o gnome_structs.o gnome_structs.c
+	gcc $(GNOME_CFLAGS) -c -o gnome_structs.o gnome_structs.c
 
 gnome_stats.o: gnome_stats.c
-	gcc -O -Wall -DSWT_VERSION=$(SWT_VERSION) -DLINUX -DGTK -I$(JAVA_HOME)/include $(GNOME_CFLAGS) -c -o gnome_stats.o gnome_stats.c
-
-make_kde: $(KDE_LIB)
-
-$(KDE_LIB): $(KDE_OBJS)
-	ld -o $@ $(KDE_OBJS) $(KDE_LIBS)
-
-$(KDE_OBJS): kde.cc
-	g++ $(KDE_CFLAGS) -o kde.o kde.cc
+	gcc $(GNOME_CFLAGS) -c -o gnome_stats.o gnome_stats.c
 
 make_awt: $(AWT_LIB)
 
@@ -114,7 +121,38 @@ $(GTK_LIB): $(GTK_OBJS)
 
 gtk.o: gtk.c
 	$(CC) $(CFLAGS) $(GTK_CFLAGS) -c -o gtk.o gtk.c
-		
+
+make_cairo: $(CAIRO_LIB)
+
+$(CAIRO_LIB): $(CAIRO_OBJECTS)
+	$(LD) $(CAIROLIBS) -o $(CAIRO_LIB) $(CAIRO_OBJECTS)
+
+cairo.o: cairo.c cairo.h swt.h
+	$(CC) $(CFLAGS) $(CAIROCFLAGS) -c cairo.c
+cairo_custom.o: cairo_custom.c cairo_structs.h cairo.h swt.h
+	$(CC) $(CFLAGS) $(CAIROCFLAGS) -c cairo_custom.c
+cairo_structs.o: cairo_structs.c cairo_structs.h cairo.h swt.h
+	$(CC) $(CFLAGS) $(CAIROCFLAGS) -c cairo_structs.c
+cairo_stats.o: cairo_stats.c cairo_structs.h cairo.h cairo_stats.h swt.h
+	$(CC) $(CFLAGS) $(CAIROCFLAGS) -c cairo_stats.c
+
+make_mozilla:$(MOZILLA_LIB)
+
+$(MOZILLA_LIB): $(MOZILLA_OBJECTS)
+	$(CXX) -o $(MOZILLA_LIB) $(MOZILLA_OBJECTS) $(MOZILLALIBS)
+
+xpcom.o: xpcom.cpp
+	$(CXX) $(MOZILLACFLAGS) -c xpcom.cpp
+xpcom_structs.o: xpcom_structs.cpp
+	$(CXX) $(MOZILLACFLAGS) -c xpcom_structs.cpp
+xpcom_custom.o: xpcom_custom.cpp
+	$(CXX) $(MOZILLACFLAGS) -c xpcom_custom.cpp
+xpcom_stats.o: xpcom_stats.cpp
+	$(CXX) $(MOZILLACFLAGS) -c xpcom_stats.cpp	
+
+install: all
+	cp *.so $(OUTPUT_DIR)
+
 clean:
-	rm -f *.so *.o
+	rm -f *.o *.a *.so *.sl 
 

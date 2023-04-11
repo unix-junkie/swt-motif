@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -140,6 +140,55 @@ public Menu (Menu parentMenu) {
  */
 public Menu (MenuItem parentItem) {
 	this (checkNull(parentItem).parent);
+}
+void _setVisible (boolean visible) {
+	if ((style & (SWT.BAR | SWT.DROP_DOWN)) != 0) return;
+	if (visible) {
+		sendEvent (SWT.Show);
+		if (getItemCount () != 0) {
+			int xDisplay = OS.XtDisplay (handle);
+			if (xDisplay == 0) return;
+			int xWindow = OS.XDefaultRootWindow (xDisplay);
+			if (xWindow == 0) return;
+			int [] rootX = new int [1], rootY = new int [1], unused = new int [1], mask = new int [1];
+			if (OS.XQueryPointer (xDisplay, xWindow, unused, unused, rootX, rootY, unused, unused, mask) == 0) {
+				return;
+			}
+			if (!hasLocation) {
+				/*
+				* Bug in Motif.  For some reason, when a menu is popped up
+				* under the mouse, the menu will not highlight until the
+				* mouse exits and then enters the menu again.  The fix is
+				* to pop the menu up outside the current mouse position
+				* causing highlighting to work properly when the user
+				* waits for the menu to appear.
+				*/
+				rootX[0] += 1;  rootY[0] += 1;
+				int [] argList = {OS.XmNx, rootX [0], OS.XmNy, rootY [0]};
+				OS.XtSetValues (handle, argList, argList.length / 2);
+			}
+			/*
+			* Feature in Motif.  If an X grab is active, then
+			* the menu pops us but issues and error message an
+			* fails to grab the pointer.  The fix is to ensure
+			* that no grab is active before showing the menu.
+			*/
+			OS.XUngrabPointer (xDisplay, OS.CurrentTime);
+			OS.XtManageChild (handle);
+			/*
+			* Feature in Motif.  There is no API to force the menu
+			* to accept keyboard traversal when popped up using
+			* XtManageChild.  The fix is to call undocumented API
+			* to do this.
+			*/
+			int flags = OS.Button1Mask | OS.Button2Mask | OS.Button3Mask;
+			if ((mask [0] & flags) == 0) OS._XmSetMenuTraversal (handle, true);
+		} else {
+			sendEvent (SWT.Hide);
+		}
+	} else {
+		OS.XtUnmanageChild (handle);
+	}
 }
 void addAccelerators () {
 	MenuItem [] items = getItems ();
@@ -285,6 +334,20 @@ void createWidget (int index) {
 	super.createWidget (index);
 	parent.add (this);
 }
+/*public*/ Rectangle getBounds () {
+	checkWidget();
+	if (!OS.XtIsManaged (handle)) return new Rectangle (0, 0, 0, 0);
+	int [] argList = {OS.XmNx, 0, OS.XmNy, 0, OS.XmNwidth, 0, OS.XmNheight, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	int x = argList [1], y = argList [3];
+	if ((style & SWT.BAR) != 0) {
+		short [] root_x = new short [1], root_y = new short [1];
+		OS.XtTranslateCoords (handle, (short) x, (short) x, root_x, root_y);
+		x = root_x [0];
+		y = root_y [0];
+	}
+	return new Rectangle (x, y, argList [5], argList [7]);
+}
 /**
  * Returns the default menu item or null if none has
  * been previously set.
@@ -303,7 +366,7 @@ public MenuItem getDefaultItem () {
 }
 /**
  * Returns <code>true</code> if the receiver is enabled, and
- * <code>false</code> otherwise. A disabled control is typically
+ * <code>false</code> otherwise. A disabled menu is typically
  * not selectable from the user interface and draws with an
  * inactive or "grayed" look.
  *
@@ -381,8 +444,8 @@ public int getItemCount () {
 	return count;	
 }
 /**
- * Returns an array of <code>MenuItem</code>s which are the items
- * in the receiver. 
+ * Returns a (possibly empty) array of <code>MenuItem</code>s which
+ * are the items in the receiver. 
  * <p>
  * Note: This is not the actual structure used by the receiver
  * to maintain its list of items, so modifying the array will
@@ -494,12 +557,6 @@ public Shell getShell () {
 	checkWidget();
 	return parent.getShell ();
 }
-/*public*/ Point getSize () {
-	checkWidget();
-	int [] argList = {OS.XmNwidth, 0, OS.XmNheight, 0};
-	OS.XtGetValues (handle, argList, argList.length / 2);
-	return new Point (argList [1], argList [3]);
-}
 /**
  * Returns <code>true</code> if the receiver is visible, and
  * <code>false</code> otherwise.
@@ -519,6 +576,14 @@ public Shell getShell () {
  */
 public boolean getVisible () {
 	checkWidget();
+	if ((style & SWT.POP_UP) != 0) {
+		Menu [] popups = display.popups;
+		if (popups != null) {
+			for (int i=0; i<popups.length; i++) {
+				if (popups [i] == this) return true;
+			}
+		}
+	}
 	return OS.XtIsManaged (handle);
 }
 void hookEvents () {
@@ -562,7 +627,7 @@ public int indexOf (MenuItem item) {
 /**
  * Returns <code>true</code> if the receiver is enabled and all
  * of the receiver's ancestors are enabled, and <code>false</code>
- * otherwise. A disabled control is typically not selectable from the
+ * otherwise. A disabled menu is typically not selectable from the
  * user interface and draws with an inactive or "grayed" look.
  *
  * @return the receiver's enabled state
@@ -625,7 +690,7 @@ void removeAccelerators () {
  * Removes the listener from the collection of listeners who will
  * be notified when the help events are generated for the control.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -648,7 +713,7 @@ public void removeHelpListener (HelpListener listener) {
  * Removes the listener from the collection of listeners who will
  * be notified when the menu events are generated for the control.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -696,7 +761,7 @@ public void setDefaultItem (MenuItem item) {
 }
 /**
  * Enables the receiver if the argument is <code>true</code>,
- * and disables it otherwise. A disabled control is typically
+ * and disables it otherwise. A disabled menu is typically
  * not selectable from the user interface and draws with an
  * inactive or "grayed" look.
  *
@@ -713,11 +778,15 @@ public void setEnabled (boolean enabled) {
 	OS.XtSetValues (handle, argList, argList.length / 2);
 }
 /**
- * Sets the receiver's location to the point specified by
- * the arguments which are relative to the display.
+ * Sets the location of the receiver, which must be a popup,
+ * to the point specified by the arguments which are relative
+ * to the display.
  * <p>
- * Note:  This is different from most widgets where the
+ * Note that this is different from most widgets where the
  * location of the widget is relative to the parent.
+ * </p><p>
+ * Note that the platform window manager ultimately has control
+ * over the location of popup menus.
  * </p>
  *
  * @param x the new x coordinate for the receiver
@@ -736,11 +805,15 @@ public void setLocation (int x, int y) {
 	hasLocation = true;
 }
 /**
- * Sets the receiver's location to the point specified by
- * the arguments which are relative to the display.
+ * Sets the location of the receiver, which must be a popup,
+ * to the point specified by the argument which is relative
+ * to the display.
  * <p>
- * Note:  This is different from most widgets where the
+ * Note that this is different from most widgets where the
  * location of the widget is relative to the parent.
+ * </p><p>
+ * Note that the platform window manager ultimately has control
+ * over the location of popup menus.
  * </p>
  *
  * @param location the new location for the receiver
@@ -780,51 +853,10 @@ public void setVisible (boolean visible) {
 	checkWidget();
 	if ((style & (SWT.BAR | SWT.DROP_DOWN)) != 0) return;
 	if (visible) {
-		display.runDeferredEvents ();
-		sendEvent (SWT.Show);
-		if (getItemCount () != 0) {
-			int xDisplay = OS.XtDisplay (handle);
-			if (xDisplay == 0) return;
-			int xWindow = OS.XDefaultRootWindow (xDisplay);
-			if (xWindow == 0) return;
-			int [] rootX = new int [1], rootY = new int [1], unused = new int [1], mask = new int [1];
-			if (OS.XQueryPointer (xDisplay, xWindow, unused, unused, rootX, rootY, unused, unused, mask) == 0) {
-				return;
-			}
-			if (!hasLocation) {
-				/*
-				* Bug in Motif.  For some reason, when a menu is popped up
-				* under the mouse, the menu will not highlight until the
-				* mouse exits and then enters the menu again.  The fix is
-				* to pop the menu up outside the current mouse position
-				* causing highlighting to work properly when the user
-				* waits for the menu to appear.
-				*/
-				rootX[0] += 1;  rootY[0] += 1;
-				int [] argList = {OS.XmNx, rootX [0], OS.XmNy, rootY [0]};
-				OS.XtSetValues (handle, argList, argList.length / 2);
-			}
-			/*
-			* Feature in Motif.  If an X grab is active, then
-			* the menu pops us but issues and error message an
-			* fails to grab the pointer.  The fix is to ensure
-			* that no grab is active before showing the menu.
-			*/
-			OS.XUngrabPointer (xDisplay, OS.CurrentTime);
-			OS.XtManageChild (handle);
-			/*
-			* Feature in Motif.  There is no API to force the menu
-			* to accept keyboard traversal when popped up using
-			* XtManageChild.  The fix is to call undocumented API
-			* to do this.
-			*/
-			int flags = OS.Button1Mask | OS.Button2Mask | OS.Button3Mask;
-			if ((mask [0] & flags) == 0) OS._XmSetMenuTraversal (handle, true);
-		} else {
-			sendEvent (SWT.Hide);
-		}
+		display.addPopup (this);
 	} else {
-		OS.XtUnmanageChild (handle);
+		display.removePopup (this);
+		_setVisible (false);
 	}
 }
 boolean translateAccelerator (int accel, boolean doit) {

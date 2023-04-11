@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -45,13 +45,14 @@ public class CTabItem extends Item {
 	Rectangle closeRect = new Rectangle(0, 0, 0, 0);
 	int closeImageState = CTabFolder.NONE;
 	boolean showClose = false;
+	boolean showing = false;
 
 	// internal constants
 	static final int TOP_MARGIN = 2;
 	static final int BOTTOM_MARGIN = 2;
 	static final int LEFT_MARGIN = 4;
 	static final int RIGHT_MARGIN = 4;
-	static final int INTERNAL_SPACING = 2;
+	static final int INTERNAL_SPACING = 4;
 	static final int FLAGS = SWT.DRAW_TRANSPARENT | SWT.DRAW_MNEMONIC;
 	static final String ELLIPSIS = "..."; //$NON-NLS-1$ // could use the ellipsis glyph on some platforms "\u2026"
 	
@@ -232,11 +233,11 @@ void drawSelected(GC gc ) {
 	}
 	
 	if (parent.single) {
-		if (!isShowing()) return;
+		if (!showing) return;
 	} else {
 		// if selected tab scrolled out of view or partially out of view
 		// just draw bottom line
-		if (!isShowing()){
+		if (!showing){
 			int x1 = Math.max(0, parent.borderLeft - 1);
 			int y1 = (parent.onBottom) ? y - 1 : y + height;
 			int x2 = size.x - parent.borderRight;
@@ -407,14 +408,21 @@ void drawSelected(GC gc ) {
 }
 void drawUnselected(GC gc) {
 	// Do not draw partial items
-	if (!isShowing()) return;
+	if (!showing) return;
 	
 	Rectangle clipping = gc.getClipping();
 	Rectangle bounds = getBounds();
 	if (!clipping.intersects(bounds)) return;
 	
 	// draw border
-	if (parent.indexOf(this) != parent.selectedIndex - 1) {
+	int nextVisible = -1;
+	for (int i = parent.indexOf(this)+1; i < parent.items.length; i++) {
+		if (parent.items[i].showing) {
+			nextVisible = i;
+			break;
+		}
+	}
+	if (nextVisible == -1 || nextVisible != parent.selectedIndex) {
 		gc.setForeground(CTabFolder.borderColor);
 		gc.drawLine(x + width - 1, y, x + width - 1, y + height);
 	}
@@ -573,20 +581,7 @@ public String getToolTipText () {
 */
 public boolean isShowing () {
 	checkWidget();
-	int index = parent.indexOf(this);
-	int rightEdge = parent.getRightItemEdge();
-	if (parent.single) {
-		if (index == parent.selectedIndex) {
-			return x <= rightEdge;
-		}
-		return false;
-	}
-	if (index < parent.firstIndex) return false;
-	if (parent.firstIndex == index) {
-		return x <= rightEdge;
-	}
-	int extra = parent.simple || index != parent.selectedIndex ? 0 : parent.curveWidth - 2*parent.curveIndent;
-	return x + width + extra <= rightEdge;
+	return showing;
 }
 void onPaint(GC gc, boolean isSelected) {
 	if (width == 0 || height == 0) return;
@@ -732,7 +727,7 @@ public void setFont (Font font){
 	this.font = font;
 	if (!parent.updateTabHeight(false)) {
 		parent.updateItems();
-		parent.redraw();
+		parent.redrawTabs();
 	}
 }
 public void setImage (Image image) {
@@ -745,9 +740,19 @@ public void setImage (Image image) {
 	if (image != null && image.equals(oldImage)) return;
 	super.setImage(image);
 	if (!parent.updateTabHeight(false)) {
+		// If image is the same size as before, 
+		// redraw only the image
+		if (oldImage != null && image != null) {
+			Rectangle oldBounds = oldImage.getBounds();
+			Rectangle bounds = image.getBounds();
+			if (bounds.width == oldBounds.width && bounds.height == oldBounds.height) {
+				if (showing) parent.redraw(x, y, width, height, false);
+				return;
+			}
+		} 
 		parent.updateItems();
+		parent.redrawTabs();
 	}
-	parent.redraw();
 }
 public void setText (String string) {
 	checkWidget();
@@ -756,8 +761,10 @@ public void setText (String string) {
 	super.setText(string);
 	shortenedText = null;
 	shortenedTextWidth = 0;
-	parent.updateItems();
-	parent.redraw();
+	if (!parent.updateTabHeight(false)) {
+		parent.updateItems();
+		parent.redrawTabs();
+	}
 }
 /**
  * Sets the receiver's tool tip text to the argument, which

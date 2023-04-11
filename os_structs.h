@@ -1,13 +1,13 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
- * Contributors:
- *     IBM Corporation - initial API and implementation
- *******************************************************************************/
+* Copyright (c) 2000, 2005 IBM Corporation and others.
+* All rights reserved. This program and the accompanying materials
+* are made available under the terms of the Eclipse Public License v1.0
+* which accompanies this distribution, and is available at
+* http://www.eclipse.org/legal/epl-v10.html
+*
+* Contributors:
+*     IBM Corporation - initial API and implementation
+*******************************************************************************/
 
 #include "os.h"
 
@@ -405,6 +405,18 @@ void setXmDropProcCallbackStructFields(JNIEnv *env, jobject lpObject, XmDropProc
 #define getXmDropProcCallbackStructFields(a,b,c) NULL
 #define setXmDropProcCallbackStructFields(a,b,c)
 #define XmDropProcCallbackStruct_sizeof() 0
+#endif
+
+#ifndef NO_XmSpinBoxCallbackStruct
+void cacheXmSpinBoxCallbackStructFields(JNIEnv *env, jobject lpObject);
+XmSpinBoxCallbackStruct *getXmSpinBoxCallbackStructFields(JNIEnv *env, jobject lpObject, XmSpinBoxCallbackStruct *lpStruct);
+void setXmSpinBoxCallbackStructFields(JNIEnv *env, jobject lpObject, XmSpinBoxCallbackStruct *lpStruct);
+#define XmSpinBoxCallbackStruct_sizeof() sizeof(XmSpinBoxCallbackStruct)
+#else
+#define cacheXmSpinBoxCallbackStructFields(a,b)
+#define getXmSpinBoxCallbackStructFields(a,b,c) NULL
+#define setXmSpinBoxCallbackStructFields(a,b,c)
+#define XmSpinBoxCallbackStruct_sizeof() 0
 #endif
 
 #ifndef NO_XmTextBlockRec

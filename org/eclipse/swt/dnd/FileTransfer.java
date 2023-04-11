@@ -1,16 +1,16 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 package org.eclipse.swt.dnd;
 
-import org.eclipse.swt.internal.Converter;
+import org.eclipse.swt.internal.*;
 import org.eclipse.swt.internal.motif.*;
 
 /**
@@ -65,10 +65,10 @@ public static FileTransfer getInstance () {
  */
 public void javaToNative(Object object, TransferData transferData) {
 	transferData.result = 0;
-	if (object == null || !(object instanceof String[])) return;
+		if (!checkFile(object) || !isSupportedType(transferData)) {
+		DND.error(DND.ERROR_INVALID_DATA);
+	}
 	String[] files = (String[])object;
-	if (files.length == 0) return;
-
 	StringBuffer sb = new StringBuffer();
 	for (int i = 0, length = files.length; i < length; i++){
 		sb.append(URI_LIST_PREFIX);
@@ -96,7 +96,7 @@ public void javaToNative(Object object, TransferData transferData) {
  * conversion was successful; otherwise null
  */
 public Object nativeToJava(TransferData transferData) {
-	if ( !isSupportedType(transferData) ||  transferData.pValue == 0 ) return null;
+	if (!isSupportedType(transferData) ||  transferData.pValue == 0) return null;
 	int size = transferData.format * transferData.length / 8;
 	if (size == 0) return null;
 	
@@ -130,5 +130,18 @@ protected int[] getTypeIds(){
 
 protected String[] getTypeNames(){
 	return new String[]{URI_LIST};
+}
+
+boolean checkFile(Object object) {
+	if (object == null || !(object instanceof String[]) || ((String[])object).length == 0) return false;
+	String[] strings = (String[])object;
+	for (int i = 0; i < strings.length; i++) {
+		if (strings[i] == null || strings[i].length() == 0) return false;
+	}
+	return true;
+}
+
+protected boolean validate(Object object) {
+	return checkFile(object);
 }
 }

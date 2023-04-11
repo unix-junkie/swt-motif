@@ -1,10 +1,10 @@
 /*******************************************************************************
  * Copyright (c) 2000, 2004 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -22,7 +22,7 @@ import org.eclipse.swt.events.*;
  * the parent control.
  * <dl>
  * <dt><b>Styles:</b></dt>
- * <dd>HORIZONTAL, VERTICAL</dd>
+ * <dd>HORIZONTAL, VERTICAL, SMOOTH</dd>
  * <dt><b>Events:</b></dt>
  * <dd>Selection</dd>
  * </dl>
@@ -136,6 +136,7 @@ void createHandle (int index) {
 	handle = OS.XmCreateDrawingArea (parentHandle, null, argList, argList.length / 2);
 }
 void drawBand (int x, int y, int width, int height) {
+	if ((style & SWT.SMOOTH) != 0) return;
 	int display = OS.XtDisplay (parent.handle);
 	if (display == 0) return;
 	int window = OS.XtWindow (parent.handle);
@@ -187,7 +188,7 @@ void releaseWidget () {
  * Removes the listener from the collection of listeners who will
  * be notified when the control is selected.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -237,25 +238,27 @@ int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatc
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	int border = argList [9], width = argList [5] + (border * 2), height = argList [7] + (border * 2);
 	lastX = ((short) argList [1]) - border;  lastY = ((short) argList [3]) - border;
-	/* The event must be sent because its doit flag is used. */
 	Event event = new Event ();
-	event.detail = SWT.DRAG;
 	event.time = xEvent.time;
 	event.x = lastX;
 	event.y = lastY;
 	event.width = width;
 	event.height = height;
-	/*
-	 * It is possible (but unlikely) that client code could have disposed
-	 * the widget in the selection event.  If this happens end the processing
-	 * of this message by returning.
-	 */
+	if ((style & SWT.SMOOTH) == 0) {
+		event.detail = SWT.DRAG;
+	}
 	sendEvent (SWT.Selection, event);
 	if (isDisposed ()) return result;
 	if (event.doit) {
 		dragging = true;
-		OS.XmUpdateDisplay (handle);
-		drawBand (lastX = event.x, lastY = event.y, width, height);
+		lastX = event.x;
+		lastY = event.y;
+		parent.update (true);
+		drawBand (event.x, event.y, width, height);
+		if ((style & SWT.SMOOTH) != 0) {
+			setBounds (event.x, event.y, width, height);
+			// widget could be disposed at this point
+		}
 	}
 	return result;
 }
@@ -271,7 +274,6 @@ int XButtonRelease (int w, int client_data, int call_data, int continue_to_dispa
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	int border = argList [5];
 	int width = argList [1] + (border * 2), height = argList [3] + (border * 2);
-	/* The event must be sent because its doit flag is used. */
 	Event event = new Event ();
 	event.time = xEvent.time;
 	event.x = lastX;
@@ -280,7 +282,13 @@ int XButtonRelease (int w, int client_data, int call_data, int continue_to_dispa
 	event.height = height;
 	drawBand (lastX, lastY, width, height);
 	sendEvent (SWT.Selection, event);
-	/* widget could be disposed here */
+	if (isDisposed ()) return result;
+	if (event.doit) {
+		if ((style & SWT.SMOOTH) != 0) {
+			setBounds (event.x, event.y, width, height);
+			// widget could be disposed at this point
+		}
+	}
 	return result;
 }
 int xFocusIn (XFocusChangeEvent xEvent) {
@@ -347,8 +355,7 @@ int XKeyPress (int w, int client_data, int call_data, int continue_to_dispatch) 
 				OS.None,
 				cursor,
 				OS.CurrentTime);
-
-			/* The event must be sent because its doit flag is used. */
+			
 			Event event = new Event ();
 			event.time = xEvent.time;
 			event.x = newX;
@@ -357,17 +364,16 @@ int XKeyPress (int w, int client_data, int call_data, int continue_to_dispatch) 
 			event.height = height;
 			sendEvent (SWT.Selection, event);
 			if (ptrGrabResult == OS.GrabSuccess) OS.XUngrabPointer (xDisplay, OS.CurrentTime);
-					
-			/*
-			 * It is possible (but unlikely) that client code could have disposed
-			 * the widget in the selection event.  If this happens end the processing
-			 * of this message by returning.
-			 */
 			if (isDisposed ()) break;
+			
 			if (event.doit) {
-				lastX = event.x;  lastY = event.y;
-				/* Adjust the pointer position */
-				int cursorX = newX;  int cursorY = newY;
+				lastX = event.x;
+				lastY = event.y;
+				if ((style & SWT.SMOOTH) != 0) {
+					setBounds (event.x, event.y, width, height);
+					if (isDisposed ()) break;
+				}
+				int cursorX = event.x, cursorY = event.y;
 				if ((style & SWT.VERTICAL) != 0) {
 					cursorY += height / 2;
 				} else {
@@ -406,25 +412,26 @@ int XPointerMotion (int w, int client_data, int call_data, int continue_to_dispa
 	}
 	if (newX == lastX && newY == lastY) return result;
 	drawBand (lastX, lastY, width, height);
-	/* The event must be sent because its doit flag is used. */
 	Event event = new Event ();
-	event.detail = SWT.DRAG;
 	event.time = xEvent.time;
 	event.x = newX;
 	event.y = newY;
 	event.width = width;
 	event.height = height;
-	/*
-	 * It is possible (but unlikely) that client code could have disposed
-	 * the widget in the selection event.  If this happens end the processing
-	 * of this message by returning.
-	 */
+	if ((style & SWT.SMOOTH) == 0) {
+		event.detail = SWT.DRAG;
+	}
 	sendEvent (SWT.Selection, event);
 	if (isDisposed ()) return result;
 	if (event.doit) {
-		lastX = event.x;  lastY = event.y;
-		OS.XmUpdateDisplay (handle);
-		drawBand (lastX, lastY, width, height);
+		lastX = event.x;
+		lastY = event.y;
+	}
+	parent.update (true);
+	drawBand (lastX, lastY, width, height);
+	if ((style & SWT.SMOOTH) != 0) {
+		setBounds (lastX, lastY, width, height);
+		// widget could be disposed at this point
 	}
 	return result;
 }

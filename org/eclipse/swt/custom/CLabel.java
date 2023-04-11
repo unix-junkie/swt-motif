@@ -1,15 +1,14 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 package org.eclipse.swt.custom;
-
 
 import org.eclipse.swt.*;
 import org.eclipse.swt.widgets.*;
@@ -67,6 +66,8 @@ public class CLabel extends Canvas {
 	private Color[] gradientColors;
 	private int[] gradientPercents;
 	private boolean gradientVertical;
+	
+	private static int DRAW_FLAGS = SWT.DRAW_MNEMONIC | SWT.DRAW_TAB | SWT.DRAW_TRANSPARENT | SWT.DRAW_DELIMITER;
 
 /**
  * Constructs a new instance of this class given its parent
@@ -101,7 +102,7 @@ public class CLabel extends Canvas {
  */
 public CLabel(Composite parent, int style) {
 	super(parent, checkStyle(style));
-	
+	if ((style & (SWT.CENTER | SWT.RIGHT)) == 0) style |= SWT.LEFT;
 	if ((style & SWT.CENTER) != 0) align = SWT.CENTER;
 	if ((style & SWT.RIGHT) != 0)  align = SWT.RIGHT;
 	if ((style & SWT.LEFT) != 0)   align = SWT.LEFT;
@@ -118,6 +119,14 @@ public CLabel(Composite parent, int style) {
 		}
 	});
 
+	addTraverseListener(new TraverseListener() {
+		public void keyTraversed(TraverseEvent event) {
+			if (event.detail == SWT.TRAVERSE_MNEMONIC) {
+				onMnemonic(event);
+			}
+		}
+	});
+	
 	initAccessible();
 
 }
@@ -129,7 +138,6 @@ private static int checkStyle (int style) {
 	int mask = SWT.SHADOW_IN | SWT.SHADOW_OUT | SWT.SHADOW_NONE | SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT;
 	style = style & mask;
 	style |= SWT.NO_FOCUS;
-	if ((style & (SWT.CENTER | SWT.RIGHT)) == 0) style |= SWT.LEFT;
 	//TEMPORARY CODE
 	/*
 	 * The default background on carbon and some GTK themes is not a solid color 
@@ -178,6 +186,20 @@ private void drawBevelRect(GC gc, int x, int y, int w, int h, Color topleft, Col
 	gc.drawLine(x, y, x+w-1, y);
 	gc.drawLine(x, y, x,     y+h-1);
 }
+
+char _findMnemonic (String string) {
+	if (string == null) return '\0';
+	int index = 0;
+	int length = string.length ();
+	do {
+		while (index < length && string.charAt (index) != '&') index++;
+		if (++index >= length) return '\0';
+		if (string.charAt (index) != '&') return string.charAt (index);
+		index++;
+	} while (index < length);
+ 	return '\0';
+}
+
 /**
  * Returns the alignment.
  * The alignment style (LEFT, CENTER or RIGHT) is returned.
@@ -202,7 +224,7 @@ public Image getImage() {
  */
 private Point getTotalSize(Image image, String text) {
 	Point size = new Point(0, 0);
-	
+
 	if (image != null) {
 		Rectangle r = image.getBounds();
 		size.x += r.width;
@@ -211,7 +233,7 @@ private Point getTotalSize(Image image, String text) {
 		
 	GC gc = new GC(this);
 	if (text != null && text.length() > 0) {
-		Point e = gc.textExtent(text);
+		Point e = gc.textExtent(text, DRAW_FLAGS);
 		size.x += e.x;
 		size.y = Math.max(size.y, e.y);
 		if (image != null) size.x += GAP;
@@ -222,10 +244,16 @@ private Point getTotalSize(Image image, String text) {
 	
 	return size;
 }
-public void setToolTipText (String string) {
-	super.setToolTipText (string);
-	appToolTipText = super.getToolTipText();
-}	
+public int getStyle () {
+	int style = super.getStyle();
+	switch (align) {
+		case SWT.RIGHT: style |= SWT.RIGHT; break;
+		case SWT.CENTER: style |= SWT.CENTER; break;
+		case SWT.LEFT: style |= SWT.LEFT; break;
+	}
+	return style;
+}
+
 /**
  * Return the Label's text.
  * 
@@ -239,30 +267,6 @@ public String getToolTipText () {
 	checkWidget();
 	return appToolTipText;
 }
-/**
- * Paint the Label's border.
- */
-private void paintBorder(GC gc, Rectangle r) {
-	Display disp= getDisplay();
-
-	Color c1 = null;
-	Color c2 = null;
-	
-	int style = getStyle();
-	if ((style & SWT.SHADOW_IN) != 0) {
-		c1 = disp.getSystemColor(SWT.COLOR_WIDGET_NORMAL_SHADOW);
-		c2 = disp.getSystemColor(SWT.COLOR_WIDGET_HIGHLIGHT_SHADOW);
-	}
-	if ((style & SWT.SHADOW_OUT) != 0) {		
-		c1 = disp.getSystemColor(SWT.COLOR_WIDGET_LIGHT_SHADOW);
-		c2 = disp.getSystemColor(SWT.COLOR_WIDGET_NORMAL_SHADOW);
-	}
-		
-	if (c1 != null && c2 != null) {
-		gc.setLineWidth(1);
-		drawBevelRect(gc, r.x, r.y, r.width-1, r.height-1, c1, c2);
-	}
-}
 private void initAccessible() {
 	Accessible accessible = getAccessible();
 	accessible.addAccessibleListener(new AccessibleAdapter() {
@@ -273,21 +277,26 @@ private void initAccessible() {
 		public void getHelp(AccessibleEvent e) {
 			e.result = getToolTipText();
 		}
+		
+		public void getKeyboardShortcut(AccessibleEvent e) {
+			char mnemonic = _findMnemonic(CLabel.this.text);	
+			if (mnemonic != '\0') {
+				e.result = "Alt+"+mnemonic; //$NON-NLS-1$
+			}
+		}
 	});
 		
 	accessible.addAccessibleControlListener(new AccessibleControlAdapter() {
 		public void getChildAtPoint(AccessibleControlEvent e) {
-			Point pt = toControl(new Point(e.x, e.y));
-			e.childID = (getBounds().contains(pt)) ? ACC.CHILDID_SELF : ACC.CHILDID_NONE;
+			e.childID = ACC.CHILDID_SELF;
 		}
 		
 		public void getLocation(AccessibleControlEvent e) {
-			Rectangle location = getBounds();
-			Point pt = toDisplay(new Point(location.x, location.y));
-			e.x = pt.x;
-			e.y = pt.y;
-			e.width = location.width;
-			e.height = location.height;
+			Rectangle rect = getDisplay().map(getParent(), null, getBounds());
+			e.x = rect.x;
+			e.y = rect.y;
+			e.width = rect.width;
+			e.height = rect.height;
 		}
 		
 		public void getChildCount(AccessibleControlEvent e) {
@@ -315,9 +324,29 @@ void onDispose(DisposeEvent event) {
 	image = null;
 	appToolTipText = null;
 }
-/* 
- * Process the paint event
- */
+void onMnemonic(TraverseEvent event) {
+	char mnemonic = _findMnemonic(text);
+	if (mnemonic == '\0') return;
+	if (Character.toUpperCase(event.character) != Character.toUpperCase(mnemonic)) return;
+	Composite control = this.getParent();
+	while (control != null) {
+		Control [] children = control.getChildren();
+		int index = 0;
+		while (index < children.length) {
+			if (children [index] == this) break;
+			index++;
+		}
+		index++;
+		if (index < children.length) {
+			if (children [index].setFocus ()) {
+				event.doit = true;
+				event.detail = SWT.TRAVERSE_NONE;
+			}
+		}
+		control = control.getParent();
+	}
+}
+
 void onPaint(PaintEvent event) {
 	Rectangle rect = getClientArea();
 	if (rect.width == 0 || rect.height == 0) return;
@@ -325,7 +354,7 @@ void onPaint(PaintEvent event) {
 	boolean shortenText = false;
 	String t = text;
 	Image img = image;
-	int availableWidth = rect.width - 2*hIndent;
+	int availableWidth = Math.max(0, rect.width - 2*hIndent);
 	Point extent = getTotalSize(img, t);
 	if (extent.x > availableWidth) {
 		img = null;
@@ -336,11 +365,20 @@ void onPaint(PaintEvent event) {
 	}
 	
 	GC gc = event.gc;
-		
+	String[] lines = text == null ? null : splitString(text); 
+	
 	// shorten the text
 	if (shortenText) {
-		t = shortenText(gc, text, availableWidth);
-		extent = getTotalSize(img, t);
+		extent.x = 0;
+	    for(int i = 0; i < lines.length; i++) {
+	    	Point e = gc.textExtent(lines[i], DRAW_FLAGS);
+	    	if (e.x > availableWidth) {
+	    		lines[i] = shortenText(gc, lines[i], availableWidth);
+	    		extent.x = Math.max(extent.x, getTotalSize(null, lines[i]).x);
+	    	} else {
+	    		extent.x = Math.max(extent.x, e.x);
+	    	}
+	    }
 		if (appToolTipText == null) {
 			super.setToolTipText(text);
 		}
@@ -351,10 +389,10 @@ void onPaint(PaintEvent event) {
 	// determine horizontal position
 	int x = rect.x + hIndent;
 	if (align == SWT.CENTER) {
-		x = (rect.width-extent.x)/2;
+		x = (rect.width - extent.x)/2;
 	}
 	if (align == SWT.RIGHT) {
-		x = rect.width-extent.x - hIndent;
+		x = rect.width - hIndent - extent.x;
 	}
 	
 	// draw a background image behind the text
@@ -429,18 +467,60 @@ void onPaint(PaintEvent event) {
 	if ((style & SWT.SHADOW_IN) != 0 || (style & SWT.SHADOW_OUT) != 0) {
 		paintBorder(gc, rect);
 	}
-	// draw the image		
+
+	// draw the image
 	if (img != null) {
 		Rectangle imageRect = img.getBounds();
 		gc.drawImage(img, 0, 0, imageRect.width, imageRect.height, 
 		                x, (rect.height-imageRect.height)/2, imageRect.width, imageRect.height);
-		x += imageRect.width + GAP;
+		x +=  imageRect.width + GAP;
+		extent.x -= imageRect.width + GAP;
 	}
 	// draw the text
-	if (t != null) {
-		int textHeight = gc.getFontMetrics().getHeight();
+	if (lines != null) {
+		int lineHeight = gc.getFontMetrics().getHeight();
+		int textHeight = lines.length * lineHeight;
+		int lineY = Math.max(vIndent, rect.y + (rect.height - textHeight) / 2);
 		gc.setForeground(getForeground());
-		gc.drawText(t, x, rect.y + (rect.height-textHeight)/2, true);
+		for (int i = 0; i < lines.length; i++) {
+			int lineX = x;
+			if (lines.length > 1) {
+				if (align == SWT.CENTER) {
+					int lineWidth = gc.textExtent(lines[i], DRAW_FLAGS).x;
+					lineX = x + Math.max(0, (extent.x - lineWidth) / 2);
+				}
+				if (align == SWT.RIGHT) {
+					int lineWidth = gc.textExtent(lines[i], DRAW_FLAGS).x;
+					lineX = Math.max(x, rect.x + rect.width - hIndent - lineWidth);
+				}
+			}
+			gc.drawText(lines[i], lineX, lineY, DRAW_FLAGS);
+			lineY += lineHeight;
+		}
+	}
+}
+/**
+ * Paint the Label's border.
+ */
+private void paintBorder(GC gc, Rectangle r) {
+	Display disp= getDisplay();
+
+	Color c1 = null;
+	Color c2 = null;
+	
+	int style = getStyle();
+	if ((style & SWT.SHADOW_IN) != 0) {
+		c1 = disp.getSystemColor(SWT.COLOR_WIDGET_NORMAL_SHADOW);
+		c2 = disp.getSystemColor(SWT.COLOR_WIDGET_HIGHLIGHT_SHADOW);
+	}
+	if ((style & SWT.SHADOW_OUT) != 0) {		
+		c1 = disp.getSystemColor(SWT.COLOR_WIDGET_LIGHT_SHADOW);
+		c2 = disp.getSystemColor(SWT.COLOR_WIDGET_NORMAL_SHADOW);
+	}
+		
+	if (c1 != null && c2 != null) {
+		gc.setLineWidth(1);
+		drawBevelRect(gc, r.x, r.y, r.width-1, r.height-1, c1, c2);
 	}
 }
 /**
@@ -506,7 +586,7 @@ public void setBackground (Color color) {
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- *    <li>ERROR_INVALID_ARGUMENT - if the values of colors and percents are not consistant</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the values of colors and percents are not consistent</li>
  * </ul>
  */
 public void setBackground(Color[] colors, int[] percents) {
@@ -535,7 +615,7 @@ public void setBackground(Color[] colors, int[] percents) {
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- *    <li>ERROR_INVALID_ARGUMENT - if the values of colors and percents are not consistant</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the values of colors and percents are not consistent</li>
  * </ul>
  * 
  * @since 3.0
@@ -663,15 +743,24 @@ public void setText(String text) {
 		redraw();
 	}
 }
+public void setToolTipText (String string) {
+	super.setToolTipText (string);
+	appToolTipText = super.getToolTipText();
+}
 /**
  * Shorten the given text <code>t</code> so that its length doesn't exceed
  * the given width. The default implementation replaces characters in the
  * center of the original string with an ellipsis ("...").
  * Override if you need a different strategy.
+ * 
+ * @param gc the gc to use for text measurement
+ * @param t the text to shorten
+ * @param width the width to shorten the text to, in pixels
+ * @return the shortened text
  */
 protected String shortenText(GC gc, String t, int width) {
 	if (t == null) return null;
-	int w = gc.textExtent(ELLIPSIS).x;
+	int w = gc.textExtent(ELLIPSIS, DRAW_FLAGS).x;
 	int l = t.length();
 	int pivot = l/2;
 	int s = pivot;
@@ -679,8 +768,8 @@ protected String shortenText(GC gc, String t, int width) {
 	while (s >= 0 && e < l) {
 		String s1 = t.substring(0, s);
 		String s2 = t.substring(e, l);
-		int l1 = gc.textExtent(s1).x;
-		int l2 = gc.textExtent(s2).x;
+		int l1 = gc.textExtent(s1, DRAW_FLAGS).x;
+		int l2 = gc.textExtent(s2, DRAW_FLAGS).x;
 		if (l1+w+l2 < width) {
 			t = s1 + ELLIPSIS + s2;
 			break;
@@ -689,5 +778,24 @@ protected String shortenText(GC gc, String t, int width) {
 		e++;
 	}
 	return t;
+}
+
+private String[] splitString(String text) {
+    String[] lines = new String[1];
+    int start = 0, pos;
+    do {
+        pos = text.indexOf('\n', start);
+        if (pos == -1) {
+        	lines[lines.length - 1] = text.substring(start);
+        } else {
+            boolean crlf = (pos > 0) && (text.charAt(pos - 1) == '\r');
+            lines[lines.length - 1] = text.substring(start, pos - (crlf ? 1 : 0));
+            start = pos + 1;
+            String[] newLines = new String[lines.length+1];
+            System.arraycopy(lines, 0, newLines, 0, lines.length);
+       		lines = newLines;
+        }
+    } while (pos != -1);
+    return lines;
 }
 }

@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -21,7 +21,7 @@ import org.eclipse.swt.graphics.*;
  * of containing other controls.
  * <dl>
  * <dt><b>Styles:</b></dt>
- * <dd>NO_BACKGROUND, NO_FOCUS, NO_MERGE_PAINTS, NO_REDRAW_RESIZE, NO_RADIO_GROUP, EMBEDDED</dd>
+ * <dd>NO_BACKGROUND, NO_FOCUS, NO_MERGE_PAINTS, NO_REDRAW_RESIZE, NO_RADIO_GROUP, EMBEDDED, DOUBLE_BUFFERED</dd>
  * <dt><b>Events:</b></dt>
  * <dd>(none)</dd>
  * </dl>
@@ -44,6 +44,7 @@ public class Composite extends Scrollable {
 	public int embeddedHandle;
 	int focusHandle, damagedRegion, clientWindow;
 	Control [] tabList;
+	int layoutCount = 0;
 	
 	static byte [] _XEMBED_INFO = Converter.wcsToMbcs (null, "_XEMBED_INFO", true);
 	static byte[] _XEMBED = Converter.wcsToMbcs (null, "_XEMBED", true);
@@ -133,12 +134,14 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 	Point size;
 	if (layout != null) {
 		if ((wHint == SWT.DEFAULT) || (hHint == SWT.DEFAULT)) {
+			changed |= (state & LAYOUT_CHANGED) != 0;
 			size = layout.computeSize (this, wHint, hHint, changed);
+			state &= ~LAYOUT_CHANGED;
 		} else {
 			size = new Point (wHint, hHint);
 		}
 	} else {
-		size = minimumSize ();
+		size = minimumSize (wHint, hHint, changed);
 	}
 	if (size.x == 0) size.x = DEFAULT_WIDTH;
 	if (size.y == 0) size.y = DEFAULT_HEIGHT;
@@ -162,6 +165,57 @@ Control [] computeTabList () {
 		}
 	}
 	return result;
+}
+/**
+ * Clears any data that has been cached by a Layout for all widgets that 
+ * are in the parent hierarchy of the changed control up to and including the 
+ * receiver.  If an ancestor does not have a layout, it is skipped.
+ * 
+ * @param changed an array of controls that changed state and require a recalculation of size
+ * 
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the changed array is null any of its controls are null or have been disposed</li> 
+ *    <li>ERROR_INVALID_PARENT - if any control in changed is not in the widget tree of the receiver</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.1
+ */
+public void changed (Control[] changed) {
+	checkWidget ();
+	if (changed == null) error (SWT.ERROR_INVALID_ARGUMENT);
+	for (int i=0; i<changed.length; i++) {
+		Control control = changed [i];
+		if (control == null) error (SWT.ERROR_INVALID_ARGUMENT);
+		if (control.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
+		boolean ancestor = false;
+		Composite composite = control.parent;
+		while (composite != null) {
+			ancestor = composite == this;
+			if (ancestor) break;
+			composite = composite.parent;
+		}
+		if (!ancestor) error (SWT.ERROR_INVALID_PARENT);
+	}
+	for (int i=0; i<changed.length; i++) {
+		Control child = changed [i];
+		Composite composite = child.parent;
+		while (child != this) {
+			if (composite.layout == null || !composite.layout.flushCache (child)) {
+				composite.state |= LAYOUT_CHANGED;
+			}
+			child = composite;
+			composite = child.parent;
+		}
+	}
+}
+void checkBuffered () {
+	if ((state & CANVAS) == 0) {
+		super.checkBuffered ();
+	}
 }
 protected void checkSubclass () {
 	/* Do nothing - Subclassing is allowed */
@@ -213,11 +267,12 @@ void createHandle (int index, int parentHandle, boolean scrolled) {
 		handle = OS.XmCreateDrawingArea (parentHandle, null, argList, argList.length / 2);
 		if (handle == 0) error (SWT.ERROR_NO_HANDLES);
 	}
-	if ((style & SWT.NO_FOCUS) == 0) {
-		int [] argList = {OS.XmNtraversalOn, 0};
-		focusHandle = OS.XmCreateDrawingArea (handle, null, argList, argList.length / 2);
-		if (focusHandle == 0) error (SWT.ERROR_NO_HANDLES);
-	}
+	int [] argList = {OS.XmNtraversalOn, 0};
+	focusHandle = OS.XmCreateDrawingArea (handle, null, argList, argList.length / 2);
+	if (focusHandle == 0) error (SWT.ERROR_NO_HANDLES);
+	int [] argList1 = {OS.XmNforeground, 0, OS.XmNbackground, 0};
+	OS.XtGetValues (handle, argList1, argList1.length / 2);
+	if (formHandle != 0) OS.XtSetValues (formHandle, argList1, argList1.length / 2);
 }
 int defaultBackground () {
 	return display.compositeBackground;
@@ -228,6 +283,26 @@ int defaultForeground () {
 void deregister () {
 	super.deregister ();
 	if (focusHandle != 0) display.removeWidget (focusHandle);
+}
+void fixTabList (Control control) {
+	if (tabList == null) return;
+	int count = 0;
+	for (int i=0; i<tabList.length; i++) {
+		if (tabList [i] == control) count++;
+	}
+	if (count == 0) return;
+	Control [] newList = null;
+	int length = tabList.length - count;
+	if (length != 0) {
+		newList = new Control [length];
+		int index = 0;
+		for (int i=0; i<tabList.length; i++) {
+			if (tabList [i] != control) {
+				newList [index++] = tabList [i];
+			}
+		}
+	}
+	tabList = newList;
 }
 int focusHandle () {
 	if (focusHandle == 0) return super.focusHandle ();
@@ -274,7 +349,8 @@ boolean fowardKeyEvent (int event) {
 	return true;
 }
 /**
- * Returns an array containing the receiver's children.
+ * Returns a (possibly empty) array containing the receiver's children.
+ * Children are returned in the order that they are drawn.
  * <p>
  * Note: This is not the actual structure used by the receiver
  * to maintain its list of children, so modifying the array will
@@ -282,6 +358,9 @@ boolean fowardKeyEvent (int event) {
  * </p>
  *
  * @return an array of children
+ * 
+ * @see Control#moveAbove
+ * @see Control#moveBelow
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -331,7 +410,27 @@ public Layout getLayout () {
 	return layout;
 }
 /**
- * Gets the last specified tabbing order for the control.
+ * Returns <code>true</code> if the receiver has deferred
+ * the performing of layout, and <code>false</code> otherwise.
+ *
+ * @return the receiver's deferred layout state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @see #setLayoutDeferred(boolean)
+ * @see #isLayoutDeferred()
+ *
+ * @since 3.1
+ */
+public boolean getLayoutDeferred () {
+	checkWidget ();
+	return layoutCount > 0 ;
+}
+/**
+ * Gets the (possibly empty) tabbing order for the control.
  *
  * @return tabList the ordered list of controls representing the tab order
  *
@@ -372,7 +471,8 @@ void hookEvents () {
 	if ((state & CANVAS) != 0 && (style & SWT.EMBEDDED) != 0) {
 		int focusProc = display.focusProc;
 		int windowProc = display.windowProc;
-		OS.XtInsertEventHandler (handle, OS.StructureNotifyMask | OS.SubstructureNotifyMask, false, windowProc, STRUCTURE_NOTIFY, OS.XtListTail);		OS.XtInsertEventHandler (handle, OS.PropertyChangeMask, false, windowProc, PROPERTY_CHANGE, OS.XtListTail);
+		OS.XtInsertEventHandler (handle, OS.StructureNotifyMask | OS.SubstructureNotifyMask, false, windowProc, STRUCTURE_NOTIFY, OS.XtListTail);
+		OS.XtInsertEventHandler (handle, OS.PropertyChangeMask, false, windowProc, PROPERTY_CHANGE, OS.XtListTail);
 		OS.XtInsertEventHandler (handle, 0, true, windowProc, NON_MASKABLE, OS.XtListTail);
 		Shell shell = getShell ();
 		OS.XtInsertEventHandler (shell.shellHandle, OS.FocusChangeMask, false, focusProc, handle, OS.XtListTail);
@@ -382,12 +482,32 @@ void hookEvents () {
 boolean hooksKeys () {
 	return hooks (SWT.KeyDown) || hooks (SWT.KeyUp);
 }
-
+/**
+ * Returns <code>true</code> if the receiver or any ancestor 
+ * up to and including the receiver's nearest ancestor shell
+ * has deferred the performing of layouts.  Otherwise, <code>false</code>
+ * is returned.
+ *
+ * @return the receiver's deferred layout state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @see #setLayoutDeferred(boolean)
+ * @see #getLayoutDeferred()
+ * 
+ * @since 3.1
+ */
+public boolean isLayoutDeferred () {
+	checkWidget ();
+	return layoutCount > 0 || parent.isLayoutDeferred ();
+}
 boolean isTabGroup () {
 	if ((state & CANVAS) != 0) return true;
 	return super.isTabGroup ();
 }
-
 /**
  * If the receiver has a layout, asks the layout to <em>lay out</em>
  * (that is, set the size and location of) the receiver's children. 
@@ -402,18 +522,25 @@ boolean isTabGroup () {
  * </ul>
  */
 public void layout () {
-	checkWidget();
+	checkWidget ();
 	layout (true);
 }
 /**
  * If the receiver has a layout, asks the layout to <em>lay out</em>
  * (that is, set the size and location of) the receiver's children. 
- * If the the argument is <code>true</code> the layout must not rely
- * on any cached information it is keeping about the children. If it
- * is <code>false</code> the layout may (potentially) simplify the
- * work it is doing by assuming that the state of the none of the
- * receiver's children has changed since the last layout.
+ * If the argument is <code>true</code> the layout must not rely
+ * on any information it has cached about the immediate children. If it
+ * is <code>false</code> the layout may (potentially) optimize the
+ * work it is doing by assuming that none of the receiver's 
+ * children has changed state since the last layout.
  * If the receiver does not have a layout, do nothing.
+ * <p>
+ * If a child is resized as a result of a call to layout, the 
+ * resize event will invoke the layout of the child.  The layout
+ * will cascade down through all child widgets in the receiver's widget 
+ * tree until a child is encountered that does not resize.  Note that 
+ * a layout due to a resize will not flush any cached information 
+ * (same as <code>layout(false)</code>).</p>
  *
  * @param changed <code>true</code> if the layout must flush its caches, and <code>false</code> otherwise
  *
@@ -423,11 +550,106 @@ public void layout () {
  * </ul>
  */
 public void layout (boolean changed) {
-	checkWidget();
+	checkWidget ();
 	if (layout == null) return;
-	int count = getChildrenCount ();
-	if (count == 0) return;
-	layout.layout (this, changed);
+	layout (changed, false);
+}
+/**
+ * If the receiver has a layout, asks the layout to <em>lay out</em>
+ * (that is, set the size and location of) the receiver's children. 
+ * If the changed argument is <code>true</code> the layout must not rely
+ * on any information it has cached about its children. If it
+ * is <code>false</code> the layout may (potentially) optimize the
+ * work it is doing by assuming that none of the receiver's 
+ * children has changed state since the last layout.
+ * If the all argument is <code>true</code> the layout will cascade down
+ * through all child widgets in the receiver's widget tree, regardless of
+ * whether the child has changed size.  The changed argument is applied to 
+ * all layouts.  If the all argument is <code>false</code>, the layout will
+ * <em>not</em> cascade down through all child widgets in the receiver's widget 
+ * tree.  However, if a child is resized as a result of a call to layout, the 
+ * resize event will invoke the layout of the child.  Note that 
+ * a layout due to a resize will not flush any cached information 
+ * (same as <code>layout(false)</code>).</p>
+ *
+ * @param changed <code>true</code> if the layout must flush its caches, and <code>false</code> otherwise
+ * @param all <code>true</code> if all children in the receiver's widget tree should be laid out, and <code>false</code> otherwise
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.1
+ */
+public void layout (boolean changed, boolean all) {
+	checkWidget ();
+	if (layout == null && !all) return;
+	markLayout (changed, all);
+	updateLayout (all);
+}
+/**
+ * Forces a lay out (that is, sets the size and location) of all widgets that 
+ * are in the parent hierarchy of the changed control up to and including the 
+ * receiver.  The layouts in the hierarchy must not rely on any information 
+ * cached about the changed control or any of its ancestors.  The layout may 
+ * (potentially) optimize the work it is doing by assuming that none of the 
+ * peers of the changed control have changed state since the last layout.
+ * If an ancestor does not have a layout, skip it.
+ * 
+ * @param changed a control that has had a state change which requires a recalculation of its size
+ * 
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the changed array is null any of its controls are null or have been disposed</li> 
+ *    <li>ERROR_INVALID_PARENT - if any control in changed is not in the widget tree of the receiver</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.1
+ */
+public void layout (Control [] changed) {
+	checkWidget ();
+	if (changed == null) error (SWT.ERROR_INVALID_ARGUMENT);
+	for (int i=0; i<changed.length; i++) {
+		Control control = changed [i];
+		if (control == null) error (SWT.ERROR_INVALID_ARGUMENT);
+		if (control.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
+		boolean ancestor = false;
+		Composite composite = control.parent;
+		while (composite != null) {
+			ancestor = composite == this;
+			if (ancestor) break;
+			composite = composite.parent;
+		}
+		if (!ancestor) error (SWT.ERROR_INVALID_PARENT);
+	}
+	int updateCount = 0;
+	Composite [] update = new Composite [16];
+	for (int i=0; i<changed.length; i++) {
+		Control child = changed [i];
+		Composite composite = child.parent;
+		while (child != this) {
+			if (composite.layout != null) {
+				composite.state |= LAYOUT_NEEDED;
+				if (!composite.layout.flushCache (child)) {
+					composite.state |= LAYOUT_CHANGED;
+				}
+			}
+			if (updateCount == update.length) {
+				Composite [] newUpdate = new Composite [update.length + 16];
+				System.arraycopy (update, 0, newUpdate, 0, update.length);
+				update = newUpdate;
+			}
+			child = update [updateCount++] = composite;
+			composite = child.parent;
+		}
+	}
+	for (int i=updateCount-1; i>=0; i--) {
+		update [i].updateLayout (false);
+	}
 }
 void manageChildren () {
 	if (focusHandle != 0) {	
@@ -443,10 +665,24 @@ void manageChildren () {
 		Shell shell = getShell ();
 		shell.createFocusProxy ();
 		if (!OS.XtIsRealized (handle)) shell.realizeWidget ();
+		int xDisplay = OS.XtDisplay (handle);
+		OS.XSync (xDisplay, false);
 		embeddedHandle = OS.XtWindow (handle);
 	}
 }
-Point minimumSize () {
+void markLayout (boolean changed, boolean all) {
+	if (layout != null) {
+		state |= LAYOUT_NEEDED;
+		if (changed) state |= LAYOUT_CHANGED;
+	}
+	if (all) {
+		Control [] children = _getChildren ();
+		for (int i=0; i<children.length; i++) {
+			children [i].markLayout (changed, all);
+		}
+	}
+}
+Point minimumSize (int wHint, int hHint, boolean changed) {
 	Control [] children = _getChildren ();
 	int width = 0, height = 0;
 	for (int i=0; i<children.length; i++) {
@@ -538,23 +774,24 @@ void realizeChildren () {
 	*/
 	if (focusHandle != 0) OS.XtUnmapWidget (focusHandle);
 	if ((state & CANVAS) != 0) {
-		if ((style & SWT.NO_BACKGROUND) == 0 && (style & SWT.NO_REDRAW_RESIZE) != 0) return;
-		int xDisplay = OS.XtDisplay (handle);
-		if (xDisplay == 0) return;
-		int xWindow = OS.XtWindow (handle);
-		if (xWindow == 0) return;
-		int flags = 0;
-		XSetWindowAttributes attributes = new XSetWindowAttributes ();
-		if ((style & SWT.NO_BACKGROUND) != 0) {
-			flags |= OS.CWBackPixmap;
-			attributes.background_pixmap = OS.None;
-		}
-		if ((style & SWT.NO_REDRAW_RESIZE) == 0) {
-			flags |= OS.CWBitGravity;
-			attributes.bit_gravity = OS.ForgetGravity;
-		}
-		if (flags != 0) {
-			OS.XChangeWindowAttributes (xDisplay, xWindow, flags, attributes);
+		if ((style & (SWT.DOUBLE_BUFFERED | SWT.NO_BACKGROUND)) != 0 || (style & SWT.NO_REDRAW_RESIZE) == 0) {
+			int xDisplay = OS.XtDisplay (handle);
+			if (xDisplay == 0) return;
+			int xWindow = OS.XtWindow (handle);
+			if (xWindow == 0) return;
+			int flags = 0;
+			XSetWindowAttributes attributes = new XSetWindowAttributes ();
+			if ((style & (SWT.NO_BACKGROUND | SWT.DOUBLE_BUFFERED)) != 0) {
+				flags |= OS.CWBackPixmap;
+				attributes.background_pixmap = OS.None;
+			}
+			if ((style & SWT.NO_REDRAW_RESIZE) == 0) {
+				flags |= OS.CWBitGravity;
+				attributes.bit_gravity = OS.ForgetGravity;
+			}
+			if (flags != 0) {
+				OS.XChangeWindowAttributes (xDisplay, xWindow, flags, attributes);
+			}
 		}
 	}
 }
@@ -562,14 +799,14 @@ void register () {
 	super.register ();
 	if (focusHandle != 0) display.addWidget (focusHandle, this);
 }
-void redrawWidget (int x, int y, int width, int height, boolean all) {
-	super.redrawWidget (x, y, width, height, all);
-	if (!all) return;
+void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren) {
+	super.redrawWidget (x, y, width, height, redrawAll, allChildren);
+	if (!allChildren) return;
 	Control [] children = _getChildren ();
 	for (int i = 0; i < children.length; i++) {
 		Control child = children [i];
 		Point location = child.getClientLocation ();
-		child.redrawWidget (x - location.x, y - location.y, width, height, all);
+		child.redrawWidget (x - location.x, y - location.y, width, height, redrawAll, allChildren);
 	}
 }
 void releaseChildren () {
@@ -606,6 +843,9 @@ void releaseWidget () {
 	if (damagedRegion != 0) OS.XDestroyRegion (damagedRegion);
 	damagedRegion = 0;
 }
+void removeControl (Control control) {
+	fixTabList (control);
+}
 void resizeClientWindow	() {
 	if (clientWindow == 0) return;
 	boolean warnings = display.getWarnings ();
@@ -641,7 +881,7 @@ void sendClientEvent (int time, int message, int detail, int data1, int data2) {
 void setBackgroundPixel (int pixel) {
 	super.setBackgroundPixel (pixel);
 	if ((state & CANVAS) != 0) {
-		if ((style & SWT.NO_BACKGROUND) != 0) {
+		if ((style & (SWT.NO_BACKGROUND | SWT.DOUBLE_BUFFERED)) != 0) {
 			int xDisplay = OS.XtDisplay (handle);
 			if (xDisplay == 0) return;
 			int xWindow = OS.XtWindow (handle);
@@ -660,7 +900,10 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
 			OS.XtGetValues (handle, argList, argList.length / 2);
 			OS.XtConfigureWidget (focusHandle, 0, 0, argList [1], argList [3], 0);
 		}
-		if (layout != null) layout.layout (this, false);
+		if (layout != null) {
+			markLayout (false, false);
+			updateLayout (false);
+		}
 		if ((state & CANVAS) != 0 && (style & SWT.EMBEDDED) != 0) {
 			resizeClientWindow ();
 		}
@@ -732,6 +975,37 @@ public void setLayout (Layout layout) {
 	this.layout = layout;
 }
 /**
+ * If the argument is <code>true</code>, causes subsequent layout
+ * operations in the receiver or any of its children to be ignored.
+ * No layout of any kind can occur in the receiver or any of its
+ * children until the flag is set to false.
+ * Layout operations that occurred while the flag was
+ * <code>true</code> are remembered and when the flag is set to 
+ * <code>false</code>, the layout operations are performed in an
+ * optimized manner.  Nested calls to this method are stacked.
+ *
+ * @param defer the new defer state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @see #layout(boolean)
+ * @see #layout(Control[])
+ *
+ * @since 3.1
+ */
+public void setLayoutDeferred (boolean defer) {
+	if (!defer) {
+		if (--layoutCount == 0) {
+			if (!isLayoutDeferred ()) updateLayout (true);
+		}
+	} else {
+		layoutCount++;
+	}
+}
+/**
  * Sets the tabbing order for the specified controls to
  * match the order that they occur in the argument list.
  *
@@ -760,6 +1034,14 @@ public void setTabList (Control [] tabList) {
 		tabList = newList;
 	} 
 	this.tabList = tabList;
+}
+boolean setScrollBarVisible (ScrollBar bar, boolean visible) {
+	boolean changed = super.setScrollBarVisible (bar, visible);
+	if (changed && layout != null) {
+		markLayout (false, false);
+		updateLayout (false);
+	}
+	return changed;
 }
 boolean setTabGroupFocus (boolean next) {
 	if (isTabItem ()) return setTabItemFocus (next);
@@ -808,6 +1090,20 @@ boolean translateTraversal (int key, XKeyEvent xEvent) {
 	if ((state & CANVAS) != 0 && (style & SWT.EMBEDDED) != 0) return false;
 	return super.translateTraversal (key, xEvent);
 }
+void updateLayout (boolean all) {
+	if (isLayoutDeferred ()) return;
+	if ((state & LAYOUT_NEEDED) != 0) {
+		boolean changed = (state & LAYOUT_CHANGED) != 0;
+		state &= ~(LAYOUT_NEEDED | LAYOUT_CHANGED);
+		layout.layout (this, changed);
+	}
+	if (all) {
+		Control [] children = _getChildren ();
+		for (int i=0; i<children.length; i++) {
+			children [i].updateLayout (all);
+		}
+	}
+}
 int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatch) {
 	int result = super.XButtonPress (w, client_data, call_data, continue_to_dispatch);
 
@@ -838,50 +1134,79 @@ int XExposure (int w, int client_data, int call_data, int continue_to_dispatch) 
 		return super.XExposure (w, client_data, call_data, continue_to_dispatch);
 	}
 	if (!hooks (SWT.Paint) && !filters (SWT.Paint)) return 0;
-	if ((style & SWT.NO_MERGE_PAINTS) != 0) {
-		return super.XExposure (w, client_data, call_data, continue_to_dispatch);
-	}
-	XExposeEvent xEvent = new XExposeEvent ();
-	OS.memmove (xEvent, call_data, XExposeEvent.sizeof);
-	int exposeCount = xEvent.count;
-	if (exposeCount == 0) {
-		if (OS.XEventsQueued (xEvent.display, OS.QueuedAfterReading) != 0) {
-			int xEvent1 = OS.XtMalloc (XEvent.sizeof);
-			display.exposeCount = display.lastExpose = 0;
-			int checkExposeProc = display.checkExposeProc;
-			OS.XCheckIfEvent (xEvent.display, xEvent1, checkExposeProc, xEvent.window);
-			exposeCount = display.exposeCount;
-			int lastExpose = display.lastExpose;
-			if (exposeCount != 0 && lastExpose != 0) {
-				XExposeEvent xExposeEvent = display.xExposeEvent;
-				OS.memmove (xExposeEvent, lastExpose, XExposeEvent.sizeof);
-				xExposeEvent.count = 0;
-				OS.memmove (lastExpose, xExposeEvent, XExposeEvent.sizeof);
-			}
-			OS.XtFree (xEvent1);
-		}
-	}
-	if (exposeCount == 0 && damagedRegion == 0) {
-		return super.XExposure (w, client_data, call_data, continue_to_dispatch);
-	}
 	if (damagedRegion == 0) damagedRegion = OS.XCreateRegion ();
 	OS.XtAddExposureToRegion (call_data, damagedRegion);
-	if (exposeCount != 0) return 0;
+	if ((style & SWT.NO_MERGE_PAINTS) == 0) {
+		XExposeEvent xEvent = new XExposeEvent ();
+		OS.memmove (xEvent, call_data, XExposeEvent.sizeof);
+		int exposeCount = xEvent.count;
+		if (exposeCount == 0) {
+			if (OS.XEventsQueued (xEvent.display, OS.QueuedAfterReading) != 0) {
+				int xEvent1 = OS.XtMalloc (XEvent.sizeof);
+				display.exposeCount = display.lastExpose = 0;
+				int checkExposeProc = display.checkExposeProc;
+				OS.XCheckIfEvent (xEvent.display, xEvent1, checkExposeProc, xEvent.window);
+				exposeCount = display.exposeCount;
+				int lastExpose = display.lastExpose;
+				if (exposeCount != 0 && lastExpose != 0) {
+					XExposeEvent xExposeEvent = display.xExposeEvent;
+					OS.memmove (xExposeEvent, lastExpose, XExposeEvent.sizeof);
+					xExposeEvent.count = 0;
+					OS.memmove (lastExpose, xExposeEvent, XExposeEvent.sizeof);
+				}
+				OS.XtFree (xEvent1);
+			}
+		}
+		if (exposeCount != 0) return 0;
+	}
 	int xDisplay = OS.XtDisplay (handle);
 	if (xDisplay == 0) return 0;
-	Event event = new Event ();
-	GC gc = event.gc = new GC (this);
-	Region region = Region.motif_new (display, damagedRegion);
-	gc.setClipping (region);
-	XRectangle rect = new XRectangle ();
-	OS.XClipBox (damagedRegion, rect);
-	OS.XDestroyRegion (damagedRegion);
+	int damageRgn = damagedRegion;
 	damagedRegion = 0;
-	event.x = rect.x;  event.y = rect.y;
-	event.width = rect.width;  event.height = rect.height;
+	GCData data = new GCData ();
+	data.damageRgn = damageRgn;
+	GC gc = GC.motif_new (this, data);
+	OS.XSetRegion (xDisplay, gc.handle, damageRgn);
+	XRectangle rect = new XRectangle ();
+	OS.XClipBox (damageRgn, rect);
+	GC paintGC = null;
+	Image image = null;
+	if ((style & SWT.DOUBLE_BUFFERED) != 0) {
+		Rectangle client = getClientArea ();
+		int width = Math.min (client.width, rect.x + rect.width);
+		int height = Math.min (client.height, rect.y + rect.height);
+		image = new Image (display, width, height);
+		paintGC = gc;
+		GCData imageGCData = new GCData ();
+		imageGCData.damageRgn = damageRgn; 
+		gc = GC.motif_new (image, imageGCData);
+		gc.setForeground (getForeground ());
+		gc.setBackground (getBackground ());
+		gc.setFont (getFont ());
+		if ((style & SWT.NO_BACKGROUND) != 0) {
+			paintGC.copyArea(image, 0, 0);
+		} else {
+			gc.fillRectangle(0, 0, width, height);
+		}
+	}
+	Event event = new Event ();
+	event.x = rect.x;
+	event.y = rect.y;
+	event.width = rect.width;
+	event.height = rect.height;
+	event.gc = gc;
 	sendEvent (SWT.Paint, event);
-	gc.dispose ();
 	event.gc = null;
+	if ((style & SWT.DOUBLE_BUFFERED) != 0) {
+		gc.dispose ();
+		if (!isDisposed ()) {
+			paintGC.drawImage (image, 0, 0);
+		}
+		image.dispose ();
+		gc = paintGC;
+	}	
+	gc.dispose ();
+	OS.XDestroyRegion (damageRgn);
 	return 0;
 }
 int xFocusIn (XFocusChangeEvent xEvent) {
@@ -994,6 +1319,12 @@ int XStructureNotify (int w, int client_data, int call_data, int continue_to_dis
 				XDestroyWindowEvent xDestroyEvent = new XDestroyWindowEvent ();
 				OS.memmove (xDestroyEvent, call_data, XDestroyWindowEvent.sizeof);
 				if (xDestroyEvent.window == clientWindow) setClientWindow (0);
+				break;
+			}
+			case OS.ConfigureNotify: {
+				XConfigureEvent xConfigureEvent = new XConfigureEvent ();
+				OS.memmove (xConfigureEvent, call_data, XConfigureEvent.sizeof);
+				if (xConfigureEvent.window == clientWindow) resizeClientWindow ();
 				break;
 			}
 		}

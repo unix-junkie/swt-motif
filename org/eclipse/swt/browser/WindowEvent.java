@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2003, 2004 IBM Corporation and others.
+ * Copyright (c) 2003, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -45,6 +45,12 @@ import org.eclipse.swt.graphics.*;
  *	static void initialize(final Display display, Browser browser) {
  *		browser.addOpenWindowListener(new OpenWindowListener() {
  *			public void open(WindowEvent event) {
+ *				// Certain platforms can provide a default full browser.
+ *				// simply return in that case if the application prefers
+ *				// the default full browser to the embedded one set below.
+ *				if (!event.required) return;
+ *
+ *				// Embed the new window
  *				Shell shell = new Shell(display);
  *				shell.setText("New Window");
  *				shell.setLayout(new FillLayout());
@@ -67,6 +73,11 @@ import org.eclipse.swt.graphics.*;
  *					Point size = event.size;
  *					shell.setSize(shell.computeSize(size.x, size.y));
  *				}
+ *				if (event.addressBar || event.menuBar || event.statusBar || event.toolBar) {
+ *					// Create widgets for the address bar, menu bar, status bar and/or tool bar
+ *					// leave enough space in the Shell to accomodate a Browser of the size
+ *					// given by event.size
+ *				}
  *				shell.open();
  *			}
  *		});
@@ -80,6 +91,30 @@ import org.eclipse.swt.graphics.*;
  *	}
  * </pre></code>
  * 
+ * The following notifications are emitted when the user selects a hyperlink that targets a new window
+ * or as the result of a javascript that executes window.open. 
+ * 
+ * <p>Main Browser
+ * <ul>
+ *    <li>User selects a link that opens in a new window or javascript requests a new window</li>
+ *    <li>OpenWindowListener.open() notified</li>
+ *    <ul>
+ *    		<li>Application creates a new Shell and a second Browser inside that Shell</li>
+ *    		<li>Application registers WindowListener's on that second Browser, such as VisibilityWindowListener</li>
+ *	    	<li>Application returns the second Browser as the host for the new window content</li>
+ *    </ul>
+ * </ul>
+ * 
+ * <p>Second Browser
+ * <ul>
+ *    <li>VisibilityWindowListener.show() notified</li>
+ *    <ul>
+ *    		<li>Application sets navigation tool bar, status bar, menu bar and Shell size
+ *    		<li>Application makes the Shell hosting the second Browser visible
+ *    		<li>User now sees the new window
+ *    </ul> 
+ * </ul>
+ * 
  * @see CloseWindowListener
  * @see OpenWindowListener
  * @see VisibilityWindowListener
@@ -87,10 +122,18 @@ import org.eclipse.swt.graphics.*;
  * @since 3.0
  */
 public class WindowEvent extends TypedEvent {
+
+	/** 
+	 * Specifies whether the platform requires the user to provide a
+	 * <code>Browser</code> to handle the new window.
+	 * 
+	 * @since 3.1
+	 */
+	public boolean required;
+	
 	
 	/** 
-	 * <code>Browser</code> provided by the application. Default is <code>null</code>
-	 * and <code>null</code> will cancel the associated navigation request.
+	 * <code>Browser</code> provided by the application.
 	 */
 	public Browser browser;
 
@@ -101,10 +144,45 @@ public class WindowEvent extends TypedEvent {
 	public Point location;
 
 	/** 
-	 * Requested client size for the <code>Shell</code> hosting the <code>Browser</code>.
+	 * Requested <code>Browser</code> size. The client area of the <code>Shell</code> 
+	 * hosting the <code>Browser</code> should be large enough to accomodate that size. 
 	 * It is <code>null</code> if no size has been requested.
 	 */
 	public Point size;
+	
+	/**
+	 * Specifies whether the <code>Shell</code> hosting the <code>Browser</code> should
+	 * display an address bar.
+	 * 
+	 * @since 3.1
+	 */
+	public boolean addressBar;
+
+	/**
+	 * Specifies whether the <code>Shell</code> hosting the <code>Browser</code> should
+	 * display a menu bar.
+	 * 
+	 * @since 3.1
+	 */
+	public boolean menuBar;
+	
+	/**
+	 * Specifies whether the <code>Shell</code> hosting the <code>Browser</code> should
+	 * display a status bar.
+	 * 
+	 * @since 3.1
+	 */
+	public boolean statusBar;
+	
+	/**
+	 * Specifies whether the <code>Shell</code> hosting the <code>Browser</code> should
+	 * display a tool bar.
+	 * 
+	 * @since 3.1
+	 */
+	public boolean toolBar;
+	
+	static final long serialVersionUID = 3617851997387174969L;
 	
 WindowEvent(Widget w) {
 	super(w);

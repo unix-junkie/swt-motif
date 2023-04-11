@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -38,7 +38,7 @@ import org.eclipse.swt.graphics.*;
  */
 public class MessageBox extends Dialog {
 	int button;
-	String message = "";
+	String message = ""; //$NON-NLS-1$
 
 /**
  * Constructs a new instance of this class given only its parent.
@@ -109,9 +109,9 @@ int createHandle (int parentHandle, int [] argList) {
 }
 
 /**
- * Returns the dialog's message, which is a description of
- * the purpose for which it was opened. This message will be
- * visible on the dialog while it is open.
+ * Returns the dialog's message, or an empty string if it does not have one.
+ * The message is a description of the purpose for which the dialog was opened.
+ * This message will be visible in the dialog while it is open.
  *
  * @return the message
  */
@@ -132,15 +132,6 @@ public String getMessage () {
  * </ul>
  */
 public int open () {
-	
-	/* Create the dialog.*/
-	boolean destroyContext;
-	Display appContext = Display.getCurrent ();
-	if (destroyContext = (appContext == null)) appContext = new Display ();
-	int parentHandle = appContext.shellHandle;
-	if (parent != null && parent.display == appContext)
-		parentHandle = parent.shellHandle;
-
 	/* Compute the dialog title */	
 	/*
 	* Feature in Motif.  It is not possible to set a shell
@@ -148,7 +139,7 @@ public int open () {
 	* to be a single space.
 	*/
 	String string = title;
-	if (string.length () == 0) string = " ";
+	if (string.length () == 0) string = " "; //$NON-NLS-1$
 	/* Use the character encoding for the default locale */
 	byte [] buffer = Converter.wcsToMbcs (null, string, true);
 	int xmStringPtr = OS.XmStringParseText (
@@ -178,6 +169,7 @@ public int open () {
 		OS.XmNdialogStyle, dialogStyle,
 		OS.XmNdialogTitle, xmStringPtr,
 	};
+	int parentHandle = parent.shellHandle;
 	int dialog = createHandle (parentHandle, argList);
 	if (dialog == 0) error (SWT.ERROR_NO_HANDLES);
 	OS.XmStringFree (xmStringPtr);
@@ -185,8 +177,9 @@ public int open () {
 	setButtons (dialog);
 	
 	/* Hook the callbacks. */
-	Callback callback = new Callback (this, "activate", 3);
+	Callback callback = new Callback (this, "activate", 3); //$NON-NLS-1$
 	int address = callback.getAddress ();
+	if (address == 0) SWT.error (SWT.ERROR_NO_MORE_CALLBACKS);
 	OS.XtAddCallback (dialog, OS.XmNokCallback, address, OS.XmDIALOG_OK_BUTTON);
 	OS.XtAddCallback (dialog, OS.XmNcancelCallback, address, OS.XmDIALOG_CANCEL_BUTTON);
 	OS.XtAddCallback (dialog, OS.XmNhelpCallback, address, OS.XmDIALOG_HELP_BUTTON);
@@ -195,12 +188,12 @@ public int open () {
 	OS.XtManageChild (dialog);
 	
 	// Should be a pure OS message loop (no SWT AppContext)
+	Display display = parent.display;
 	while (OS.XtIsRealized (dialog) && OS.XtIsManaged (dialog))
-		if (!appContext.readAndDispatch()) appContext.sleep ();
+		if (!display.readAndDispatch()) display.sleep ();
 
 	/* Destroy the dialog and update the display. */
 	if (OS.XtIsRealized (dialog)) OS.XtDestroyWidget (dialog);
-	if (destroyContext) appContext.dispose ();
 	callback.dispose ();
 
 	if ((style & (SWT.YES | SWT.NO | SWT.CANCEL)) == (SWT.YES | SWT.NO | SWT.CANCEL)) {
@@ -242,7 +235,7 @@ void setButtons (int dialogHandle) {
 	if ((style & (SWT.YES | SWT.NO | SWT.CANCEL)) == (SWT.YES | SWT.NO | SWT.CANCEL)) {
 		OS.XtManageChild (help);
 		/* Use the character encoding for the default locale */
-		byte [] buffer1 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Yes"), true);
+		byte [] buffer1 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Yes"), true); //$NON-NLS-1$
 		int xmString1 = OS.XmStringParseText (
 			buffer1,
 			0,
@@ -252,7 +245,7 @@ void setButtons (int dialogHandle) {
 			0,
 			0);
 		/* Use the character encoding for the default locale */
-		byte [] buffer2 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_No"), true);
+		byte [] buffer2 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_No"), true); //$NON-NLS-1$
 		int xmString2 = OS.XmStringParseText (
 			buffer2,
 			0,
@@ -262,7 +255,7 @@ void setButtons (int dialogHandle) {
 			0,
 			0);
 		/* Use the character encoding for the default locale */
-		byte [] buffer3 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Cancel"), true);
+		byte [] buffer3 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Cancel"), true); //$NON-NLS-1$
 		int xmString3 = OS.XmStringParseText (
 			buffer3,
 			0,
@@ -278,7 +271,7 @@ void setButtons (int dialogHandle) {
 	}
 	if ((style & (SWT.YES | SWT.NO)) == (SWT.YES | SWT.NO)) {
 		/* Use the character encoding for the default locale */
-		byte [] buffer1 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Yes"), true);
+		byte [] buffer1 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Yes"), true); //$NON-NLS-1$
 		int xmString1 = OS.XmStringParseText (
 			buffer1,
 			0,
@@ -288,7 +281,7 @@ void setButtons (int dialogHandle) {
 			0,
 			0);
 		/* Use the character encoding for the default locale */
-		byte [] buffer2 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_No"), true);
+		byte [] buffer2 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_No"), true); //$NON-NLS-1$
 		int xmString2 = OS.XmStringParseText (
 			buffer2,
 			0,
@@ -304,7 +297,7 @@ void setButtons (int dialogHandle) {
 	}
 	if ((style & (SWT.RETRY | SWT.CANCEL)) == (SWT.RETRY | SWT.CANCEL)) {
 		/* Use the character encoding for the default locale */
-		byte [] buffer1 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Retry"), true);
+		byte [] buffer1 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Retry"), true); //$NON-NLS-1$
 		int xmString1 = OS.XmStringParseText (
 			buffer1,
 			0,
@@ -314,7 +307,7 @@ void setButtons (int dialogHandle) {
 			0,
 			0);
 		/* Use the character encoding for the default locale */
-		byte [] buffer2 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Cancel"), true);
+		byte [] buffer2 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Cancel"), true); //$NON-NLS-1$
 		int xmString2 = OS.XmStringParseText (
 			buffer2,
 			0,
@@ -331,7 +324,7 @@ void setButtons (int dialogHandle) {
 	if ((style & (SWT.ABORT | SWT.RETRY | SWT.IGNORE)) == (SWT.ABORT | SWT.RETRY | SWT.IGNORE)) {
 		OS.XtManageChild (help);
 		/* Use the character encoding for the default locale */
-		byte [] buffer1 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Abort"), true);
+		byte [] buffer1 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Abort"), true); //$NON-NLS-1$
 		int xmString1 = OS.XmStringParseText (
 			buffer1,
 			0,
@@ -341,7 +334,7 @@ void setButtons (int dialogHandle) {
 			0,
 			0);
 		/* Use the character encoding for the default locale */
-		byte [] buffer2 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Retry"), true);
+		byte [] buffer2 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Retry"), true); //$NON-NLS-1$
 		int xmString2 = OS.XmStringParseText (
 			buffer2,
 			0,
@@ -351,7 +344,7 @@ void setButtons (int dialogHandle) {
 			0,
 			0);
 		/* Use the character encoding for the default locale */
-		byte [] buffer3 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Ignore"), true);
+		byte [] buffer3 = Converter.wcsToMbcs (null, SWT.getMessage("SWT_Ignore"), true); //$NON-NLS-1$
 		int xmString3 = OS.XmStringParseText (
 			buffer3,
 			0,

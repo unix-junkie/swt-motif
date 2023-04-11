@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -19,6 +19,8 @@ import org.eclipse.swt.widgets.*;
  * A TableTreeItem is a selectable user interface object
  * that represents an item in a heirarchy of items in a
  * TableTree.
+ * 
+ * @deprecated As of 3.1 use Tree, TreeItem and TreeColumn
  */
 public class TableTreeItem extends Item {
 	TableItem tableItem;
@@ -383,6 +385,30 @@ int getIndent() {
 }
 
 /**
+ * Returns the item at the given, zero-relative index in the
+ * receiver. Throws an exception if the index is out of range.
+ *
+ * @param index the index of the item to return
+ * @return the item at the given index
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_RANGE - if the index is not between 0 and the number of elements in the list minus 1 (inclusive)</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public TableTreeItem getItem (int index) {
+	checkWidget();
+	int count = items.length;
+	if (!(0 <= index && index < count)) SWT.error (SWT.ERROR_INVALID_RANGE);
+	return items [index];
+}
+
+/**
  * Returns the number of items contained in the receiver
  * that are direct item children of the receiver.
  *
@@ -639,7 +665,7 @@ public void setGrayed (boolean grayed) {
  * <p>
  * @param expanded the new expanded state.
  *
- * @exception SWTError <ul>
+ * @exception SWTException <ul>
  *		<li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
  *		<li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
  *	</ul>
@@ -647,6 +673,7 @@ public void setGrayed (boolean grayed) {
 public void setExpanded (boolean expanded) {
 	checkWidget();
 	if (items.length == 0) return;
+	if (this.expanded == expanded) return;
 	this.expanded = expanded;
 	if (tableItem == null) return;
 	parent.setRedraw(false);
@@ -725,7 +752,7 @@ public void setForeground (Color color) {
  *
  * @param image the new image or null
  *
- * @exception SWTError <ul>
+ * @exception SWTException <ul>
  *		<li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
  *		<li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
  *	</ul>
@@ -752,10 +779,9 @@ public void setImage (int index, Image image) {
  *
  * @param image the new image or null
  * 
- * @exception SWTError <ul>
+ * @exception SWTException <ul>
  *		<li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
  *		<li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
- *		<li>ERROR_NULL_ARGUMENT when string is null</li>
  *	</ul>
  */
 public void setImage (Image image) {
@@ -773,10 +799,12 @@ public void setImage (Image image) {
  * @param index the column number
  * @param text the new text
  *
- * @exception SWTError <ul>
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the text is null</li>
+ * </ul>
+ * @exception SWTException <ul>
  *		<li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
  *		<li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
- *		<li>ERROR_NULL_ARGUMENT when string is null</li>
  *	</ul>
  */
 public void setText(int index, String text) {

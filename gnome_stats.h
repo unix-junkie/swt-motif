@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright (c) 2000, 2004 IBM Corporation and others. All rights reserved.
+* Copyright (c) 2000, 2005 IBM Corporation and others. All rights reserved.
 * The contents of this file are made available under the terms
 * of the GNU Lesser General Public License (LGPL) Version 2.1 that
 * accompanies this distribution (lgpl-v21.txt).  The LGPL is also
@@ -14,8 +14,9 @@
 *******************************************************************************/
 
 #ifdef NATIVE_STATS
-int GNOME_nativeFunctionCallCount[];
-char* GNOME_nativeFunctionNames[];
+extern int GNOME_nativeFunctionCount;
+extern int GNOME_nativeFunctionCallCount[];
+extern char* GNOME_nativeFunctionNames[];
 #define GNOME_NATIVE_ENTER(env, that, func) GNOME_nativeFunctionCallCount[func]++;
 #define GNOME_NATIVE_EXIT(env, that, func) 
 #else
@@ -23,18 +24,30 @@ char* GNOME_nativeFunctionNames[];
 #define GNOME_NATIVE_EXIT(env, that, func) 
 #endif
 
-#define GnomeVFSMimeApplication_1sizeof_FUNC 0
-#define g_1free_FUNC 1
-#define g_1list_1next_FUNC 2
-#define g_1object_1unref_FUNC 3
-#define gnome_1icon_1lookup_FUNC 4
-#define gnome_1icon_1theme_1lookup_1icon_FUNC 5
-#define gnome_1icon_1theme_1new_FUNC 6
-#define gnome_1vfs_1get_1registered_1mime_1types_FUNC 7
-#define gnome_1vfs_1init_FUNC 8
-#define gnome_1vfs_1mime_1application_1free_FUNC 9
-#define gnome_1vfs_1mime_1extensions_1list_1free_FUNC 10
-#define gnome_1vfs_1mime_1get_1default_1application_FUNC 11
-#define gnome_1vfs_1mime_1get_1extensions_1list_FUNC 12
-#define gnome_1vfs_1mime_1registered_1mime_1type_1list_1free_FUNC 13
-#define memmove_FUNC 14
+typedef enum {
+	GnomeVFSMimeApplication_1sizeof_FUNC,
+	_1dlclose_FUNC,
+	_1dlopen_FUNC,
+	_1dlsym_FUNC,
+	_1g_1free_FUNC,
+	_1g_1list_1append_FUNC,
+	_1g_1list_1free_FUNC,
+	_1g_1list_1next_FUNC,
+	_1g_1object_1unref_FUNC,
+	_1gnome_1icon_1lookup_FUNC,
+	_1gnome_1icon_1theme_1lookup_1icon_FUNC,
+	_1gnome_1icon_1theme_1new_FUNC,
+	_1gnome_1vfs_1get_1registered_1mime_1types_FUNC,
+	_1gnome_1vfs_1init_FUNC,
+	_1gnome_1vfs_1make_1uri_1from_1input_FUNC,
+	_1gnome_1vfs_1make_1uri_1from_1input_1with_1dirs_FUNC,
+	_1gnome_1vfs_1mime_1application_1free_FUNC,
+	_1gnome_1vfs_1mime_1application_1launch_FUNC,
+	_1gnome_1vfs_1mime_1extensions_1list_1free_FUNC,
+	_1gnome_1vfs_1mime_1get_1default_1application_FUNC,
+	_1gnome_1vfs_1mime_1get_1extensions_1list_FUNC,
+	_1gnome_1vfs_1mime_1registered_1mime_1type_1list_1free_FUNC,
+	_1gnome_1vfs_1mime_1type_1from_1name_FUNC,
+	_1gnome_1vfs_1url_1show_FUNC,
+	memmove_FUNC,
+} GNOME_FUNCS;

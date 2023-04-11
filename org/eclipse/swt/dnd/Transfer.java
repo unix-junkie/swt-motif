@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -42,7 +42,8 @@ abstract public TransferData[] getSupportedTypes();
 
 /**
  * Returns true if the <code>TransferData</code> data type can be converted 
- * using this transfer agent.
+ * using this transfer agent, or false otherwise (including if transferData is
+ * <code>null</code>).
  *
  * @param transferData a platform specific description of a data type; only the data
  *  type fields of the <code>TransferData</code> object need to be filled in
@@ -96,6 +97,10 @@ abstract protected int[] getTypeIds();
  *
  * @param transferData an empty TransferData object; this object will be 
  * filled in on return with the platform specific representation of the data
+ * 
+ * @exception org.eclipse.swt.SWTException <ul>
+ *    <li>ERROR_INVALID_DATA - if object does not contain data in a valid format or is <code>null</code></li>
+ * </ul>
  */
 abstract protected void javaToNative (Object object, TransferData transferData);
 
@@ -106,8 +111,9 @@ abstract protected void javaToNative (Object object, TransferData transferData);
  * converted
  *
  * @return a java representation of the converted data if the conversion was 
- * successful; otherwise null.  The type of Object that is returned is dependant 
- * on the <code>Transfer</code> subclass
+ * successful; otherwise null.  If transferData is <code>null</code> then
+ * <code>null</code> is returned.  The type of Object that is returned is 
+ * dependant on the <code>Transfer</code> subclass.
  */
 abstract protected Object nativeToJava(TransferData transferData);
 
@@ -131,5 +137,18 @@ public static int registerType(String formatName){
 	// Use the character encoding for the default locale
 	byte[] buffer = Converter.wcsToMbcs (null, formatName, true);
 	return OS.XmInternAtom (xDisplay, buffer, false); 
+}
+
+/**
+ * Test that the object is of the correct format for this Transfer class.
+ * 
+ * @param object a java representation of the data to be converted
+ * 
+ * @return true if object is of the correct form for this transfer type
+ * 
+ * @since 3.1
+ */
+protected boolean validate(Object object) {
+	return true;
 }
 }

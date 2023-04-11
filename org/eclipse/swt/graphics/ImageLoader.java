@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -73,7 +73,8 @@ public class ImageLoader {
 	/**
 	 * the number of times to repeat the display of a sequence
 	 * of animated images (this corresponds to the commonly-used
-	 * GIF application extension for "NETSCAPE 2.0 01")
+	 * GIF application extension for "NETSCAPE 2.0 01").
+	 * The default is 1. A value of 0 means 'display repeatedly'
 	 */
 	public int repeatCount;
 		
@@ -116,6 +117,7 @@ void reset() {
  * @exception SWTException <ul>
  *    <li>ERROR_INVALID_IMAGE - if the image file contains invalid data</li>
  *    <li>ERROR_IO - if an input/output error occurs while reading data</li>
+ *    <li>ERROR_UNSUPPORTED_FORMAT - if the image file contains an unrecognized format</li>
  * </ul>
  */
 public ImageData[] load(InputStream stream) {
@@ -140,6 +142,7 @@ public ImageData[] load(InputStream stream) {
  * @exception SWTException <ul>
  *    <li>ERROR_INVALID_IMAGE - if the image file contains invalid data</li>
  *    <li>ERROR_IO - if an IO error occurs while reading data</li>
+ *    <li>ERROR_UNSUPPORTED_FORMAT - if the image file contains an unrecognized format</li>
  * </ul>
  */
 public ImageData[] load(String filename) {
@@ -187,6 +190,7 @@ public ImageData[] load(String filename) {
  * @exception SWTException <ul>
  *    <li>ERROR_INVALID_IMAGE if the image data contains invalid data</li>
  *    <li>ERROR_IO if an IO error occurs while writing to the stream</li>
+ *    <li>ERROR_UNSUPPORTED_FORMAT if the image data cannot be saved to the requested format</li>
  * </ul>
  */
 public void save(OutputStream stream, int format) {
@@ -221,6 +225,7 @@ public void save(OutputStream stream, int format) {
  * @exception SWTException <ul>
  *    <li>ERROR_INVALID_IMAGE if the image data contains invalid data</li>
  *    <li>ERROR_IO if an IO error occurs while writing to the file</li>
+ *    <li>ERROR_UNSUPPORTED_FORMAT if the image data cannot be saved to the requested format</li>
  * </ul>
  */
 public void save(String filename, int format) {
@@ -235,7 +240,8 @@ public void save(String filename, int format) {
 }
 
 /**	 
- * Adds a listener to receive image loader events.
+ * Adds the listener to the collection of listeners who will be
+ * notified when image data is either partially or completely loaded.
  * <p>
  * An ImageLoaderListener should be added before invoking
  * one of the receiver's load methods. The listener's 
@@ -243,7 +249,8 @@ public void save(String filename, int format) {
  * data has been partially loaded, as is supported by interlaced
  * GIF/PNG or progressive JPEG images.
  *
- * @param listener the ImageLoaderListener to add
+ * @param listener the listener which should be notified
+ * 
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
  * </ul>
@@ -260,9 +267,11 @@ public void addImageLoaderListener(ImageLoaderListener listener) {
 }
 
 /**	 
- * Removes a listener that was receiving image loader events.
+ * Removes the listener from the collection of listeners who will be
+ * notified when image data is either partially or completely loaded.
  *
- * @param listener the ImageLoaderListener to remove
+ * @param listener the listener which should no longer be notified
+ * 
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
  * </ul>

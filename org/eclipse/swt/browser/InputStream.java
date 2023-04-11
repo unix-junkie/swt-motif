@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2003, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -13,7 +13,6 @@ package org.eclipse.swt.browser;
 import org.eclipse.swt.internal.mozilla.*;
 
 class InputStream {
-	XPCOMObject supports;
 	XPCOMObject inputStream;
 	int refCount = 0;
 
@@ -33,12 +32,6 @@ int AddRef() {
 
 void createCOMInterfaces() {
 	/* Create each of the interfaces that this object implements */
-	supports = new XPCOMObject(new int[]{2, 0, 0}){
-		public int method0(int[] args) {return queryInterface(args[0], args[1]);}
-		public int method1(int[] args) {return AddRef();}
-		public int method2(int[] args) {return Release();}
-	};
-	
 	inputStream = new XPCOMObject(new int[]{2, 0, 0, 0, 1, 3, 4, 1}){
 		public int method0(int[] args) {return queryInterface(args[0], args[1]);}
 		public int method1(int[] args) {return AddRef();}
@@ -52,10 +45,6 @@ void createCOMInterfaces() {
 }
 
 void disposeCOMInterfaces() {
-	if (supports != null) {
-		supports.dispose();
-		supports = null;
-	}	
 	if (inputStream != null) {
 		inputStream.dispose();
 		inputStream = null;	
@@ -72,7 +61,7 @@ int queryInterface(int riid, int ppvObject) {
 	XPCOM.memmove(guid, riid, nsID.sizeof);
 	
 	if (guid.Equals(nsISupports.NS_ISUPPORTS_IID)) {
-		XPCOM.memmove(ppvObject, new int[] {supports.getAddress()}, 4);
+		XPCOM.memmove(ppvObject, new int[] {inputStream.getAddress()}, 4);
 		AddRef();
 		return XPCOM.NS_OK;
 	}
@@ -101,49 +90,39 @@ int Close() {
 
 int Available(int _retval) {
 	int available = buffer == null ? 0 : buffer.length - index;
-	int[] tmp = new int[10];
-	XPCOM.memmove(tmp ,_retval, 8);
-	tmp[0] = tmp[0] - 1;
 	XPCOM.memmove(_retval, new int[] {available}, 4);
 	return XPCOM.NS_OK;
 }
 
 int Read(int aBuf, int aCount, int _retval) {
-	int available = buffer == null ? 0 : buffer.length - index;
-	int cnt = Math.min(aCount, available);
-	if (cnt != 0) {
-		byte[] src = new byte[cnt];
-		System.arraycopy(buffer, index, src, 0, cnt);
-		XPCOM.memmove(aBuf, src, cnt);
+	int max = Math.min(aCount, buffer == null ? 0 : buffer.length - index);
+	if (max > 0) {
+		byte[] src = new byte[max];
+		System.arraycopy(buffer, index, src, 0, max);
+		XPCOM.memmove(aBuf, src, max);
+		index += max;
 	}
-	XPCOM.memmove(_retval, new int[] {cnt}, 4);
+	XPCOM.memmove(_retval, new int[] {max}, 4);
 	return XPCOM.NS_OK;
 }
 
 int ReadSegments(int aWriter, int aClosure, int aCount, int _retval) {
-	int available = buffer == null ? 0 : buffer.length - index;
-	int cnt = Math.min(aCount, available);
-	if (cnt == 0) {
-		/* end of stream */
-		XPCOM.memmove(_retval, new int[] {0}, 4);
-		return XPCOM.NS_OK;
-	}
-	int[] aWriteCount = new int[1];
-	int rc = XPCOM.nsWriteSegmentFun(aWriter, getAddress(), aClosure, buffer, index, cnt, aWriteCount);
-	if (rc == XPCOM.NS_OK) {
+	int max = Math.min(aCount, buffer == null ? 0 : buffer.length - index);
+	int cnt = max;
+	while (cnt > 0) {
+		int[] aWriteCount = new int[1];
+		int rc = XPCOM.Call(aWriter, getAddress(), aClosure, buffer, index, cnt, aWriteCount);
+		if (rc != XPCOM.NS_OK) break;
 		index += aWriteCount[0];
-		available = buffer.length - index;
-		if (available == 0) {
-			/* end of stream */
-			XPCOM.memmove(_retval, new int[] {0}, 4);
-		}
+		cnt -= aWriteCount[0];
 	}
+	XPCOM.memmove(_retval, new int[] {max - cnt}, 4);
 	return XPCOM.NS_OK;
 }
 
 int IsNonBlocking(int _retval) {
-	/* non blocking */
-	XPCOM.memmove(_retval, new int[] {1}, 4);
+	/* blocking */
+	XPCOM.memmove(_retval, new int[] {0}, 4);
 	return XPCOM.NS_OK;
 }		
 }

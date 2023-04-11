@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -127,10 +127,8 @@ public final class PrinterData extends DeviceData {
 	/**
 	 * Constructs an instance of this class that can be
 	 * used to print to the default printer.
-	 *
-	 * @exception SWTError <ul>
-	 *    <li>ERROR_NO_HANDLES - if an error occurred constructing the default printer data</li>
-	 * </ul>
+	 * 
+	 * @see Printer#getDefaultPrinterData
 	 */
 	public PrinterData() {
 	}
@@ -141,10 +139,6 @@ public final class PrinterData extends DeviceData {
 	 *
 	 * @param driver the printer driver for the printer
 	 * @param name the name of the printer
-	 *
-	 * @exception SWTError <ul>
-	 *    <li>ERROR_NO_HANDLES - if there are no valid printers
-	 * </ul>
 	 *
 	 * @see #driver
 	 * @see #name

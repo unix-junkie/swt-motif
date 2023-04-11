@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -28,7 +28,9 @@ import org.eclipse.swt.widgets.*;
  * <ul>
  * <li>foreground color 
  * <li>background color
- * <li>font style (bold, regular)
+ * <li>font style (bold, italic, bold-italic, regular)
+ * <li>underline
+ * <li>strikeout
  * </ul>
  * <p>
  * In addition to text style attributes, the background color of a line may 
@@ -122,6 +124,7 @@ public class StyledText extends Canvas {
 										// when changing lines/pages. Fixes bug 5935
 	int caretOffset = 0;
 	Point selection = new Point(0, 0);	// x and y are start and end caret offsets of selection
+	Point clipboardSelection;           // x and y are start and end caret offsets of previous selection
 	int selectionAnchor;				// position of selection anchor. 0 based offset from beginning of text
 	Point doubleClickSelection;			// selection after last mouse double click
 	boolean editable = true;
@@ -133,14 +136,15 @@ public class StyledText extends Canvas {
 	Color background = null;			// workaround for bug 4791
 	Color foreground = null;			//
 	Clipboard clipboard;
+	boolean mouseDown = false;
 	boolean mouseDoubleClick = false;	// true=a double click ocurred. Don't do mouse swipe selection.
 	int autoScrollDirection = SWT.NULL;	// the direction of autoscrolling (up, down, right, left)
+	int autoScrollDistance = 0;
 	int lastTextChangeStart;			// cache data of the 
 	int lastTextChangeNewLineCount;		// last text changing 
 	int lastTextChangeNewCharCount;		// event for use in the 
 	int lastTextChangeReplaceLineCount;	// text changed handler
 	int lastTextChangeReplaceCharCount;	
-	boolean isBidi;
 	boolean isMirrored;
 	boolean bidiColoring = false;		// apply the BIDI algorithm on text segments of the same color
 	Image leftCaretBitmap = null;
@@ -150,12 +154,14 @@ public class StyledText extends Canvas {
 	Caret defaultCaret = null;
 	boolean updateCaretDirection = true;
 
-	final static boolean IS_CARBON;
-	final static boolean DOUBLE_BUFFERED;	
+	final static boolean IS_CARBON, IS_GTK, IS_MOTIF;
+	final static boolean DOUBLE_BUFFER;
 	static {
 		String platform = SWT.getPlatform();
 		IS_CARBON = "carbon".equals(platform);
-		DOUBLE_BUFFERED = !("carbon".equals(platform) || "gtk".equals(platform));
+		IS_GTK = "gtk".equals(platform);
+		IS_MOTIF = "motif".equals(platform);
+		DOUBLE_BUFFER = !IS_CARBON;
 	}
 
 	/**
@@ -190,6 +196,7 @@ public class StyledText extends Canvas {
 		int endLine;									// last (wrapped) line to print
 		boolean singleLine;								// widget single line mode
 		Point selection = null;					// selected text
+		boolean mirrored;						//indicates the printing gc should be mirrored
 
 	/**
 	 * Creates an instance of <class>Printing</class>.
@@ -206,6 +213,7 @@ public class StyledText extends Canvas {
 		this.parent = parent;
 		this.printer = printer;
 		this.printOptions = printOptions;
+		this.mirrored = (parent.getStyle() & SWT.MIRRORED) != 0;
 		singleLine = parent.isSingleLine();
 		startPage = 1;
 		endPage = Integer.MAX_VALUE;
@@ -419,8 +427,10 @@ public class StyledText extends Canvas {
 		clientArea.width -= (clientArea.x + trim.width);
 		clientArea.height -= (clientArea.y + trim.height); 
 		
-		gc = new GC(printer);
-		gc.setFont(printerFont);				
+		// make the orientation of the printer gc match the control
+		int style = mirrored ? SWT.RIGHT_TO_LEFT : SWT.LEFT_TO_RIGHT;
+		gc = new GC(printer, style);
+		gc.setFont(printerFont);
 		renderer = new PrintRenderer(
 			printer, printerFont, gc, printerContent,
 			lineBackgrounds, lineStyles, bidiSegments, 
@@ -636,8 +646,8 @@ public class StyledText extends Canvas {
 	 * </p>
 	 */
 	class RTFWriter extends TextWriter {
-		final int DEFAULT_FOREGROUND = 0;
-		final int DEFAULT_BACKGROUND = 1;
+		static final int DEFAULT_FOREGROUND = 0;
+		static final int DEFAULT_BACKGROUND = 1;
 		Vector colorTable = new Vector();
 		boolean WriteUnicode;
 		
@@ -719,8 +729,7 @@ public class StyledText extends Canvas {
 				}
 			}
 		}
-		if (osName != null &&
-			osName.startsWith(Win95) == false &&
+		if (osName.startsWith(Win95) == false &&
 			osName.startsWith(Win98) == false &&
 			osName.startsWith(WinME) == false &&
 			(osName.startsWith(WinNT) == false || majorVersion > 4)) {
@@ -874,7 +883,7 @@ public class StyledText extends Canvas {
 	 * 	widget document. Any text occurring before the start offset or after the 
 	 * 	end offset specified during object creation is ignored.
 	 * @param styles styles to use for formatting. Must not be null.
-	 * @param linebackground line background color to use for formatting. 
+	 * @param lineBackground line background color to use for formatting. 
 	 * 	May be null.
 	 */
 	void writeStyledLine(String line, int lineOffset, StyleRange[] styles, Color lineBackground) {
@@ -930,8 +939,17 @@ public class StyledText extends Canvas {
 				write("\\highlight");
 				write(colorIndex);
 			}
-			if (style.fontStyle == SWT.BOLD) {
+			if ((style.fontStyle & SWT.BOLD) != 0) {
 				write("\\b"); 
+			}
+			if ((style.fontStyle & SWT.ITALIC) != 0) {
+				write("\\i"); 
+			}
+			if (style.underline) {
+				write("\\ul");
+			}
+			if (style.strikeout) {
+				write("\\strike");
 			}
 			write(" "); 
 			// copy to end of style or end of write range or end of line
@@ -939,8 +957,17 @@ public class StyledText extends Canvas {
 			// guard against invalid styles and let style processing continue
 			copyEnd = Math.max(copyEnd, lineIndex);
 			write(line, lineIndex, copyEnd);
-			if (style.fontStyle == SWT.BOLD) {
+			if ((style.fontStyle & SWT.BOLD) != 0) {
 				write("\\b0"); 
+			}
+			if ((style.fontStyle & SWT.ITALIC) != 0) {
+				write("\\i0"); 
+			}
+			if (style.underline) {
+				write("\\ul0");
+			}			
+			if (style.strikeout) {
+				write("\\strike0");
 			}
 			write("}");
 			lineIndex = copyEnd;
@@ -995,6 +1022,7 @@ public class StyledText extends Canvas {
 	}
 	/** 
 	 * Returns the number of characters to write.
+	 * @return the integer number of characters to write
 	 */
 	public int getCharCount() {
 		return endOffset - startOffset;
@@ -1002,12 +1030,14 @@ public class StyledText extends Canvas {
 	/** 
 	 * Returns the offset where writing starts. 0 based from the start of 
 	 * the widget text. Used to write partial lines.
+	 * @return the integer offset where writing starts
 	 */
 	public int getStart() {
 		return startOffset;
 	}
 	/**
 	 * Returns whether the writer is closed.
+	 * @return a boolean specifying whether or not the writer is closed
 	 */
 	public boolean isClosed() {
 		return isClosed;
@@ -1015,7 +1045,6 @@ public class StyledText extends Canvas {
 	/**
 	 * Returns the string.  <code>close()</code> must be called before <code>toString()</code> 
 	 * is guaranteed to return a valid string.
-	 * <p>
 	 *
 	 * @return the string
 	 */
@@ -1187,7 +1216,8 @@ public class StyledText extends Canvas {
 	 *
 	 * @param parent the StyledText widget used to create a GC for 
 	 * 	line measuring
-	 * @param lineCount initial number of lines to allocate space for
+	 * @param content a StyledTextContent containing the initial number
+	 *  of lines to allocate space for
 	 */
 	public ContentWidthCache(StyledText parent, StyledTextContent content) {
 		this.parent = parent;
@@ -1248,9 +1278,6 @@ public class StyledText extends Canvas {
 	 * @param line the line to measure
 	 * @param lineOffset start offset of the line to measure, relative 
 	 * 	to the start of the document
-	 * @param gc the GC to use for measuring the line
-	 * @param currentFont the font currently set in gc. Cached for better 
-	 * 	performance. Null when running in a bidi locale.
 	 * @return the width of the given line
 	 */
 	int contentWidth(String line, int lineOffset) {
@@ -1289,7 +1316,7 @@ public class StyledText extends Canvas {
 	 * Updates the line width array to reflect inserted or deleted lines.
 	 * <p>
 	 *
-	 * @param start	the starting line of the change that took place
+	 * @param startLine	the starting line of the change that took place
 	 * @param delta	the number of lines in the change, > 0 indicates lines inserted,
 	 * 	< 0 indicates lines deleted
 	 */
@@ -1594,11 +1621,10 @@ public StyledText(Composite parent, int style) {
 	super.setBackground(getBackground());
 	Display display = getDisplay();
 	isMirrored = (super.getStyle() & SWT.MIRRORED) != 0;
-	isBidi = BidiUtil.isBidiPlatform() || isMirrored;
 	if ((style & SWT.READ_ONLY) != 0) {
 		setEditable(false);
 	}
-	leftMargin = rightMargin = isBidi() ? BIDI_CARET_WIDTH - 1: 0;
+	leftMargin = rightMargin = isBidiCaret() ? BIDI_CARET_WIDTH - 1: 0;
 	if ((style & SWT.SINGLE) != 0 && (style & SWT.BORDER) != 0) {
 		leftMargin = topMargin = rightMargin = bottomMargin = 2;
 	}
@@ -1612,7 +1638,7 @@ public StyledText(Composite parent, int style) {
 	    lineCache = new ContentWidthCache(this, content);
 	}	
 	defaultCaret = new Caret(this, SWT.NULL);
-	if (isBidi) {
+	if (isBidiCaret()) {
 		createCaretBitmaps();
 		Runnable runnable = new Runnable() {
 			public void run() {
@@ -1643,7 +1669,7 @@ public StyledText(Composite parent, int style) {
  * widget when the widget text has changed.
  * <p>
  *
- * @param listener the listener
+ * @param extendedModifyListener the listener
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -1800,7 +1826,7 @@ public void addLineStyleListener(LineStyleListener listener) {
  * has changed.
  * <p>
  *
- * @param listener the listener
+ * @param modifyListener the listener
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -1873,7 +1899,7 @@ public void addVerifyKeyListener(VerifyKeyListener listener) {
  * text change.
  * <p>
  *
- * @param listener the listener
+ * @param verifyListener the listener
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -1980,9 +2006,12 @@ void calculateTopIndex() {
  */
 static int checkStyle(int style) {
 	if ((style & SWT.SINGLE) != 0) {
-		style &= ~(SWT.H_SCROLL | SWT.V_SCROLL | SWT.WRAP);
+		style &= ~(SWT.H_SCROLL | SWT.V_SCROLL | SWT.WRAP | SWT.MULTI);
 	} else {
 		style |= SWT.MULTI;
+		if ((style & SWT.WRAP) != 0) {
+			style &= ~SWT.H_SCROLL;
+		}
 	}
 	return style;
 }
@@ -2061,14 +2090,6 @@ void clearSelection(boolean sendEvent) {
 		}
 	}
 }
-/**
- * Computes the preferred size.
- *
- * @exception SWTException <ul>
- *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- */
 public Point computeSize (int wHint, int hHint, boolean changed) {
 	checkWidget();
 	int count, width, height;
@@ -2132,8 +2153,12 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 	return new Point (rect.width, rect.height);
 }
 /**
- * Copies the selected text to the clipboard.  The text will be put in the 
- * clipboard in plain text format and RTF format.
+ * Copies the selected text to the <code>DND.CLIPBOARD</code> clipboard.
+ * The text will be put on the clipboard in plain text format and RTF format.
+ * The <code>DND.CLIPBOARD</code> clipboard is used for data that is
+ *  transferred by keyboard accelerator (such as Ctrl+C/Ctrl+V) or 
+ *  by menu action.
+ * 
  * <p>
  *
  * @exception SWTException <ul>
@@ -2143,10 +2168,37 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
  */
 public void copy() {
 	checkWidget();
+	copy(DND.CLIPBOARD);
+}
+
+/**
+ * Copies the selected text to the specified clipboard.  The text will be put in the 
+ * clipboard in plain text format and RTF format.
+ * 
+ * <p>The clipboardType is  one of the clipboard constants defined in class 
+ * <code>DND</code>.  The <code>DND.CLIPBOARD</code>  clipboard is 
+ * used for data that is transferred by keyboard accelerator (such as Ctrl+C/Ctrl+V) 
+ * or by menu action.  The <code>DND.SELECTION_CLIPBOARD</code> 
+ * clipboard is used for data that is transferred by selecting text and pasting 
+ * with the middle mouse button.</p>
+ * 
+ * @param clipboardType indicates the type of clipboard
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void copy(int clipboardType) {
+	checkWidget();
+	if (clipboardType != DND.CLIPBOARD && 
+		 clipboardType != DND.SELECTION_CLIPBOARD) return;
 	int length = selection.y - selection.x;
 	if (length > 0) {
 		try {
-			setClipboardContent(selection.x, length);
+			setClipboardContent(selection.x, length, clipboardType);
 		}
 		catch (SWTError error) {
 			// Copy to clipboard failed. This happens when another application 
@@ -2347,7 +2399,7 @@ public void cut(){
 	
 	if (length > 0) {
 		try {
-			setClipboardContent(selection.x, length);
+			setClipboardContent(selection.x, length, DND.CLIPBOARD);
 		}
 		catch (SWTError error) {
 			// Copy to clipboard failed. This happens when another application 
@@ -2373,19 +2425,19 @@ void doAutoScroll(Event event) {
 	Rectangle area = getClientArea();		
 	
 	if (event.y > area.height) {
-		doAutoScroll(SWT.DOWN);
+		doAutoScroll(SWT.DOWN, event.y - area.height);
 	}
 	else 
 	if (event.y < 0) {
-		doAutoScroll(SWT.UP);
+		doAutoScroll(SWT.UP, -event.y);
 	}
 	else 
 	if (event.x < leftMargin && wordWrap == false) {
-		doAutoScroll(ST.COLUMN_PREVIOUS);
+		doAutoScroll(ST.COLUMN_PREVIOUS, leftMargin - event.x);
 	}
 	else 
 	if (event.x > area.width - leftMargin - rightMargin && wordWrap == false) {
-		doAutoScroll(ST.COLUMN_NEXT);
+		doAutoScroll(ST.COLUMN_NEXT, event.x - (area.width - leftMargin - rightMargin));
 	}
 	else {
 		endAutoScroll();
@@ -2397,10 +2449,12 @@ void doAutoScroll(Event event) {
  *
  * @param direction SWT.UP, SWT.DOWN, SWT.COLUMN_NEXT, SWT.COLUMN_PREVIOUS
  */
-void doAutoScroll(int direction) {
+void doAutoScroll(int direction, int distance) {
 	Runnable timer = null;
-	final int TIMER_INTERVAL = 5;
+	final int TIMER_INTERVAL = 50;
 	
+	autoScrollDistance = distance;
+
 	// If we're already autoscrolling in the given direction do nothing
 	if (autoScrollDirection == direction) {
 		return;
@@ -2413,7 +2467,8 @@ void doAutoScroll(int direction) {
 		timer = new Runnable() {
 			public void run() {
 				if (autoScrollDirection == SWT.UP) {
-					doSelectionLineUp();
+					int lines = (autoScrollDistance / getLineHeight()) + 1;
+					doSelectionPageUp(lines);
 					display.timerExec(TIMER_INTERVAL, this);
 				}
 			}
@@ -2422,7 +2477,8 @@ void doAutoScroll(int direction) {
 		timer = new Runnable() {
 			public void run() {
 				if (autoScrollDirection == SWT.DOWN) {
-					doSelectionLineDown();
+					int lines = (autoScrollDistance / getLineHeight()) + 1;
+					doSelectionPageDown(lines);
 					display.timerExec(TIMER_INTERVAL, this);
 				}
 			}
@@ -2760,7 +2816,7 @@ void doMouseLocationChange(int x, int y, boolean select) {
 	// a different line? If not the autoscroll selection 
 	// could be incorrectly reset. Fixes 1GKM3XS
 	if (y >= 0 && y < getClientArea().height && 
-		(x >= 0 && x < getClientArea().width || 
+		(x >= 0 && x < getClientArea().width || wordWrap ||	
 		newCaretLine != content.getLineAtOffset(caretOffset))) {
 		if (newCaretOffset != caretOffset || advancing != oldAdvancing) {
 			caretOffset = newCaretOffset;
@@ -2841,7 +2897,7 @@ int doMouseWordSelect(int x, int newCaretOffset, int line) {
  *
  * @param select whether or not to select the page
  */
-void doPageDown(boolean select) {
+void doPageDown(boolean select, int lines) {
 	int lineCount = content.getLineCount();
 	int oldColumnX = columnX;
 	int oldHScrollOffset = horizontalScrollOffset;
@@ -2855,7 +2911,7 @@ void doPageDown(boolean select) {
 	if (caretLine < lineCount - 1) {
 		int verticalMaximum = lineCount * getVerticalIncrement();
 		int pageSize = getClientArea().height;
-		int scrollLines = Math.min(lineCount - caretLine - 1, getLineCountWhole());
+		int scrollLines = Math.min(lineCount - caretLine - 1, lines);
 		int scrollOffset;
 		
 		// ensure that scrollLines never gets negative and at leat one 
@@ -2921,17 +2977,20 @@ void doPageStart() {
  * of the text where a full page scroll is not possible. In this case the
  * caret is moved in front of the first character.
  */
-void doPageUp() {
+void doPageUp(boolean select, int lines) {
 	int oldColumnX = columnX;
 	int oldHScrollOffset = horizontalScrollOffset;
 	int caretLine = getCaretLine();
 	
 	if (caretLine > 0) {	
-		int scrollLines = Math.max(1, Math.min(caretLine, getLineCountWhole()));
+		int scrollLines = Math.max(1, Math.min(caretLine, lines));
 		int scrollOffset;
 		
 		caretLine -= scrollLines;
 		caretOffset = getOffsetAtMouseLocation(columnX, caretLine);
+		if (select) {
+			doSelection(ST.COLUMN_PREVIOUS);
+		}
 		// scroll one page up or to the top
 		scrollOffset = Math.max(0, verticalScrollOffset - scrollLines * getVerticalIncrement());
 		if (scrollOffset < verticalScrollOffset) {
@@ -3126,7 +3185,7 @@ void doSelectionLineUp() {
  * direction.
  * </p>
  */
-void doSelectionPageDown() {
+void doSelectionPageDown(int lines) {
 	int oldColumnX;
 	int caretLine = getCaretLine();
 	int lineStartOffset = content.getOffsetAtLine(caretLine);
@@ -3134,7 +3193,7 @@ void doSelectionPageDown() {
 	// reset columnX on selection
 	oldColumnX = columnX = getXAtOffset(
 		content.getLine(caretLine), caretLine, caretOffset - lineStartOffset);
-	doPageDown(true);
+	doPageDown(true, lines);
 	columnX = oldColumnX;
 }
 /**
@@ -3150,7 +3209,7 @@ void doSelectionPageDown() {
  * direction.
  * </p>
  */
-void doSelectionPageUp() {
+void doSelectionPageUp(int lines) {
 	int oldColumnX;
 	int caretLine = getCaretLine();
 	int lineStartOffset = content.getOffsetAtLine(caretLine);
@@ -3158,7 +3217,7 @@ void doSelectionPageUp() {
 	// reset columnX on selection
 	oldColumnX = columnX = getXAtOffset(
 		content.getLine(caretLine), caretLine, caretOffset - lineStartOffset);
-	doPageUp();
+	doPageUp(true, lines);
 	columnX = oldColumnX;
 }
 /**
@@ -3291,9 +3350,6 @@ void draw(int x, int y, int width, int height, boolean clearBackground) {
 void endAutoScroll() {
 	autoScrollDirection = SWT.NULL;
 }
-/**
- * @see org.eclipse.swt.widgets.Control#getBackground
- */
 public Color getBackground() {
 	checkWidget();
 	if (background == null) {
@@ -3420,6 +3476,10 @@ int getCaretWidth() {
 	if (caret == null) return 0;
 	return caret.getSize().x;
 }
+Object getClipboardContent(int clipboardType) {
+	TextTransfer plainTextTransfer = TextTransfer.getInstance();
+	return clipboard.getContents(plainTextTransfer, clipboardType);
+}
 int getClusterNext(int offset, int lineIndex) {
 	String line = content.getLine(lineIndex);
 	int lineOffset = content.getOffsetAtLine(lineIndex);	
@@ -3486,9 +3546,6 @@ public boolean getEditable() {
 	checkWidget();
 	return editable;
 }
-/**
- * @see org.eclipse.swt.widgets.Control#getForeground
- */
 public Color getForeground() {
 	checkWidget();
 	if (foreground == null) {
@@ -3599,9 +3656,10 @@ public int getCharCount() {
  * color has been specified for the line. Should not be called if a
  * LineBackgroundListener has been set since the listener maintains the
  * line background colors.
- * <p>
- *
+ * 
+ * @param index the index of the line
  * @return the background color of the line at the given index.
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -4153,7 +4211,7 @@ int [] getBidiSegments(int lineOffset, String line) {
 	return segments;
 }
 /**
- * @see getBidiSegments
+ * @see #getBidiSegments
  * Supports deprecated setBidiColoring API. Remove when API is removed.
  */
 int [] getBidiSegmentsCompatibility(String line, int lineOffset) {
@@ -4269,7 +4327,9 @@ public StyleRange [] getStyleRanges() {
  * Returns an empty array if a LineStyleListener has been set. 
  * Should not be called if a LineStyleListener has been set since the 
  * listener maintains the styles.
- * <p>
+ * 
+ * @param start the start offset of the style ranges to return
+ * @param length the number of style ranges to return
  *
  * @return the styles or an empty array if a LineStyleListener has 
  *  been set.  The returned styles will reflect the given range.  The first 
@@ -4389,6 +4449,56 @@ public String getText(int start, int end) {
 	return content.getTextRange(start, end - start + 1);
 }
 /**
+ * Returns the smallest bounding rectangle that includes the characters between two offsets.
+ * <p>
+ *
+ * @param start offset of the first character included in the bounding box
+ * @param end offset of the last character included in the bounding box 
+ * @return bounding box of the text between start and end
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * @exception IllegalArgumentException <ul>
+ *   <li>ERROR_INVALID_RANGE when start and/or end are outside the widget content</li> 
+ * </ul>
+ * @since 3.1
+ */
+public Rectangle getTextBounds(int start, int end) {
+	checkWidget();	
+	int contentLength = getCharCount();	
+	if (start < 0 || start >= contentLength || end < 0 || end >= contentLength || start > end) {
+		SWT.error(SWT.ERROR_INVALID_RANGE);
+	}
+	int lineStart = content.getLineAtOffset(start);
+	int lineEnd = content.getLineAtOffset(end);
+	Rectangle rect;
+	int y = lineStart * lineHeight;
+	int height = (lineEnd + 1) * lineHeight - y;
+	int left = 0x7fffffff, right = 0;
+	for (int i = lineStart; i <= lineEnd; i++) {
+		int lineOffset = content.getOffsetAtLine(i);
+		String line = content.getLine(i);
+		TextLayout layout = renderer.getTextLayout(line, lineOffset);
+		if (i == lineStart && i == lineEnd) {
+			rect = layout.getBounds(start - lineOffset, end - lineOffset);
+		} else if (i == lineStart) {
+			rect = layout.getBounds(start - lineOffset, line.length());
+		}	else	if (i == lineEnd) {
+			rect = layout.getBounds(0, end - lineOffset);
+		} else {
+			rect = layout.getLineBounds(0);
+		}
+		left = Math.min (left, rect.x);
+		right = Math.max (right, rect.x + rect.width);
+		renderer.disposeTextLayout(layout);
+	}
+	rect = new Rectangle (left, y, right-left, height);
+	rect.x += leftMargin - horizontalScrollOffset;
+	rect.y -= verticalScrollOffset;
+	return rect;
+}
+/**
  * Returns the widget content starting at start for length characters.
  * <p>
  *
@@ -4414,9 +4524,9 @@ public String getTextRange(int start, int length) {
 	return content.getTextRange(start, length);
 }
 /**
- * Gets the text limit.  The text limit specifies the amount of text that the user 
- * can type into the widget.
- * <p>
+ * Returns the maximum number of characters that the receiver is capable of holding.
+ * 
+ * @return the text limit
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -4479,7 +4589,7 @@ int getVerticalIncrement() {
 	return lineHeight;
 }
 int getCaretDirection() {
-	if (!isBidi()) return SWT.DEFAULT;
+	if (!isBidiCaret()) return SWT.DEFAULT;
 	if (!updateCaretDirection && caretDirection != SWT.NULL) return caretDirection;
 	updateCaretDirection = false;
 	int caretLine = getCaretLine();
@@ -4745,6 +4855,7 @@ void installListeners() {
 			switch (event.type) {
 				case SWT.Dispose: handleDispose(event); break;
 				case SWT.KeyDown: handleKeyDown(event); break;
+				case SWT.KeyUp: handleKeyUp(event); break;
 				case SWT.MouseDown: handleMouseDown(event); break;
 				case SWT.MouseUp: handleMouseUp(event); break;
 				case SWT.MouseDoubleClick: handleMouseDoubleClick(event); break;
@@ -4757,6 +4868,7 @@ void installListeners() {
 	};
 	addListener(SWT.Dispose, listener);
 	addListener(SWT.KeyDown, listener);
+	addListener(SWT.KeyUp, listener);
 	addListener(SWT.MouseDown, listener);
 	addListener(SWT.MouseUp, listener);
 	addListener(SWT.MouseDoubleClick, listener);
@@ -4901,7 +5013,7 @@ void handleDispose(Event event) {
 		defaultLineStyler.release();
 		defaultLineStyler = null;
 	}
-	if (isBidi()) {
+	if (isBidiCaret()) {
 		BidiUtil.removeLanguageListener(handle);
 	}
 	selectionBackground = null;
@@ -4955,14 +5067,21 @@ void handleKey(Event event) {
 		boolean ignore = false;
 		
 		if (IS_CARBON) {
-			// Ignore acclerator key combinations (we do not want to 
+			// Ignore accelerator key combinations (we do not want to 
 			// insert a character in the text in this instance). Do not  
 			// ignore COMMAND+ALT combinations since that key sequence
 			// produces characters on the mac.
 			ignore = (event.stateMask ^ SWT.COMMAND) == 0 ||
 					(event.stateMask ^ (SWT.COMMAND | SWT.SHIFT)) == 0;
+		} else if (IS_MOTIF) {
+			// Ignore accelerator key combinations (we do not want to 
+			// insert a character in the text in this instance). Do not  
+			// ignore ALT combinations since this key sequence
+			// produces characters on motif.
+			ignore = (event.stateMask ^ SWT.CTRL) == 0 ||
+					(event.stateMask ^ (SWT.CTRL | SWT.SHIFT)) == 0;
 		} else {
-			// Ignore acclerator key combinations (we do not want to 
+			// Ignore accelerator key combinations (we do not want to 
 			// insert a character in the text in this instance). Don't  
 			// ignore CTRL+ALT combinations since that is the Alt Gr 
 			// key on some keyboards.  See bug 20953. 
@@ -4991,8 +5110,11 @@ void handleKey(Event event) {
  * @param event keyboard event
  */
 void handleKeyDown(Event event) {
-	Event verifyEvent = new Event();
+	if (clipboardSelection == null) {
+		clipboardSelection = new Point(selection.x, selection.y);
+	}
 	
+	Event verifyEvent = new Event();
 	verifyEvent.character = event.character;
 	verifyEvent.keyCode = event.keyCode;
 	verifyEvent.stateMask = event.stateMask;
@@ -5001,6 +5123,33 @@ void handleKeyDown(Event event) {
 	if (verifyEvent.doit == true) {
 		handleKey(event);
 	}
+}
+/**
+ * Update the Selection Clipboard.
+ * <p>
+ *
+ * @param event keyboard event
+ */
+void handleKeyUp(Event event) {
+	if (clipboardSelection != null) {
+		if (clipboardSelection.x != selection.x || clipboardSelection.y != selection.y) {
+			try {
+				if (selection.y - selection.x > 0) {
+					setClipboardContent(selection.x, selection.y - selection.x, DND.SELECTION_CLIPBOARD);
+				}
+			}
+			catch (SWTError error) {
+				// Copy to clipboard failed. This happens when another application 
+				// is accessing the clipboard while we copy. Ignore the error.
+				// Fixes 1GDQAVN
+				// Rethrow all other errors. Fixes bug 17578.
+				if (error.code != DND.ERROR_CANNOT_SET_CLIPBOARD) {
+					throw error;
+				}
+			}
+		}
+	}
+	clipboardSelection = null;
 }
 /**
  * Updates the caret location and selection if mouse button 1 has been 
@@ -5024,7 +5173,23 @@ void handleMouseDoubleClick(Event event) {
  * pressed.
  */
 void handleMouseDown(Event event) {
+	mouseDown = true;
 	mouseDoubleClick = false;
+	if (event.button == 2) {
+		String text = (String)getClipboardContent(DND.SELECTION_CLIPBOARD);
+		if (text != null && text.length() > 0) {
+			// position cursor
+			int x = event.x;
+			int y = event.y - topMargin;
+			doMouseLocationChange(x, y, false);
+			// insert text
+			Event e = new Event();
+			e.start = selection.x;
+			e.end = selection.y;
+			e.text = getModelDelimitedText(text);
+			sendKeyEvent(e);
+		}
+	}
 	if ((event.button != 1) || (IS_CARBON && (event.stateMask & SWT.MOD4) != 0)) {
 		return;	
 	}
@@ -5037,20 +5202,39 @@ void handleMouseDown(Event event) {
  * during the mouse move.
  */
 void handleMouseMove(Event event) {
+	if (!mouseDown) return;
 	if ((event.stateMask & SWT.BUTTON1) == 0) {
 		return;
 	}
 	event.y -= topMargin;
 	doMouseLocationChange(event.x, event.y, true);
+	update();
 	doAutoScroll(event);
 }
 /** 
  * Autoscrolling ends when the mouse button is released.
  */
 void handleMouseUp(Event event) {
+	mouseDown = false;
 	mouseDoubleClick = false;
 	event.y -= topMargin;
 	endAutoScroll();
+	if (event.button == 1) {
+		try {
+			if (selection.y - selection.x > 0) {
+				setClipboardContent(selection.x, selection.y - selection.x, DND.SELECTION_CLIPBOARD);
+			}
+		}
+		catch (SWTError error) {
+			// Copy to clipboard failed. This happens when another application 
+			// is accessing the clipboard while we copy. Ignore the error.
+			// Fixes 1GDQAVN
+			// Rethrow all other errors. Fixes bug 17578.
+			if (error.code != DND.ERROR_CANNOT_SET_CLIPBOARD) {
+				throw error;
+			}
+		}
+	}
 }
 /**
  * Renders the invalidated area specified in the paint event.
@@ -5086,22 +5270,22 @@ void handleResize(Event event) {
 	clientAreaHeight = clientArea.height;
 	clientAreaWidth = clientArea.width;
 	/* Redraw the old or new right/bottom margin if needed */
-    if (oldWidth != clientAreaWidth) {
+	if (oldWidth != clientAreaWidth) {
 		if (rightMargin > 0) {
 			int x = (oldWidth < clientAreaWidth ? oldWidth : clientAreaWidth)- rightMargin; 
 			redraw(x, 0, rightMargin, oldHeight, false);
 		}
-    }
-    if (oldHeight != clientAreaHeight) {
+	}
+	if (oldHeight != clientAreaHeight) {
 		if (bottomMargin > 0) {
 			int y = (oldHeight < clientAreaHeight ? oldHeight : clientAreaHeight)- bottomMargin; 
 			redraw(0, y, oldWidth, bottomMargin, false);
 		}
-    }
+	}
 	if (wordWrap) {
-	    if (oldWidth != clientAreaWidth) {	
-	    	wordWrapResize(oldWidth);
-	    }
+		if (oldWidth != clientAreaWidth) {	
+			wordWrapResize(oldWidth);
+		}
 	}
 	else
 	if (clientAreaHeight > oldHeight) {
@@ -5162,7 +5346,7 @@ void handleTextChanged(TextChangedEvent event) {
 		int startLine = content.getLineAtOffset(lastTextChangeStart);
 		int startY = startLine * lineHeight - verticalScrollOffset + topMargin;
 
-		if (DOUBLE_BUFFERED) {
+		if (DOUBLE_BUFFER) {
 			GC gc = getGC();
 			Caret caret = getCaret();
 			boolean caretVisible = false;
@@ -5383,11 +5567,11 @@ public void invokeAction(int action) {
 			clearSelection(true);
 			break;
 		case ST.PAGE_UP:
-			doPageUp();
+			doPageUp(false, getLineCountWhole());
 			clearSelection(true);
 			break;
 		case ST.PAGE_DOWN:
-			doPageDown(false);
+			doPageDown(false, getLineCountWhole());
 			clearSelection(true);
 			break;
 		case ST.WORD_PREVIOUS:
@@ -5418,6 +5602,9 @@ public void invokeAction(int action) {
 		case ST.SELECT_LINE_UP:
 			doSelectionLineUp();
 			break;
+		case ST.SELECT_ALL:
+			selectAll();
+			break;
 		case ST.SELECT_LINE_DOWN:
 			doSelectionLineDown();
 			break;
@@ -5438,11 +5625,10 @@ public void invokeAction(int action) {
 			doSelection(ST.COLUMN_NEXT);
 			break;
 		case ST.SELECT_PAGE_UP:
-			doSelectionPageUp();
-			doSelection(ST.COLUMN_PREVIOUS);
+			doSelectionPageUp(getLineCountWhole());
 			break;
 		case ST.SELECT_PAGE_DOWN:
-			doSelectionPageDown();
+			doSelectionPageDown(getLineCountWhole());
 			break;
 		case ST.SELECT_WORD_PREVIOUS:
 			doSelectionWordPrevious();
@@ -5500,7 +5686,7 @@ public void invokeAction(int action) {
  * Temporary until SWT provides this
  */
 boolean isBidi() {
-	return isBidi;
+	return IS_GTK || BidiUtil.isBidiPlatform() || isMirrored;
 }
 /**
  * Returns whether the given offset is inside a multi byte line delimiter.
@@ -5613,11 +5799,11 @@ void modifyContent(Event event, boolean updateCaret) {
 	}
 }
 /** 
- * Replaces the selection with the clipboard text or insert the text at 
- * the current caret offset if there is no selection. 
- * If the widget has the SWT.SINGLE style and the clipboard text contains
- * more than one line, only the first line without line delimiters is 
- * inserted in the widget.
+ * Replaces the selection with the text on the <code>DND.CLIPBOARD</code>  
+ * clipboard  or, if there is no selection,  inserts the text at the current 
+ * caret offset.   If the widget has the SWT.SINGLE style and the 
+ * clipboard text contains more than one line, only the first line without
+ * line delimiters is  inserted in the widget.
  * <p>
  *
  * @exception SWTException <ul>
@@ -5627,9 +5813,8 @@ void modifyContent(Event event, boolean updateCaret) {
  */
 public void paste(){
 	checkWidget();	
-	TextTransfer transfer = TextTransfer.getInstance();
 	String text;
-	text = (String) clipboard.getContents(transfer);
+	text = (String) getClipboardContent(DND.CLIPBOARD);
 	if (text != null && text.length() > 0) {
 		Event event = new Event();
 		event.start = selection.x;
@@ -5668,7 +5853,7 @@ void performPaint(GC gc,int startLine,int startY, int renderHeight)	{
 		int paintY, paintHeight;
 		Image lineBuffer;
 		GC lineGC;
-		boolean doubleBuffer = DOUBLE_BUFFERED && lastPaintTopIndex == topIndex;
+		boolean doubleBuffer = DOUBLE_BUFFER && lastPaintTopIndex == topIndex;
 		lastPaintTopIndex = topIndex;
 		if (doubleBuffer) {
 			paintY = 0;
@@ -5738,9 +5923,8 @@ public void print() {
  * </ul>
  */
 public Runnable print(Printer printer) {
-	StyledTextPrintOptions options = new StyledTextPrintOptions();
-
 	checkWidget();	
+	StyledTextPrintOptions options = new StyledTextPrintOptions();
 	options.printTextForeground = true;
 	options.printTextBackground = true;
 	options.printTextFontStyle = true;
@@ -6048,7 +6232,7 @@ public void removeBidiSegmentListener(BidiSegmentListener listener) {
  * Removes the specified extended modify listener.
  * <p>
  *
- * @param listener the listener
+ * @param extendedModifyListener the listener
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6116,7 +6300,7 @@ public void removeLineStyleListener(LineStyleListener listener) {
  * Removes the specified modify listener.
  * <p>
  *
- * @param listener the listener
+ * @param modifyListener the listener
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6156,7 +6340,7 @@ public void removeSelectionListener(SelectionListener listener) {
  * Removes the specified verify listener.
  * <p>
  *
- * @param listener the listener
+ * @param verifyListener the listener
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6421,7 +6605,7 @@ boolean scrollHorizontalBar(int pixels) {
  */
 public void selectAll() {
 	checkWidget();
-	setSelection(new Point(0, Math.max(getCharCount(),0)));
+	setSelection(0, Math.max(getCharCount(),0));
 }
 /**
  * Replaces/inserts text as defined by the event.
@@ -6642,25 +6826,32 @@ public void setCaretOffset(int offset) {
  * @param length length of text to place in clipboard
  * 
  * @exception SWTError, see Clipboard.setContents
- * @see org.eclipse.swt.dnd.Clipboard.setContents
+ * @see org.eclipse.swt.dnd.Clipboard#setContents
  */
-void setClipboardContent(int start, int length) throws SWTError {
-	RTFTransfer rtfTransfer = RTFTransfer.getInstance();
+void setClipboardContent(int start, int length, int clipboardType) throws SWTError {
+	if (clipboardType == DND.SELECTION_CLIPBOARD && !(IS_MOTIF || IS_GTK)) return;
 	TextTransfer plainTextTransfer = TextTransfer.getInstance();
-	RTFWriter rtfWriter = new RTFWriter(start, length);
 	TextWriter plainTextWriter = new TextWriter(start, length);
-	String rtfText = getPlatformDelimitedText(rtfWriter);
 	String plainText = getPlatformDelimitedText(plainTextWriter);
-
-	clipboard.setContents(
-		new String[]{rtfText, plainText}, 
-		new Transfer[]{rtfTransfer, plainTextTransfer});
+	Object[] data;
+	Transfer[] types;
+	if (clipboardType == DND.SELECTION_CLIPBOARD) {
+		data = new Object[]{plainText};
+		types = new Transfer[]{plainTextTransfer};
+	} else {
+		RTFTransfer rtfTransfer = RTFTransfer.getInstance();
+		RTFWriter rtfWriter = new RTFWriter(start, length);
+		String rtfText = getPlatformDelimitedText(rtfWriter);
+		data = new Object[]{rtfText, plainText};
+		types = new Transfer[]{rtfTransfer, plainTextTransfer};
+	}
+	clipboard.setContents(data, types, clipboardType);
 }
 /**
  * Sets the content implementation to use for text storage.
  * <p>
  *
- * @param content StyledTextContent implementation to use for text storage.
+ * @param newContent StyledTextContent implementation to use for text storage.
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6757,7 +6948,7 @@ public void setFont(Font font) {
 	}
 	calculateContentWidth();
 	calculateScrollBars();
-	if (isBidi()) createCaretBitmaps();
+	if (isBidiCaret()) createCaretBitmaps();
 	caretDirection = SWT.NULL;
 	// always set the caret location. Fixes 6685
 	setCaretLocation();
@@ -6966,7 +7157,7 @@ void setMouseWordSelectionAnchor() {
 }
 /**
  * Sets the orientation of the receiver, which must be one
- * of the constants <code>SWT.LEFT_TO_RIGHT</code> or <code>SWT.LEFT_TO_RIGHT</code>.
+ * of the constants <code>SWT.LEFT_TO_RIGHT</code> or <code>SWT.RIGHT_TO_LEFT</code>.
  * <p>
  *
  * @param orientation new orientation style
@@ -6995,7 +7186,6 @@ public void setOrientation(int orientation) {
 		return;
 	}
 	isMirrored = (orientation & SWT.RIGHT_TO_LEFT) != 0;
-	isBidi = BidiUtil.isBidiPlatform() || isMirrored();
 	initializeRenderer();
 	caretDirection = SWT.NULL;
 	setCaretLocation();
@@ -7051,7 +7241,6 @@ void setScrollBars() {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  * @exception IllegalArgumentException <ul>
- *   <li>ERROR_INVALID_RANGE when start is outside the widget content
  *   <li>ERROR_INVALID_ARGUMENT when either the start or the end of the selection range is inside a 
  * multi byte line delimiter (and thus neither clearly in front of or after the line delimiter)
  * </ul> 
@@ -7077,7 +7266,6 @@ public void setSelection(int start) {
  * </ul>
  * @exception IllegalArgumentException <ul>
  *   <li>ERROR_NULL_ARGUMENT when point is null</li>
- *   <li>ERROR_INVALID_RANGE when start or end is outside the widget content
  *   <li>ERROR_INVALID_ARGUMENT when either the start or the end of the selection range is inside a 
  * multi byte line delimiter (and thus neither clearly in front of or after the line delimiter)
  * </ul> 
@@ -7152,7 +7340,6 @@ public void setSelectionForeground (Color color) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  * @exception IllegalArgumentException <ul>
- *   <li>ERROR_INVALID_RANGE when start or end is outside the widget content
  *   <li>ERROR_INVALID_ARGUMENT when either the start or the end of the selection range is inside a 
  * multi byte line delimiter (and thus neither clearly in front of or after the line delimiter)
  * </ul>
@@ -7164,19 +7351,17 @@ public void setSelection(int start, int end) {
 }
 /** 
  * Sets the selection. The new selection may not be visible. Call showSelection to scroll 
- * the selection into view.
- * <p>
+ * the selection into view. A negative length places the caret at the visual start of the 
+ * selection. <p>
  *
- * @param start offset of the first selected character, start >= 0 must be true.
- * @param length number of characters to select, 0 <= start + length <= getCharCount() 
- * 	must be true.
- * 	A negative length places the caret at the visual start of the selection.
+ * @param start offset of the first selected character
+ * @param length number of characters to select
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  * @exception IllegalArgumentException <ul>
- *   <li>ERROR_INVALID_RANGE when the range specified by start and length is outside the widget content
  *   <li>ERROR_INVALID_ARGUMENT when either the start or the end of the selection range is inside a 
  * multi byte line delimiter (and thus neither clearly in front of or after the line delimiter)
  * </ul>
@@ -7184,12 +7369,14 @@ public void setSelection(int start, int end) {
 public void setSelectionRange(int start, int length) {
 	checkWidget();
 	int contentLength = getCharCount();
+	start = Math.max(0, Math.min (start, contentLength));
 	int end = start + length;
-	
-	if (start < 0 || end < 0 || start > contentLength || end > contentLength) {
-		SWT.error(SWT.ERROR_INVALID_RANGE);
+	if (end < 0) {
+		length = -start;
+	} else {
+		if (end > contentLength) length = contentLength - start;
 	}
-	if (isLineDelimiter(start) || isLineDelimiter(end)) {
+	if (isLineDelimiter(start) || isLineDelimiter(start + length)) {
 		// the start offset or end offset of the selection range is inside a 
 		// multi byte line delimiter. This is an illegal operation and an exception 
 		// is thrown. Fixes 1GDKK3R
@@ -7302,7 +7489,7 @@ public void setStyleRange(StyleRange range) {
  *
  * @param ranges StyleRange objects containing the style information.
  * The ranges should not overlap. The style rendering is undefined if 
- * the ranges do overlap. Must not be null.
+ * the ranges do overlap. Must not be null. The styles need to be in order.
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -7420,7 +7607,7 @@ public void setText(String text) {
 	}
 }
 /**
- * Sets the text limit.
+ * Sets the text limit to the specified number of characters.
  * <p>
  * The text limit specifies the amount of text that
  * the user can type into the widget.
@@ -7451,7 +7638,7 @@ public void setTextLimit(int limit) {
  * Note: The top index is reset to 0 when new text is set in the widget.
  * </p>
  *
- * @param index new top index. Must be between 0 and 
+ * @param topIndex new top index. Must be between 0 and 
  * 	getLineCount() - fully visible lines per page. If no lines are fully 
  * 	visible the maximum value is getLineCount() - 1. An out of range 
  * 	index will be adjusted accordingly.
@@ -7696,6 +7883,9 @@ public void showSelection() {
 		// will not be visible
 		showLocation(endX, endLine);
 	}	 
+}
+boolean isBidiCaret() {
+	return BidiUtil.isBidiPlatform();
 }
 /**
  * Updates the selection and caret position depending on the text change.

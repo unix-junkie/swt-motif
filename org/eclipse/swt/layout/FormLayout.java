@@ -1,22 +1,23 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 package org.eclipse.swt.layout;
 
+import org.eclipse.swt.*;
 import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.widgets.*;
 
 /**
  * Instances of this class control the position and size of the 
  * children of a composite control by using <code>FormAttachments</code>
- * to optionally configure the left, top, right and bottom edge of
+ * to optionally configure the left, top, right and bottom edges of
  * each child.
  * <p>
  * The following example code creates a <code>FormLayout</code> and then sets
@@ -57,8 +58,8 @@ import org.eclipse.swt.widgets.*;
  * </p>
  * <p>
  * If a side is not given an attachment, it is defined as not being attached
- * to anything, causing the child to remain at it's preferred size.  If a child
- * is given no attachments on either the left or the right or top or bottom, it is
+ * to anything, causing the child to remain at its preferred size.  If a child
+ * is given no attachment on either the left or the right or top or bottom, it is
  * automatically attached to the left and top of the composite respectively.
  * The following code positions <code>button1</code> and <code>button2</code>
  * but relies on default attachments:
@@ -100,7 +101,48 @@ public final class FormLayout extends Layout {
 	 * The default value is 0.
 	 */
  	public int marginHeight = 0;
- 	
+ 
+
+ 	/**
+	 * marginLeft specifies the number of pixels of horizontal margin
+	 * that will be placed along the left edge of the layout.
+	 *
+	 * The default value is 0.
+	 * 
+	 * @since 3.1
+	 */
+	public int marginLeft = 0;
+
+	/**
+	 * marginTop specifies the number of pixels of vertical margin
+	 * that will be placed along the top edge of the layout.
+	 *
+	 * The default value is 0.
+	 * 
+	 * @since 3.1
+	 */
+	public int marginTop = 0;
+
+	/**
+	 * marginRight specifies the number of pixels of horizontal margin
+	 * that will be placed along the right edge of the layout.
+	 *
+	 * The default value is 0.
+	 * 
+	 * @since 3.1
+	 */
+	public int marginRight = 0;
+
+	/**
+	 * marginBottom specifies the number of pixels of vertical margin
+	 * that will be placed along the bottom edge of the layout.
+	 *
+	 * The default value is 0.
+	 * 
+	 * @since 3.1
+	 */
+	public int marginBottom = 0;
+
 	/**
 	 * spacing specifies the number of pixels between the edge of one control
 	 * and the edge of its neighbouring control.
@@ -117,7 +159,7 @@ public final class FormLayout extends Layout {
 public FormLayout () {
 }
 
-/**
+/*
  * Computes the preferred height of the form with
  * respect to the preferred height of the control.
  * 
@@ -177,9 +219,9 @@ public FormLayout () {
  * 		to CX. We can find the height of the entire form by setting 
  * 		CX = -B. Solving in terms of U and V gives us X = (-B * V) / U.
  */
-int computeHeight (FormData data) {
-	FormAttachment top = data.getTopAttachment (spacing);
-	FormAttachment bottom = data.getBottomAttachment (spacing);
+int computeHeight (Control control, FormData data, boolean flushCache) {
+	FormAttachment top = data.getTopAttachment (control, spacing, flushCache);
+	FormAttachment bottom = data.getBottomAttachment (control, spacing, flushCache);
 	FormAttachment height = bottom.minus (top);
 	if (height.numerator == 0) {
 		if (bottom.numerator == 0) return bottom.offset;
@@ -190,29 +232,36 @@ int computeHeight (FormData data) {
 		int divider = bottom.denominator - bottom.numerator; 
 		return bottom.denominator * bottom.offset / divider;
 	}
-	return height.solveY (data.cacheHeight);
+	return height.solveY (data.getHeight (control, flushCache));
 }
 
 protected Point computeSize (Composite composite, int wHint, int hHint, boolean flushCache) {
-	Point size = layout (composite, false, 0, 0, 0, 0, flushCache);
-	size.x += marginWidth * 2;
-	size.y += marginHeight * 2;
+	Point size = layout (composite, false, 0, 0, wHint, hHint, flushCache);
+	if (wHint != SWT.DEFAULT) size.x = wHint;
+	if (hHint != SWT.DEFAULT) size.y = hHint;
 	return size;
 }
 
-Point computeSize (Control control, boolean flushCache) {
-	FormData data = (FormData) control.getLayoutData ();
-	if (data == null) control.setLayoutData (data = new FormData ());
-	return control.computeSize (data.width, data.height, flushCache);
+protected boolean flushCache (Control control) {
+	Object data = control.getLayoutData ();
+	if (data != null) ((FormData) data).flushCache ();
+	return true;
 }
 
-/**
+String getName () {
+	String string = getClass ().getName ();
+	int index = string.lastIndexOf ('.');
+	if (index == -1) return string;
+	return string.substring (index + 1, string.length ());
+}
+
+/*
  * Computes the preferred height of the form with
  * respect to the preferred height of the control.
  */
-int computeWidth (FormData data) {
-	FormAttachment left = data.getLeftAttachment (spacing);
-	FormAttachment right = data.getRightAttachment (spacing);
+int computeWidth (Control control, FormData data, boolean flushCache) {
+	FormAttachment left = data.getLeftAttachment (control, spacing, flushCache);
+	FormAttachment right = data.getRightAttachment (control, spacing, flushCache);
 	FormAttachment width = right.minus (left);
 	if (width.numerator == 0) {
 		if (right.numerator == 0) return right.offset;
@@ -223,15 +272,15 @@ int computeWidth (FormData data) {
 		int divider = right.denominator - right.numerator; 
 		return right.denominator * right.offset / divider;
 	}
-	return width.solveY (data.cacheWidth);
+	return width.solveY (data.getWidth (control, flushCache));
 }
 
 protected void layout (Composite composite, boolean flushCache) {
 	Rectangle rect = composite.getClientArea ();
-	int x = rect.x + marginWidth;
-	int y = rect.y + marginHeight;
-	int width = Math.max (0, rect.width - 2 * marginWidth);
-	int height = Math.max (0, rect.height - 2 * marginHeight);
+	int x = rect.x + marginLeft + marginWidth;
+	int y = rect.y + marginTop + marginHeight;
+	int width = Math.max (0, rect.width - marginLeft - 2 * marginWidth - marginRight);
+	int height = Math.max (0, rect.height - marginLeft - 2 * marginHeight - marginBottom);
 	layout (composite, true, x, y, width, height, flushCache);
 }
 
@@ -239,40 +288,96 @@ Point layout (Composite composite, boolean move, int x, int y, int width, int he
 	Control [] children = composite.getChildren ();
 	for (int i=0; i<children.length; i++) {
 		Control child = children [i];
-		Point size = computeSize (child, flushCache);
 		FormData data = (FormData) child.getLayoutData ();
-		data.cacheWidth = size.x;
-		data.cacheHeight = size.y;
+		if (data == null) child.setLayoutData (data = new FormData ());
+		if (flushCache) data.flushCache ();
 		data.cacheLeft = data.cacheRight = data.cacheTop = data.cacheBottom = null;
 	}
+	boolean [] flush = null;
 	Rectangle [] bounds = null;
+	int w = 0, h = 0;
 	for (int i=0; i<children.length; i++) {
 		Control child = children [i];
 		FormData data = (FormData) child.getLayoutData ();
-		if (move) {
-			int x1 = data.getLeftAttachment (spacing).solveX (width);
-			int y1 = data.getTopAttachment (spacing).solveX (height);
-			int x2 = data.getRightAttachment (spacing).solveX (width);
-			int y2 = data.getBottomAttachment (spacing).solveX (height);
-			if (bounds == null) bounds = new Rectangle [children.length];
-			bounds [i] = new Rectangle (x + x1, y + y1, x2 - x1, y2 - y1);
+		if (width != SWT.DEFAULT) {
+			data.needed = false;
+			FormAttachment left = data.getLeftAttachment (child, spacing, flushCache);
+			FormAttachment right = data.getRightAttachment (child, spacing, flushCache);
+			int x1 = left.solveX (width), x2 = right.solveX (width);
+			if (data.height == SWT.DEFAULT && !data.needed) {
+				int trim = 0;
+				//TEMPORARY CODE
+				if (child instanceof Scrollable) {
+					Rectangle rect = ((Scrollable) child).computeTrim (0, 0, 0, 0);
+					trim = rect.width;
+				} else {
+					trim = child.getBorderWidth () * 2;
+				}
+				data.cacheWidth = data.cacheHeight = -1;
+				int currentWidth = Math.max (0, x2 - x1 - trim);
+				data.computeSize (child, currentWidth, data.height, flushCache);
+				if (flush == null) flush = new boolean [children.length];
+				flush [i] = true;
+			}
+			w = Math.max (x2, w);
+			if (move) {
+				if (bounds == null) bounds = new Rectangle [children.length];
+				bounds [i] = new Rectangle (0, 0, 0, 0);
+				bounds [i].x = x + x1;
+				bounds [i].width = x2 - x1;
+			}
 		} else {
-			width = Math.max (computeWidth (data), width);
-			height = Math.max (computeHeight (data), height);
+			w = Math.max (computeWidth (child, data, flushCache), w);
 		}
 	}
 	for (int i=0; i<children.length; i++) {
 		Control child = children [i];
 		FormData data = (FormData) child.getLayoutData ();
-		data.cacheWidth = data.cacheHeight = 0;
+		if (height != SWT.DEFAULT) {
+			int y1 = data.getTopAttachment (child, spacing, flushCache).solveX (height);
+			int y2 = data.getBottomAttachment (child, spacing, flushCache).solveX (height);
+			h = Math.max (y2, h);
+			if (move) {
+				bounds [i].y = y + y1;
+				bounds [i].height = y2 - y1;
+			}
+		} else {
+			h = Math.max (computeHeight (child, data, flushCache), h);
+		}
+	}
+	for (int i=0; i<children.length; i++) {
+		Control child = children [i];
+		FormData data = (FormData) child.getLayoutData ();
+		if (flush != null && flush [i]) data.cacheWidth = data.cacheHeight = -1;
 		data.cacheLeft = data.cacheRight = data.cacheTop = data.cacheBottom = null;
 	}
 	if (move) {
 		for (int i=0; i<children.length; i++) {
-			children [i].setBounds (bounds [i]);		
+			children [i].setBounds (bounds [i]);
 		}
 	}
-	return move ? null : new Point (width, height);
+	w += marginLeft + marginWidth * 2 + marginRight;
+	h += marginTop + marginHeight * 2 + marginBottom;
+	return new Point (w, h);
 }
-	
+
+/**
+ * Returns a string containing a concise, human-readable
+ * description of the receiver.
+ *
+ * @return a string representation of the event
+ */
+public String toString () {
+ 	String string =  getName ()+" {";
+ 	if (marginWidth != 0) string += "marginWidth="+marginWidth+" ";
+ 	if (marginHeight != 0) string += "marginHeight="+marginHeight+" ";
+ 	if (marginLeft != 0) string += "marginLeft="+marginLeft+" ";
+ 	if (marginRight != 0) string += "marginRight="+marginRight+" ";
+ 	if (marginTop != 0) string += "marginTop="+marginTop+" ";
+ 	if (marginBottom != 0) string += "marginBottom="+marginBottom+" ";
+ 	if (spacing != 0) string += "spacing="+spacing+" ";
+ 	string = string.trim();
+ 	string += "}";
+ 	return string;
+}	
 }

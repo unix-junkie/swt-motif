@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -28,25 +28,32 @@ import org.eclipse.swt.*;
  *
  * @see FontData
  */
-public final class Font {
+public final class Font extends Resource {
 	/**
 	 * the handle to the OS font resource
 	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public int handle;
 
 	/**
 	 * the code page of the font
 	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 * 
 	 * @since 2.0
 	 */
 	public String codePage;
-
-	/**
-	 * The device where this image was created.
-	 */
-	Device device;
 
 Font () {
 }
@@ -265,10 +272,11 @@ public FontData[] getFontData() {
 	int xDisplay = device.xDisplay;
 	/*
 	 * Create a font context to iterate over each element in the font list.
-	 * If a font context can not be created, return null.
 	 */
 	int[] buffer = new int[1];
-	if (!OS.XmFontListInitFontContext(buffer, handle)) return null;
+	if (!OS.XmFontListInitFontContext(buffer, handle)) {
+		SWT.error (SWT.ERROR_INVALID_FONT);
+	}
 	int context = buffer[0];
 	XFontStruct fontStruct = new XFontStruct();
 	int fontListEntry;
@@ -335,8 +343,8 @@ public FontData[] getFontData() {
 								/*
 								 * Some font servers, for example, xfstt, do not pass
 								 * reasonable font properties to the client, so we
-								 * cannot construct a FontData for these. Use the font
-								 * name instead and return null if that fails.
+								 * cannot construct a FontData for these. Try to use
+								 * the font name instead.
 								 */
 								int[] fontName = new int[1];
 								OS.memmove(fontName, fontNamePtr [0] + (i * 4), 4);
@@ -357,14 +365,14 @@ public FontData[] getFontData() {
 				}
 			}
 		}
-		if (data.length == 0) return null;
+		if (data.length == 0) SWT.error (SWT.ERROR_INVALID_FONT);
 	} catch (Exception e) {
 		/*
 		 * Some font servers, for example, xfstt, do not pass
 		 * reasonable font properties to the client, so we
-		 * cannot construct a FontData for these. Return null.
+		 * cannot construct a FontData for these.
 		 */
-		return null;
+		SWT.error (SWT.ERROR_INVALID_FONT);
 	} finally {
 		OS.XmFontListFreeFontContext(context);
 	}
@@ -373,7 +381,7 @@ public FontData[] getFontData() {
 
 /**
  * Returns an integer hash code for the receiver. Any two 
- * objects which return <code>true</code> when passed to 
+ * objects that return <code>true</code> when passed to 
  * <code>equals</code> must return the same value for this
  * method.
  *

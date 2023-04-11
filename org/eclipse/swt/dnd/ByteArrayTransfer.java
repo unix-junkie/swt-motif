@@ -1,16 +1,16 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 package org.eclipse.swt.dnd;
 
-import org.eclipse.swt.internal.motif.OS;
+import org.eclipse.swt.internal.motif.*;
 
 /**
  * The class <code>ByteArrayTransfer</code> provides a platform specific 
@@ -26,7 +26,7 @@ import org.eclipse.swt.internal.motif.OS;
  * <code>byte[]</code>, you should sub-class <code>Transfer</code> directly 
  * and do your own mapping to a platform data type.</p>
  * 
- * <p>The following snippet shows a sublcass of ByteArrayTransfer that transfers
+ * <p>The following snippet shows a subclass of ByteArrayTransfer that transfers
  * data defined by the class <code>MyType</code>.</p>
  * 
  * <pre><code>
@@ -37,7 +37,7 @@ import org.eclipse.swt.internal.motif.OS;
  * }
  * </code></pre>
  * 
- * <code><pre>
+ * <pre><code>
  * public class MyTypeTransfer extends ByteArrayTransfer {
  *	
  *	private static final String MYTYPENAME = "my_type_name";
@@ -114,6 +114,7 @@ import org.eclipse.swt.internal.motif.OS;
  * 	return new int[] {MYTYPEID};
  * }
  * }
+ * </code></pre>
  */
 public abstract class ByteArrayTransfer extends Transfer {
 
@@ -149,9 +150,10 @@ public boolean isSupportedType(TransferData transferData){
  */
 protected void javaToNative (Object object, TransferData transferData) {
 	transferData.result = 0;
-	if ((object == null) || !(object instanceof byte[]) || !(isSupportedType(transferData))) return;
+	if (!checkByteArray(object) || !isSupportedType(transferData)) {
+		DND.error(DND.ERROR_INVALID_DATA);
+	}
 	byte[] buffer = (byte[])object;
-	if (buffer.length == 0) return;
 	int pValue = OS.XtMalloc(buffer.length);
 	if (pValue == 0) return;
 	OS.memmove(pValue, buffer, buffer.length);
@@ -180,5 +182,9 @@ protected Object nativeToJava(TransferData transferData) {
 	byte[] buffer = new byte[size];
 	OS.memmove(buffer, transferData.pValue, size);
 	return buffer;
+}
+
+boolean checkByteArray(Object object) {
+	return (object != null  && object instanceof byte[] && ((byte[])object).length > 0);
 }
 }

@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -284,13 +284,32 @@ public ImageData(int width, int height, int depth, PaletteData palette, int scan
 /**
  * Constructs an <code>ImageData</code> loaded from the specified
  * input stream. Throws an error if an error occurs while loading
- * the image, or if the image has an unsupported type.
+ * the image, or if the image has an unsupported type.  Application
+ * code is still responsible for closing the input stream.
  * <p>
  * This constructor is provided for convenience when loading a single
  * image only. If the stream contains multiple images, only the first
  * one will be loaded. To load multiple images, use 
  * <code>ImageLoader.load()</code>.
+ * </p><p>
+ * This constructor may be used to load a resource as follows:
  * </p>
+ * <pre>
+ *     static ImageData loadImageData (Class clazz, String string) {
+ *          InputStream stream = clazz.getResourceAsStream (string);
+ *          if (stream == null) return null;
+ *          ImageData imageData = null;
+ *          try {
+ *               imageData = new ImageData (stream);
+ *          } catch (SWTException ex) {
+ *          } finally {
+ *               try {
+ *                    stream.close ();
+ *               } catch (IOException ex) {}
+ *          }
+ *          return imageData;
+ *     }
+ * </pre>
  *
  * @param stream the input stream to load the image from (must not be null)
  *
@@ -305,7 +324,7 @@ public ImageData(int width, int height, int depth, PaletteData palette, int scan
  * @see ImageLoader#load(InputStream)
  */
 public ImageData(InputStream stream) {
-	ImageData[] data = new ImageLoader().load(stream);
+	ImageData[] data = ImageDataLoader.load(stream);
 	if (data.length < 1) SWT.error(SWT.ERROR_INVALID_IMAGE);
 	ImageData i = data[0];
 	setAllFields(
@@ -347,10 +366,11 @@ public ImageData(InputStream stream) {
  * @exception SWTException <ul>
  *    <li>ERROR_INVALID_IMAGE - if the image file contains invalid data</li>
  *    <li>ERROR_IO if an IO error occurs while reading data</li>
+ *    <li>ERROR_UNSUPPORTED_FORMAT - if the image file contains an unrecognized format</li>
  * </ul>
  */
 public ImageData(String filename) {
-	ImageData[] data = new ImageLoader().load(filename);
+	ImageData[] data = ImageDataLoader.load(filename);
 	if (data.length < 1) SWT.error(SWT.ERROR_INVALID_IMAGE);
 	ImageData i = data[0];
 	setAllFields(
@@ -1030,10 +1050,11 @@ public RGB[] getRGBs() {
 
 /**
  * Returns an <code>ImageData</code> which specifies the
- * transparency mask information for the receiver, or null if the
- * receiver has no transparency and is not an icon.
+ * transparency mask information for the receiver. If the
+ * receiver has no transparency or is not an icon, returns
+ * an opaque mask.
  *
- * @return the transparency mask or null if none exists
+ * @return the transparency mask
  */
 public ImageData getTransparencyMask() {
 	if (getTransparencyType() == SWT.TRANSPARENCY_MASK) {
@@ -1044,7 +1065,9 @@ public ImageData getTransparencyMask() {
 }
 
 /**
- * Returns the image transparency type.
+ * Returns the image transparency type, which will be one of
+ * <code>SWT.TRANSPARENCY_NONE</code>, <code>SWT.TRANSPARENCY_MASK</code>,
+ * <code>SWT.TRANSPARENCY_PIXEL</code> or <code>SWT.TRANSPARENCY_ALPHA</code>.
  *
  * @return the receiver's transparency type
  */
@@ -1609,6 +1632,34 @@ static int closestMatch(int depth, byte red, byte green, byte blue, int redMask,
 		}
 	}
 	return nearestPixel;
+}
+
+static final ImageData convertMask(ImageData mask) {
+	if (mask.depth == 1) return mask;
+	PaletteData palette = new PaletteData(new RGB[] {new RGB(0, 0, 0), new RGB(255,255,255)});
+	ImageData newMask = new ImageData(mask.width, mask.height, 1, palette);
+	/* Find index of black in mask palette */
+	int blackIndex = 0;
+	RGB[] rgbs = mask.getRGBs();
+	if (rgbs != null) {
+		while (blackIndex < rgbs.length) {
+			if (rgbs[blackIndex].equals(palette.colors[0])) break;
+			blackIndex++;
+		}
+	}
+	int[] pixels = new int[mask.width];
+	for (int y = 0; y < mask.height; y++) {
+		mask.getPixels(0, y, mask.width, pixels, 0);
+		for (int i = 0; i < pixels.length; i++) {
+			if (pixels[i] == blackIndex) {
+				pixels[i] = 0;
+			} else {
+				pixels[i] = 1;
+			}
+		}
+		newMask.setPixels(0, y, mask.width, pixels, 0);
+	}
+	return newMask;
 }
 
 static final byte[] convertPad(byte[] data, int width, int height, int depth, int pad, int newPad) {

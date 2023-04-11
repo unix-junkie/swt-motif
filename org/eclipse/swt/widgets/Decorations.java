@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -147,6 +147,12 @@ public Decorations (Composite parent, int style) {
 }
 
 void _setImages (Image [] images) {
+	if (images != null && images.length > 1) {
+		Image [] bestImages = new Image [images.length];
+		System.arraycopy (images, 0, bestImages, 0, images.length);
+		sort (bestImages);
+		images = bestImages;
+	}
 	Image icon = images != null && images.length > 0 ? icon = images [0] : null;
 	int pixmap = 0, mask = 0;
 	if (icon != null) {
@@ -187,6 +193,9 @@ void bringToTop (boolean force) {
 	moveAbove (null);
 }
 static int checkStyle (int style) {
+	if ((style & SWT.NO_TRIM) != 0) {
+		style &= ~(SWT.CLOSE | SWT.TITLE | SWT.MIN | SWT.MAX | SWT.RESIZE | SWT.BORDER);
+	}
 	if ((style & (SWT.MENU | SWT.MIN | SWT.MAX | SWT.CLOSE)) != 0) {
 		style |= SWT.TITLE;
 	}
@@ -194,6 +203,23 @@ static int checkStyle (int style) {
 }
 protected void checkSubclass () {
 	if (!isValidSubclass ()) error (SWT.ERROR_INVALID_SUBCLASS);
+}
+
+int compare (ImageData data1, ImageData data2) {
+	int transparent1 = data1.getTransparencyType ();
+	int transparent2 = data2.getTransparencyType ();
+	if (transparent1 != transparent2) {
+		if (transparent1 == SWT.TRANSPARENCY_ALPHA) return 1;
+		if (transparent2 == SWT.TRANSPARENCY_ALPHA) return -1;
+	}
+	if (data1.width == data2.width && data1.height == data2.height) {
+		if (transparent1 == SWT.TRANSPARENCY_MASK) return -1;
+		if (transparent2 == SWT.TRANSPARENCY_MASK) return 1;
+		if (transparent1 == SWT.TRANSPARENCY_PIXEL) return -1;
+		if (transparent2 == SWT.TRANSPARENCY_PIXEL) return 1;
+		return 0;
+	}
+	return data1.width > data2.width || data1.height > data2.height ? -1 : 1;
 }
 
 Control computeTabGroup () {
@@ -270,6 +296,40 @@ public Button getDefaultButton () {
 public Image getImage () {
 	checkWidget();
 	return image;
+}
+/**
+ * Returns the receiver's images if they had previously been 
+ * set using <code>setImages()</code>. Images are typically
+ * displayed by the window manager when the instance is
+ * marked as iconified, and may also be displayed somewhere
+ * in the trim when the instance is in normal or maximized
+ * states. Depending where the icon is displayed, the platform
+ * chooses the icon with the "best" attributes.  It is expected
+ * that the array will contain the same icon rendered at different
+ * sizes, with different depth and transparency attributes.
+ * 
+ * <p>
+ * Note: This method will return an empty array if called before
+ * <code>setImages()</code> is called. It does not provide
+ * access to a window manager provided, "default" image
+ * even if one exists.
+ * </p>
+ * 
+ * @return the images
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.0
+ */
+public Image [] getImages () {
+	checkWidget ();
+	if (images == null) return new Image [0];
+	Image [] result = new Image [images.length];
+	System.arraycopy (images, 0, result, 0, images.length);
+	return result;
 }
 /**
  * Returns <code>true</code> if the receiver is currently
@@ -410,7 +470,11 @@ void remove (Menu menu) {
  * <em>saved default button</em>). If no default button had
  * previously been set, or the saved default button was
  * disposed, the receiver's default button will be set to
- * null. 
+ * null.
+ * <p>
+ * The default button is the button that is selected when
+ * the receiver is active and the user presses ENTER.
+ * </p>
  *
  * @param button the new default button
  *
@@ -478,14 +542,15 @@ public void setImage (Image image) {
  * and may also be displayed somewhere in the trim when the
  * instance is in normal or maximized states. Depending where
  * the icon is displayed, the platform chooses the icon with
- * the "best" size. It is expected that the array will contain
- * the same icon rendered at different resolutions.
+ * the "best" attributes. It is expected that the array will
+ * contain the same icon rendered at different sizes, with
+ * different depth and transparency attributes.
  * 
  * @param images the new image array
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the array of images is null</li>
- *    <li>ERROR_INVALID_ARGUMENT - if one of the images has been disposed</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if one of the images is null or has been disposed</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -512,7 +577,7 @@ public void setImages (Image [] images) {
  * causes the receiver to switch back to either the minimized
  * or normal states.
  * <p>
- * Note: The result of intermixing calls to<code>setMaximized(true)</code>
+ * Note: The result of intermixing calls to <code>setMaximized(true)</code>
  * and <code>setMinimized(true)</code> will vary by platform. Typically,
  * the behavior will match the platform user's expectations, but not
  * always. This should be avoided if possible.
@@ -577,7 +642,7 @@ public void setMenuBar (Menu menu) {
 	* Bug in Motif.  When a XmMainWindowSetAreas () is used
 	* to replace an existing menu, both menus must be managed
 	* before the call to XmMainWindowSetAreas () or the new
-	* menu will not be layed out properly.
+	* menu will not be laid out properly.
 	*/
 	int newHandle = (menu != null) ? menu.handle : 0;
 	int oldHandle = (menuBar != null) ? menuBar.handle : 0;
@@ -618,7 +683,10 @@ public void setMenuBar (Menu menu) {
 	OS.XtGetValues (handle, argList2, argList2.length / 2);
 	if (argList1 [1] != argList2 [1] || argList1 [3] != argList2 [3]) {
 		sendEvent (SWT.Resize);
-		if (layout != null) layout (false);
+		if (layout != null) {
+			markLayout (false, false);
+			updateLayout (false);
+		}
 	}
 }
 /**
@@ -629,7 +697,7 @@ public void setMenuBar (Menu menu) {
  * causes the receiver to switch back to either the maximized
  * or normal states.
  * <p>
- * Note: The result of intermixing calls to<code>setMaximized(true)</code>
+ * Note: The result of intermixing calls to <code>setMaximized(true)</code>
  * and <code>setMinimized(true)</code> will vary by platform. Typically,
  * the behavior will match the platform user's expectations, but not
  * always. This should be avoided if possible.
@@ -655,7 +723,7 @@ void setSavedFocus (Control control) {
 /**
  * Sets the receiver's text, which is the string that the
  * window manager will typically display as the receiver's
- * <em>title</em>, to the argument, which may not be null. 
+ * <em>title</em>, to the argument, which must not be null. 
  *
  * @param string the new text
  *
@@ -671,6 +739,29 @@ public void setText (String string) {
 	checkWidget();
 	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
 	label = string;
+}
+void sort (Image [] images) {
+	/* Shell Sort from K&R, pg 108 */
+	int length = images.length;
+	if (length <= 1) return; 
+	ImageData [] datas = new ImageData [length];
+	for (int i = 0; i < length; i++) {
+		datas [i] = images [i].getImageData ();
+	}
+	for (int gap=length/2; gap>0; gap/=2) {
+		for (int i=gap; i<length; i++) {
+			for (int j=i-gap; j>=0; j-=gap) {
+		   		if (compare (datas [j], datas [j + gap]) >= 0) {
+					Image swap = images [j];
+					images [j] = images [j + gap];
+					images [j + gap] = swap;
+					ImageData swapData = datas [j];
+					datas [j] = datas [j + gap];
+					datas [j + gap] = swapData;
+		   		}
+	    	}
+	    }
+	}
 }
 boolean translateAccelerator (char key, int keysym, XKeyEvent xEvent, boolean doit) {
 	if (menuBar == null || !menuBar.getEnabled ()) return false;

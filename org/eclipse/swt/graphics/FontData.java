@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -40,78 +40,161 @@ import org.eclipse.swt.*;
 public final class FontData {
 	/**
 	 * The company that produced the font
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public String foundry;
 	/**
 	 * The common name of the font
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public String fontFamily;
 	/**
 	 * The weight ("medium", "bold")
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public String weight;
 	/**
 	 * The slant ("o" for oblique, "i" for italic)
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public String slant;
 	/**
 	 * The set width of the font
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public String setWidth;
 	/**
 	 * Additional font styles
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public String addStyle;
 	/**
 	 * The height of the font in pixels
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public int pixels;
 	/**
 	 * The height of the font in tenths of a point
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public int points;
 	/**
 	 * The horizontal screen resolution for which the font was designed
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public int horizontalResolution;
 	/**
 	 * The vertical screen resolution for which the font was designed
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public int verticalResolution;
 	/**
 	 * The font spacing ("m" for monospace, "p" for proportional)
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public String spacing;
 	/**
 	 * The average character width for the font
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public int averageWidth;
 	/**
 	 * The ISO character set registry
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public String characterSetRegistry;
 	/**
 	 * The ISO character set name
-	 * Warning: This field is platform dependent.
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public String characterSetName;
 
 	/**
 	 * The locales of the font
-	 * (Warning: These fields are platform dependent)
 	 */
 	String lang, country, variant;
 /**	 
@@ -362,7 +445,7 @@ String getXlfd() {
 }
 /**
  * Returns an integer hash code for the receiver. Any two 
- * objects which return <code>true</code> when passed to 
+ * objects that return <code>true</code> when passed to 
  * <code>equals</code> must return the same value for this
  * method.
  *
@@ -469,7 +552,8 @@ public void setLocale(String locale) {
 /**
  * Sets the style of the receiver to the argument which must
  * be a bitwise OR of one or more of the <code>SWT</code> 
- * constants NORMAL, BOLD and ITALIC.
+ * constants NORMAL, BOLD and ITALIC.  All other style bits are
+ * ignored.
  *
  * @param style the new style for this <code>FontData</code>
  *
@@ -532,8 +616,12 @@ void setXlfd(String xlfd) {
 	start = stop + 1;
 	stop = xlfd.indexOf ("-", start);
 	s = xlfd.substring(start, stop);
-	if (!s.equals("") && !s.equals("*"))
+	if (!s.equals("") && !s.equals("*")) {
+		if (s.startsWith ("~")) {
+			s = "-" + s.substring(1);
+		}
 		averageWidth = Integer.parseInt(s);
+	}
 	start = stop + 1;
 	stop = xlfd.indexOf ("-", start);
  	characterSetRegistry = xlfd.substring(start, stop);

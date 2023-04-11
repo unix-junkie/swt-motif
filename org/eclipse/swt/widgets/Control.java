@@ -1,17 +1,16 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 package org.eclipse.swt.widgets;
 
 
-import org.eclipse.swt.internal.*;
 import org.eclipse.swt.internal.motif.*;
 import org.eclipse.swt.*;
 import org.eclipse.swt.graphics.*;
@@ -318,6 +317,9 @@ public void addTraverseListener (TraverseListener listener) {
 int borderHandle () {
 	return topHandle ();
 }
+void checkBuffered () {
+	style &= ~SWT.DOUBLE_BUFFERED;
+}
 /**
  * Returns the preferred size of the receiver.
  * <p>
@@ -342,7 +344,7 @@ int borderHandle () {
  * @see #getBorderWidth
  * @see #getBounds
  * @see #getSize
- * @see #pack
+ * @see #pack(boolean)
  * @see "computeTrim, getClientArea for controls that implement them"
  */
 public Point computeSize (int wHint, int hHint) {
@@ -379,7 +381,7 @@ public Point computeSize (int wHint, int hHint) {
  * @see #getBorderWidth
  * @see #getBounds
  * @see #getSize
- * @see #pack
+ * @see #pack(boolean)
  * @see "computeTrim, getClientArea for controls that implement them"
  */
 public Point computeSize (int wHint, int hHint, boolean changed) {
@@ -426,6 +428,7 @@ Control [] computeTabList () {
 void createWidget (int index) {
 	checkOrientation (parent);
 	super.createWidget (index);
+	checkBuffered ();
 	setParentTraversal ();
 	overrideTranslations ();
 	
@@ -460,7 +463,7 @@ void createWidget (int index) {
 			if (display != 0) OS.XLowerWindow (display, window);
 		}
 		/*
-		* Make that the widget has been properly realized
+		* Make sure that the widget has been properly realized
 		* because the widget was created after the parent
 		* has been realized.  This is not part of the fix
 		* for Z-order in the code above. 
@@ -520,9 +523,8 @@ char findMnemonic (String string) {
 void fixFocus (Control focusControl) {
 	Shell shell = getShell ();
 	Control control = this;
-	while ((control = control.parent) != null) {
+	while (control != shell && (control = control.parent) != null) {
 		if (control.setFocus ()) return;
-		if (control == shell) break;
 	}
 	shell.setSavedFocus (focusControl);
 }
@@ -547,6 +549,7 @@ int fontHandle () {
  */
 public boolean forceFocus () {
 	checkWidget();
+	if (display.focusEvent == SWT.FocusOut) return false;
 	Decorations shell = menuShell ();
 	shell.setSavedFocus (this);
 	shell.bringToTop (false);
@@ -555,8 +558,13 @@ public boolean forceFocus () {
 		int [] argList1 = {OS.XmNnumChildren, 0};
 		OS.XtGetValues (handle, argList1, argList1.length / 2);
 		if (argList1 [1] > 1) {
-			int [] argList2 = {OS.XmNtraversalOn, 1};
-			OS.XtSetValues (focusHandle, argList2, argList2.length / 2);
+			int [] argList = new int [] {OS.XmNtraversalOn, 0};
+			OS.XtGetValues (focusHandle, argList, argList.length / 2);
+			if (argList [1] == 0) {
+				argList [1] = 1;
+				OS.XtSetValues (focusHandle, argList, argList.length / 2);
+				overrideTranslations ();
+			}
 		} else {
 			focusHandle = handle;
 		}
@@ -873,6 +881,9 @@ public Menu getMenu () {
 	checkWidget();
 	return menu;
 }
+int getMinimumHeight () {
+	return 0;
+}
 /**
  * Returns the receiver's monitor.
  * 
@@ -1141,9 +1152,10 @@ public void internal_dispose_GC (int xGC, GCData data) {
 }
 /**
  * Returns <code>true</code> if the receiver is enabled and all
- * of the receiver's ancestors are enabled, and <code>false</code>
- * otherwise. A disabled control is typically not selectable from the
- * user interface and draws with an inactive or "grayed" look.
+ * ancestors up to and including the receiver's nearest ancestor
+ * shell are enabled.  Otherwise, <code>false</code> is returned.
+ * A disabled control is typically not selectable from the user
+ * interface and draws with an inactive or "grayed" look.
  *
  * @return the receiver's enabled state
  *
@@ -1233,8 +1245,8 @@ boolean isTabItem () {
 }
 /**
  * Returns <code>true</code> if the receiver is visible and all
- * of the receiver's ancestors are visible and <code>false</code>
- * otherwise.
+ * ancestors up to and including the receiver's nearest ancestor
+ * shell are visible. Otherwise, <code>false</code> is returned.
  *
  * @return the receiver's visibility state
  *
@@ -1256,6 +1268,9 @@ void manageChildren () {
 	OS.XtGetValues (handle, argList3, argList3.length / 2);
 	OS.XtResizeWidget (handle, 1, 1, argList3 [1]);
 	OS.XtSetMappedWhenManaged (handle, true);
+}
+void markLayout (boolean changed, boolean all) {
+	/* Do nothing */
 }
 Decorations menuShell () {
 	return parent.menuShell ();
@@ -1283,7 +1298,8 @@ boolean mnemonicMatch (char key) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  * 
- * @see #moveBelow
+ * @see Control#moveBelow
+ * @see Composite#getChildren
  */
 public void moveAbove (Control control) {
 	checkWidget();
@@ -1310,7 +1326,8 @@ public void moveAbove (Control control) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  * 
- * @see #moveAbove
+ * @see Control#moveAbove
+ * @see Composite#getChildren
  */
 public void moveBelow (Control control) {
 	checkWidget();
@@ -1339,7 +1356,7 @@ void overrideTranslations () {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  *
- * @see #computeSize
+ * @see #computeSize(int, int, boolean)
  */
 public void pack () {
 	checkWidget();
@@ -1364,7 +1381,7 @@ public void pack () {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  *
- * @see #computeSize
+ * @see #computeSize(int, int, boolean)
  */
 public void pack (boolean changed) {
 	checkWidget();
@@ -1410,7 +1427,7 @@ void realizeChildren () {
  */
 public void redraw () {
 	checkWidget();
-	redrawWidget (0, 0, 0, 0, false);
+	redrawWidget (0, 0, 0, 0, true, false);
 }
 /**
  * Causes the rectangular area of the receiver specified by
@@ -1443,11 +1460,15 @@ public void redraw () {
  */
 public void redraw (int x, int y, int width, int height, boolean all) {
 	checkWidget ();
-	if (width <= 0 || height <= 0) return;
-	redrawWidget (x, y, width, height, all);
+	if (width > 0 && height > 0) {
+		redrawWidget (x, y, width, height, false, all);
+	}
 }
-void redrawWidget (int x, int y, int width, int height, boolean all) {
-	redrawHandle (x, y, width, height, handle);
+void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren) {
+	redrawHandle (x, y, width, height, redrawAll, handle);
+}
+void releaseChild () {
+	parent.removeControl (this);
 }
 void releaseWidget () {
 	/*
@@ -1485,7 +1506,7 @@ void releaseWidget () {
  * Removes the listener from the collection of listeners who will
  * be notified when the control is moved or resized.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -1509,7 +1530,7 @@ public void removeControlListener (ControlListener listener) {
  * Removes the listener from the collection of listeners who will
  * be notified when the control gains or loses focus.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -1533,7 +1554,7 @@ public void removeFocusListener(FocusListener listener) {
  * Removes the listener from the collection of listeners who will
  * be notified when the help events are generated for the control.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -1556,7 +1577,7 @@ public void removeHelpListener (HelpListener listener) {
  * Removes the listener from the collection of listeners who will
  * be notified when keys are pressed and released on the system keyboard.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -1580,7 +1601,7 @@ public void removeKeyListener(KeyListener listener) {
  * Removes the listener from the collection of listeners who will
  * be notified when mouse buttons are pressed and released.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -1605,7 +1626,7 @@ public void removeMouseListener(MouseListener listener) {
  * Removes the listener from the collection of listeners who will
  * be notified when the mouse moves.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -1628,7 +1649,7 @@ public void removeMouseMoveListener(MouseMoveListener listener) {
  * Removes the listener from the collection of listeners who will
  * be notified when the mouse passes or hovers over controls.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -1653,7 +1674,7 @@ public void removeMouseTrackListener(MouseTrackListener listener) {
  * Removes the listener from the collection of listeners who will
  * be notified when the receiver needs to be painted.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -1675,7 +1696,7 @@ public void removePaintListener(PaintListener listener) {
  * Removes the listener from the collection of listeners who will
  * be notified when traversal events occur.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -1704,138 +1725,86 @@ void sendHelpEvent (int callData) {
 		control = control.parent;
 	}
 }
-boolean sendIMKeyEvent (int type, XKeyEvent xEvent) {
-	return sendIMKeyEvent (type, xEvent, 0);
-}
-boolean sendIMKeyEvent (int type, XKeyEvent xEvent, int textHandle) {
-	/*
-	* Bug in Motif. On Linux only, XmImMbLookupString () does not return 
-	* XBufferOverflow as the status if the buffer is too small. The fix
-	* is to pass a large buffer.
-	*/
-	byte [] buffer = new byte [512];
-	int [] status = new int [1], unused = new int [1];
-	int focusHandle = OS.XtWindowToWidget (xEvent.display, xEvent.window);
-	int length = OS.XmImMbLookupString (focusHandle, xEvent, buffer, buffer.length, unused, status);
-	if (status [0] == OS.XBufferOverflow) {
-		buffer = new byte [length];
-		length = OS.XmImMbLookupString (focusHandle, xEvent, buffer, length, unused, status);
-	}
-	if (length == 0) return true;
-	
-	/* Convert from MBCS to UNICODE and send the event */
-	/* Use the character encoding for the default locale */
-	char [] chars = Converter.mbcsToWcs (null, buffer);
-	int index = 0, count = 0;
-	while (index < chars.length) {
-		if (chars [index] == 0) {
-			chars [count] = 0;
-			break;
-		}
-		Event event = new Event ();
-		event.time = xEvent.time;
-		event.character = chars [index];
-		setInputState (event, xEvent.state);
-		sendEvent (type, event);
-		// widget could be disposed at this point
-	
-		/*
-		* It is possible (but unlikely), that application
-		* code could have disposed the widget in the key
-		* events.  If this happens, end the processing of
-		* the key by returning false.
-		*/
-		if (isDisposed ()) return false;
-		if (event.doit) chars [count++] = chars [index];
-		index++;
-	}
-	if (count == 0) return false;
-	if (textHandle != 0) {
-		/*
-		* Bug in Motif. On Solaris and Linux, XmImMbLookupString() clears
-		* the characters from the IME. This causes the characters to be
-		* stolen from the text widget. The fix is to detect that the IME
-		* has been cleared and use XmTextInsert() to insert the stolen
-		* characters. This problem does not happen on AIX.
-		*/
-		byte [] testBuffer = new byte [5];
-		int testLength = OS.XmImMbLookupString (textHandle, xEvent, testBuffer, testBuffer.length, unused, unused);
-		if (testLength == 0 || index != count) {
-			int [] start = new int [1], end = new int [1];
-			OS.XmTextGetSelectionPosition (textHandle, start, end);
-			if (start [0] == end [0]) {
-				start [0] = end [0] = OS.XmTextGetInsertionPosition (textHandle);
-			}
-			boolean warnings = display.getWarnings ();
-			display.setWarnings (false);
-			if (index != count) {
-				buffer = Converter.wcsToMbcs (getCodePage (), chars, true);
-			}
-			OS.XmTextReplace (textHandle, start [0], end [0], buffer);
-			int position = start [0] + count;
-			OS.XmTextSetInsertionPosition (textHandle, position);
-			display.setWarnings (warnings);
-			return false;
-		}
-	}
-	return true;
-}
-boolean sendKeyEvent (int type, XKeyEvent xEvent) {
-	Event event = new Event ();
-	event.time = xEvent.time;
-	if (!setKeyState (event, xEvent)) return true;
-	Control control = this;
-	if ((state & CANVAS) != 0) {
-		if ((style & SWT.NO_FOCUS) != 0) {
-			control = display.getFocusControl ();
-		}
-	}
-	if (control != null) {
-		control.sendEvent (type, event);
-		// widget could be disposed at this point
-	
-		/*
-		* It is possible (but unlikely), that application
-		* code could have disposed the widget in the key
-		* events.  If this happens, end the processing of
-		* the key by returning false.
-		*/
-		if (isDisposed ()) return false;
-	}
-	return event.doit;
-}
-void sendMouseEvent (int type) {
+boolean sendMouseEvent (int type) {
+	if (!hooks (type) && !filters (type)) return true;
 	int xDisplay = OS.XtDisplay (handle), xWindow = OS.XtWindow (handle);
 	int [] windowX = new int [1], windowY = new int [1], mask = new int [1], unused = new int [1];
 	OS.XQueryPointer (xDisplay, xWindow, unused, unused, unused, unused, windowX, windowY, mask);
-	sendMouseEvent (type, 0, 0, windowX [0], windowY [0], mask [0]);
+	return sendMouseEvent (type, 0, 0, 0, false, 0, windowX [0], windowY [0], mask [0]);
 }
-void sendMouseEvent (int type, int button, int time, int x, int y, int state) {
+boolean sendMouseEvent (int type, int button, int count, int detail, boolean send, int time, int x, int y, int state) {
 	Event event = new Event ();
 	event.time = time;
 	event.button = button;
+	event.count = count;
+	event.detail = detail;
 	event.x = x;
 	event.y = y;
 	setInputState (event, state);
-	postEvent (type, event);
+	if (send) {
+		sendEvent (type, event);
+		if (isDisposed ()) return false;
+	} else {
+		postEvent (type, event);
+	}
+	return event.doit;
 }
-void sendMouseEvent (int type, XButtonEvent xEvent) {
+boolean sendMouseEvent (int type, XButtonEvent xEvent) {
+	int count = 0, detail = 0, button = xEvent.button;
+	boolean send = false;
+	switch (button) {
+		case 4:
+		case 5:
+			/* Use MouseDown button 4 and 5 to emulated MouseWheel */
+			if (type != SWT.MouseDown) return false;
+			detail = SWT.SCROLL_LINE;
+			count = button == 4 ? 3 : - 3;
+			type = SWT.MouseWheel;
+			button = 0;
+			send = true;
+			break;
+		case 6:
+			button = 4;
+			break;
+		case 7:
+			button = 5;
+			break;
+	}
+	if (!hooks (type) && !filters (type)) return true;
 	short [] x_root = new short [1], y_root = new short [1];
 	OS.XtTranslateCoords (handle, (short) 0, (short) 0, x_root, y_root);
 	int x = xEvent.x_root - x_root [0], y = xEvent.y_root - y_root [0];
-	sendMouseEvent (type, xEvent.button, xEvent.time, x, y, xEvent.state);
+	if (type == SWT.MouseWheel) {
+		Control control = this;
+		Shell shell = getShell ();
+		do {
+			if (!control.sendMouseEvent (type, button, count, detail, send, xEvent.time, x, y, xEvent.state)) {
+				return false;
+			}
+			if (control == shell) break;
+			control = control.parent;
+			OS.XtTranslateCoords (control.handle, (short) 0, (short) 0, x_root, y_root);
+			x = xEvent.x_root - x_root [0];
+			y = xEvent.y_root - y_root [0];			
+		} while (control != null);
+	} else {
+		sendMouseEvent (type, button, count, detail, send, xEvent.time, x, y, xEvent.state);
+	}
+	return true;	
 }
-void sendMouseEvent (int type, XCrossingEvent xEvent) {
+boolean sendMouseEvent (int type, XCrossingEvent xEvent) {
+	if (!hooks (type) && !filters (type)) return true;
 	short [] x_root = new short [1], y_root = new short [1];
 	OS.XtTranslateCoords (handle, (short) 0, (short) 0, x_root, y_root);
 	int x = xEvent.x_root - x_root [0], y = xEvent.y_root - y_root [0];
-	sendMouseEvent (type, 0, xEvent.time, x, y, xEvent.state);
+	return sendMouseEvent (type, 0, 0, 0, false, xEvent.time, x, y, xEvent.state);
 }
-void sendMouseEvent (int type, XMotionEvent xEvent) {	
+boolean sendMouseEvent (int type, XMotionEvent xEvent) {
+	if (!hooks (type) && !filters (type)) return true;
 	short [] x_root = new short [1], y_root = new short [1];
 	OS.XtTranslateCoords (handle, (short) 0, (short) 0, x_root, y_root);
 	int x = xEvent.x_root - x_root [0], y = xEvent.y_root - y_root [0];
-	sendMouseEvent (type, 0, xEvent.time, x, y, xEvent.state);
+	return sendMouseEvent (type, 0, 0, 0, false, xEvent.time, x, y, xEvent.state);
 }
 /**
  * Sets the receiver's background color to the color specified
@@ -1953,7 +1922,7 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
  */
 public void setBounds (int x, int y, int width, int height) {
 	checkWidget();
-	setBounds (x, y, width, height, true, true);
+	setBounds (x, y, Math.max (0, width), Math.max (0, height), true, true);
 }
 /**
  * Sets the receiver's size and location to the rectangular
@@ -2068,8 +2037,10 @@ public void setEnabled (boolean enabled) {
 	Control control = null;
 	boolean fixFocus = false;
 	if (!enabled) {
-		control = display.getFocusControl ();
-		fixFocus = isFocusAncestor (control);
+		if (display.focusEvent != SWT.FocusOut) {
+			control = display.getFocusControl ();
+			fixFocus = isFocusAncestor (control);
+		}
 	}
 	enableWidget (enabled);
 	if (fixFocus) fixFocus (control);
@@ -2133,8 +2104,12 @@ public void setFont (Font font) {
 	OS.XtSetValues (fontHandle, argList2, argList2.length / 2);
 	updateIM ();
 
-	/* Restore the widget size */
-	OS.XtSetValues (handle, argList1, argList1.length / 2);
+	/*
+	* Feature in Motif.  When XtSetValues() is used to restore the width and
+	* height of the widget, the new width and height are sometimes ignored.
+	* The fix is to use XtResizeWidget().
+	*/
+	OS.XtResizeWidget (handle, argList1 [1], argList1 [3], argList1 [5]);
 }
 /**
  * Sets the receiver's foreground color to the color specified
@@ -2258,11 +2233,12 @@ public void setMenu (Menu menu) {
  * @return <code>true</code> if the parent is changed and <code>false</code> otherwise.
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li> 
+ *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the parent is <code>null</code></li> 
  * </ul>
- * @exception SWTError <ul>
- *		<li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
- *		<li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  *	</ul>
  */
 public boolean setParent (Composite parent) {
@@ -2297,7 +2273,8 @@ boolean setRadioSelection (boolean value) {
  * can occur in the receiver until the flag is set to true.
  * Graphics operations that occurred while the flag was
  * <code>false</code> are lost. When the flag is set to <code>true</code>,
- * the entire widget is marked as needing to be redrawn.
+ * the entire widget is marked as needing to be redrawn.  Nested calls
+ * to this method are stacked.
  * <p>
  * Note: This operation is a hint and may not be supported on some
  * platforms or for some widgets.
@@ -2310,7 +2287,7 @@ boolean setRadioSelection (boolean value) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  * 
- * @see #redraw
+ * @see #redraw(int, int, int, int, boolean)
  * @see #update
  */
 public void setRedraw (boolean redraw) {
@@ -2378,7 +2355,7 @@ boolean setTabItemFocus (boolean next) {
  */
 public void setSize (int width, int height) {
 	checkWidget();
-	setBounds (0, 0, width, height, false, true);
+	setBounds (0, 0, Math.max (0, width), Math.max (0, height), false, true);
 }
 /**
  * Sets the receiver's size to the point specified by the argument.
@@ -2443,8 +2420,10 @@ public void setVisible (boolean visible) {
 	Control control = null;
 	boolean fixFocus = false;
 	if (!visible) {
-		control = display.getFocusControl ();
-		fixFocus = isFocusAncestor (control);	
+		if (display.focusEvent != SWT.FocusOut) {
+			control = display.getFocusControl ();
+			fixFocus = isFocusAncestor (control);
+		}
 	}
 	OS.XtSetMappedWhenManaged (topHandle, visible);	
 	if (fixFocus) fixFocus (control);
@@ -2647,7 +2626,9 @@ boolean translateMnemonic (char key, int keysym, XKeyEvent xEvent) {
 		Event event = new Event();
 		event.time = xEvent.time;
 		event.detail = SWT.TRAVERSE_MNEMONIC;
-		if (setKeyState (event, xEvent)) {
+		event.character = key;
+		event.keyCode = keysym;
+		if (setInputState (event, xEvent.state)) {
 			return translateMnemonic (event, null) || shell.translateMnemonic (event, this);
 		}
 	}
@@ -2831,7 +2812,7 @@ boolean traverseReturn () {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  *
- * @see #redraw
+ * @see #redraw(int, int, int, int, boolean)
  * @see PaintListener
  * @see SWT#Paint
  */
@@ -2906,12 +2887,18 @@ void updateIM () {
 	if (ptr1 != 0) OS.XtFree (ptr1);
 	if (ptr2 != 0) OS.XtFree (ptr2);
 }
+void updateLayout (boolean all) {
+	/* Do nothing */
+}
 int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatch) {
 	Shell shell = getShell ();
 	display.hideToolTip ();
 	XButtonEvent xEvent = new XButtonEvent ();
 	OS.memmove (xEvent, call_data, XButtonEvent.sizeof);
-	sendMouseEvent (SWT.MouseDown, xEvent);
+	if (!sendMouseEvent (SWT.MouseDown, xEvent)) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
+	}
 	if (xEvent.button == 2 && hooks (SWT.DragDetect)) {
 		Event event = new Event ();
 		event.x = xEvent.x;
@@ -2948,13 +2935,17 @@ int XButtonRelease (int w, int client_data, int call_data, int continue_to_dispa
 	display.hideToolTip ();
 	XButtonEvent xEvent = new XButtonEvent ();
 	OS.memmove (xEvent, call_data, XButtonEvent.sizeof);
-	sendMouseEvent (SWT.MouseUp, xEvent);
+	if (!sendMouseEvent (SWT.MouseUp, xEvent)) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
+	}
 	return 0;
 }
 int XEnterWindow (int w, int client_data, int call_data, int continue_to_dispatch) {
 	XCrossingEvent xEvent = new XCrossingEvent ();
 	OS.memmove (xEvent, call_data, XCrossingEvent.sizeof);
-	if (xEvent.mode != OS.NotifyNormal) return 0;
+	if (xEvent.mode != OS.NotifyNormal && xEvent.mode != OS.NotifyUngrab) return 0;
+	if ((xEvent.state & (OS.Button1Mask | OS.Button2Mask | OS.Button3Mask)) != 0) return 0;
 	if (xEvent.subwindow != 0) return 0;
 	sendMouseEvent (SWT.MouseEnter, xEvent);
 	return 0;
@@ -2965,15 +2956,22 @@ int XExposure (int w, int client_data, int call_data, int continue_to_dispatch) 
 	OS.memmove (xEvent, call_data, XExposeEvent.sizeof);
 	int xDisplay = OS.XtDisplay (handle);
 	if (xDisplay == 0) return 0;
+	int damageRgn = OS.XCreateRegion ();
+	OS.XtAddExposureToRegion (call_data, damageRgn);
 	Event event = new Event ();
 	event.count = xEvent.count;
-	event.x = xEvent.x;  event.y = xEvent.y;
-	event.width = xEvent.width;  event.height = xEvent.height;
-	GC gc = event.gc = new GC (this);
-	gc.setClipping (event.x, event.y, event.width, event.height);
+	event.x = xEvent.x;
+	event.y = xEvent.y;
+	event.width = xEvent.width;
+	event.height = xEvent.height;
+	GCData data = new GCData();
+	data.damageRgn = damageRgn;
+	GC gc = event.gc = GC.motif_new(this, data);
+	OS.XSetRegion (xDisplay, gc.handle, damageRgn);
 	sendEvent (SWT.Paint, event);
-	if (!gc.isDisposed ()) gc.dispose ();
 	event.gc = null;
+	gc.dispose ();
+	OS.XDestroyRegion(damageRgn);
 	return 0;
 }
 int XFocusChange (int w, int client_data, int call_data, int continue_to_dispatch) {
@@ -2990,25 +2988,11 @@ int XFocusChange (int w, int client_data, int call_data, int continue_to_dispatc
 		xEvent.detail != OS.NotifyInferior &&
 		xEvent.detail != OS.NotifyNonlinear) return 0;
 
-	/*
-	* Ignore focus change events when the window getting or losing
-	* focus is a menu.  Because XmGetFocusWidget() does not answer
-	* the menu shell (it answers the menu parent), it is necessary
-	* to use XGetInputFocus() to get the real X focus window.
-	*/
-	int xDisplay = xEvent.display;
-	if (xDisplay == 0) return 0;
-	int [] unused = new int [1], xWindow = new int [1];
-	OS.XGetInputFocus (xDisplay, xWindow, unused);
-	if (xWindow [0] != 0) {
-		int widget = OS.XtWindowToWidget (xDisplay, xWindow [0]);
-		if (widget != 0 && OS.XtClass (widget) == OS.xmMenuShellWidgetClass ()) return 0;
-	}
-	
 	/* Process the focus change for the widget */
+	Display display = this.display;
+	Shell shell = getShell ();
 	switch (xEvent.type) {
-		case OS.FocusIn: {
-			Shell shell = getShell ();
+		case OS.FocusIn:
 			xFocusIn (xEvent);
 			// widget could be disposed at this point
 			
@@ -3022,10 +3006,7 @@ int XFocusChange (int w, int client_data, int call_data, int continue_to_dispatc
 				shell.setActiveControl (this);
 			}
 			break;
-		}
-		case OS.FocusOut: {
-			Shell shell = getShell ();
-			
+		case OS.FocusOut:
 			xFocusOut (xEvent);
 			// widget could be disposed at this point
 			
@@ -3036,14 +3017,11 @@ int XFocusChange (int w, int client_data, int call_data, int continue_to_dispatc
 			* events.
 			*/
 			if (!shell.isDisposed ()) {
-				Display display = shell.display;
-				Control control = display.getFocusControl ();
-				if (control == null || shell != control.getShell () ) {
+				if (shell != display.getActiveShell ()) {
 					shell.setActiveControl (null);
 				}
 			}
 			break;
-		}
 	}
 	return 0;
 }
@@ -3063,8 +3041,11 @@ int xFocusIn (XFocusChangeEvent xEvent) {
 		int focusHandle = OS.XtWindowToWidget (xEvent.display, xEvent.window);
 		OS.XmImSetFocusValues (focusHandle, null, 0);
 	} 
+	Display display = this.display;
+	display.focusEvent = SWT.FocusIn;
 	sendEvent (SWT.FocusIn);
 	// widget could be disposed at this point
+	display.focusEvent = SWT.None;
 	return 0;
 }
 int xFocusOut (XFocusChangeEvent xEvent) {
@@ -3095,12 +3076,15 @@ int xFocusOut (XFocusChangeEvent xEvent) {
 		}
 	}
 	
-	/* Set the focus out event */
+	/* Issue the focus out event */
 	if (display.postFocusOut) {
 		postEvent (SWT.FocusOut);
 	} else {
+		Display display = this.display;
+		display.focusEvent = SWT.FocusOut;
 		sendEvent (SWT.FocusOut);
 		// widget could be disposed at this point
+		display.focusEvent = SWT.None;
 	}
 
 	/* Restore XmNtraversalOn if it was focus was forced */
@@ -3115,21 +3099,6 @@ int xFocusOut (XFocusChangeEvent xEvent) {
 	}
 	return 0;
 }
-int XKeyPress (int w, int client_data, int call_data, int continue_to_dispatch) {
-	XKeyEvent xEvent = new XKeyEvent ();
-	OS.memmove (xEvent, call_data, XKeyEvent.sizeof);
-	boolean doit = true;
-	if (xEvent.keycode != 0) {
-		doit = sendKeyEvent (SWT.KeyDown, xEvent);
-	} else {
-		doit = sendIMKeyEvent (SWT.KeyDown, xEvent);
-	}
-	if (!doit) {
-		OS.memmove (continue_to_dispatch, new int [1], 4);
-		return 1;
-	}
-	return 0;
-}
 int XKeyRelease (int w, int client_data, int call_data, int continue_to_dispatch) {
 	XKeyEvent xEvent = new XKeyEvent ();
 	OS.memmove (xEvent, call_data, XKeyEvent.sizeof);
@@ -3141,18 +3110,15 @@ int XKeyRelease (int w, int client_data, int call_data, int continue_to_dispatch
 			showMenu (xEvent.x_root, xEvent.y_root);
 		}
 	}
-	if (!sendKeyEvent (SWT.KeyUp, xEvent)) {
-		OS.memmove (continue_to_dispatch, new int [1], 4);
-		return 1;
-	}
-	return 0;
+	return super.XKeyRelease (w, client_data, call_data, continue_to_dispatch);
 }
 int XLeaveWindow (int w, int client_data, int call_data, int continue_to_dispatch) {
 	display.removeMouseHoverTimeOut ();
 	display.hideToolTip ();
 	XCrossingEvent xEvent = new XCrossingEvent ();
 	OS.memmove (xEvent, call_data, XCrossingEvent.sizeof);
-	if (xEvent.mode != OS.NotifyNormal) return 0;
+	if (xEvent.mode != OS.NotifyNormal && xEvent.mode != OS.NotifyUngrab) return 0;
+	if ((xEvent.state & (OS.Button1Mask | OS.Button2Mask | OS.Button3Mask)) != 0) return 0;
 	if (xEvent.subwindow != 0) return 0;
 	sendMouseEvent (SWT.MouseExit, xEvent);
 	return 0;

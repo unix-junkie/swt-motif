@@ -1,9 +1,9 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
+ * http://www.eclipse.org/legal/epl-v10.html
  * 
  * Contributors:
  *     IBM Corporation - initial API and implementation
@@ -11,6 +11,7 @@
  
 #include "swt.h"
 #include "os_structs.h"
+#include "os_stats.h"
 
 #define OS_NATIVE(func) Java_org_eclipse_swt_internal_motif_OS_##func
 
@@ -28,9 +29,9 @@ JNIEXPORT void JNICALL OS_NATIVE(setResourceMem)
 }
 #endif
 
-#ifndef NO_XtGetValues
+#ifndef NO__1XtGetValues
 #define MAX_ARGS 32
-JNIEXPORT void JNICALL OS_NATIVE(XtGetValues)
+JNIEXPORT void JNICALL OS_NATIVE(_1XtGetValues)
   (JNIEnv *env, jclass that, jint widget, jintArray argList, jint numArgs)
 {
 	jint *argList1=NULL;
@@ -41,11 +42,11 @@ JNIEXPORT void JNICALL OS_NATIVE(XtGetValues)
 	int *zeros = zeroBuff;
 	int i;
 
-	OS_NATIVE_ENTER(env, that, XtGetValues_FUNC)
-	if (argList) argList1 = (*env)->GetIntArrayElements(env, argList, NULL);
+	OS_NATIVE_ENTER(env, that, _1XtGetValues_FUNC)
+	if (argList) if ((argList1 = (*env)->GetIntArrayElements(env, argList, NULL)) == NULL) goto failTag;
 	if (numArgs > MAX_ARGS) {
-		values = (int *) XtMalloc (numArgs * sizeof(int));
-		zeros = (int *) XtMalloc (numArgs * sizeof(int));
+		if ((values = (int *) XtMalloc (numArgs * sizeof(int))) == NULL) goto failTag;
+		if ((zeros = (int *) XtMalloc (numArgs * sizeof(int))) == NULL) goto failTag;
 	}
 	for (i = 0; i < numArgs; i++) {   
 		zeros[i] = values[i] = 0;
@@ -68,11 +69,12 @@ JNIEXPORT void JNICALL OS_NATIVE(XtGetValues)
 			}
 		}
 	}
+failTag:
 	if (numArgs > MAX_ARGS) {
-		XtFree((char *)values);
-		XtFree((char *)zeros);
+		if (values) XtFree((char *)values);
+		if (zeros) XtFree((char *)zeros);
 	}
-	if (argList)(*env)->ReleaseIntArrayElements(env, argList, argList1, 0);
-	OS_NATIVE_EXIT(env, that, XtGetValues_FUNC)
+	if (argList && argList1)(*env)->ReleaseIntArrayElements(env, argList, argList1, 0);
+	OS_NATIVE_EXIT(env, that, _1XtGetValues_FUNC)
 }
 #endif

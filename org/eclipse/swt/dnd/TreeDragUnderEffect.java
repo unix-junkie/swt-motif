@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -27,11 +27,12 @@ class TreeDragUnderEffect extends DragUnderEffect {
 	
 	private TreeItem scrollItem;
 	private long scrollBeginTime;
-	private static final int SCROLL_HYSTERESIS = 600; // milli seconds
 
 	private TreeItem expandItem;
 	private long expandBeginTime;
-	private static final int EXPAND_HYSTERESIS = 1000; // milli seconds
+	
+	private static final int SCROLL_HYSTERESIS = 150; // milli seconds
+	private static final int EXPAND_HYSTERESIS = 300; // milli seconds
 
 TreeDragUnderEffect(Tree tree) {
 	this.tree = tree;

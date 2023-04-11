@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -38,18 +38,45 @@ import org.eclipse.swt.*;
  * Note: Only one of the above styles may be specified.
  * </p>
  */
-public final class Cursor {
+public final class Cursor extends Resource {
 	/**
 	 * the handle to the OS cursor resource
 	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public int handle;
 
-	/**
-	 * The device where this cursor was created.
-	 */
-	Device device;
-	
+	static final byte[] APPSTARTING_SRC = {
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00,
+		0x0c, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00, 0x3c, 0x00, 0x00, 0x00,
+		0x7c, 0x00, 0x00, 0x00, (byte)0xfc, 0x00, 0x00, 0x00, (byte)0xfc, 0x01, 0x00, 0x00,
+		(byte)0xfc, 0x3b, 0x00, 0x00, 0x7c, 0x38, 0x00, 0x00, 0x6c, 0x54, 0x00, 0x00,
+		(byte)0xc4, (byte)0xdc, 0x00, 0x00, (byte)0xc0, 0x44, 0x00, 0x00, (byte)0x80, 0x39, 0x00, 0x00,
+		(byte)0x80, 0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+	static final byte[] APPSTARTING_MASK = {
+		0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x0e, 0x00, 0x00, 0x00,
+		0x1e, 0x00, 0x00, 0x00, 0x3e, 0x00, 0x00, 0x00, 0x7e, 0x00, 0x00, 0x00,
+		(byte)0xfe, 0x00, 0x00, 0x00, (byte)0xfe, 0x01, 0x00, 0x00, (byte)0xfe, 0x3b, 0x00, 0x00,
+		(byte)0xfe, 0x7f, 0x00, 0x00, (byte)0xfe, 0x7f, 0x00, 0x00, (byte)0xfe, (byte)0xfe, 0x00, 0x00,
+		(byte)0xee, (byte)0xff, 0x01, 0x00, (byte)0xe4, (byte)0xff, 0x00, 0x00, (byte)0xc0, 0x7f, 0x00, 0x00,
+		(byte)0xc0, 0x7f, 0x00, 0x00, (byte)0x80, 0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
 Cursor () {
 }
 /**	 
@@ -99,11 +126,11 @@ public Cursor (Device device, int style) {
 	this.device = device;
 	int shape = 0;
 	switch (style) {
+		case SWT.CURSOR_APPSTARTING: break;
 		case SWT.CURSOR_ARROW: shape = OS.XC_left_ptr; break;
 		case SWT.CURSOR_WAIT: shape = OS.XC_watch; break;
 		case SWT.CURSOR_HAND: shape = OS.XC_hand2; break;
 		case SWT.CURSOR_CROSS: shape = OS.XC_cross; break;
-		case SWT.CURSOR_APPSTARTING: shape = OS.XC_left_ptr; break;
 		case SWT.CURSOR_HELP: shape = OS.XC_question_arrow; break;
 		case SWT.CURSOR_SIZEALL: shape = OS.XC_fleur; break;
 		case SWT.CURSOR_SIZENESW: shape = OS.XC_sizing; break;
@@ -124,7 +151,12 @@ public Cursor (Device device, int style) {
 		default:
 			SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
-	this.handle = OS.XCreateFontCursor(device.xDisplay, shape);
+	if (shape == 0 && style == SWT.CURSOR_APPSTARTING) {
+		handle = createCursor(APPSTARTING_SRC, APPSTARTING_MASK, 32, 32, 2, 2, true);
+	} else {
+		handle = OS.XCreateFontCursor(device.xDisplay, shape);
+	}
+	if (handle == 0) SWT.error(SWT.ERROR_NO_HANDLES);
 	if (device.tracking) device.new_Object(this);
 }
 /**	 
@@ -152,8 +184,7 @@ public Cursor (Device device, int style) {
  *    <li>ERROR_NULL_ARGUMENT - if the source is null</li>
  *    <li>ERROR_NULL_ARGUMENT - if the mask is null and the source does not have a mask</li>
  *    <li>ERROR_INVALID_ARGUMENT - if the source and the mask are not the same 
- *          size, or either is not of depth one, or if the hotspot is outside 
- *          the bounds of the image</li>
+ *          size, or if the hotspot is outside the bounds of the image</li>
  * </ul>
  * @exception SWTError <ul>
  *    <li>ERROR_NO_HANDLES - if a handle could not be obtained for cursor creation</li>
@@ -174,14 +205,14 @@ public Cursor (Device device, ImageData source, ImageData mask, int hotspotX, in
 	if (mask.width != source.width || mask.height != source.height) {
 		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
-	/* Check depths */
-	if (mask.depth != 1) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
-	if (source.depth != 1) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	/* Check the hotspots */
 	if (hotspotX >= source.width || hotspotX < 0 ||
 		hotspotY >= source.height || hotspotY < 0) {
 		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
+	/* Convert depth to 1 */
+	source = ImageData.convertMask(source);
+	mask = ImageData.convertMask(mask);
 	byte[] sourceData = new byte[source.data.length];
 	byte[] maskData = new byte[mask.data.length];
 	/* Swap the bits in each byte and convert to appropriate scanline pad */
@@ -213,24 +244,8 @@ public Cursor (Device device, ImageData source, ImageData mask, int hotspotX, in
 		maskData[i] = (byte) ~maskData[i];
 	}
 	maskData = ImageData.convertPad(maskData, mask.width, mask.height, mask.depth, mask.scanlinePad, 1);
-	/* Create bitmaps */
-	int xDisplay = device.xDisplay;
-	int drawable = OS.XDefaultRootWindow(xDisplay);
-	int sourcePixmap = OS.XCreateBitmapFromData(xDisplay, drawable, sourceData, source.width, source.height);
-	int maskPixmap = OS.XCreateBitmapFromData(xDisplay, drawable, maskData, source.width, source.height);
-	/* Get the colors */
-	int screenNum = OS.XDefaultScreen(xDisplay);
-	XColor foreground = new XColor();
-	foreground.pixel = OS.XBlackPixel(xDisplay, screenNum);
-	foreground.red = foreground.green = foreground.blue = 0;
-	XColor background = new XColor();
-	background.pixel = OS.XWhitePixel(xDisplay, screenNum);
-	background.red = background.green = background.blue = (short)0xFFFF;
-	/* Create the cursor */
-	handle = OS.XCreatePixmapCursor(xDisplay, maskPixmap, sourcePixmap, foreground, background, hotspotX, hotspotY);
-	/* Dispose the pixmaps */
-	OS.XFreePixmap(xDisplay, sourcePixmap);
-	OS.XFreePixmap(xDisplay, maskPixmap);
+	/* Note that the mask and source are reversed */
+	handle = createCursor(maskData, sourceData, source.width, source.height, hotspotX, hotspotY, true);
 	if (handle == 0) SWT.error(SWT.ERROR_NO_HANDLES);
 	if (device.tracking) device.new_Object(this);
 }
@@ -324,25 +339,29 @@ public Cursor(Device device, ImageData source, int hotspotX, int hotspotY) {
 			((s & 0x01) << 7));
 	}
 	maskData = ImageData.convertPad(maskData, mask.width, mask.height, mask.depth, mask.scanlinePad, 1);
-	/* Create bitmaps */
-	int xDisplay = device.xDisplay;
-	int drawable = OS.XDefaultRootWindow(xDisplay);
-	int sourcePixmap = OS.XCreateBitmapFromData(xDisplay, drawable, sourceData, source.width, source.height);
-	int maskPixmap = OS.XCreateBitmapFromData(xDisplay, drawable, maskData, source.width, source.height);
-	/* Get the colors */
-	int screenNum = OS.XDefaultScreen(xDisplay);
-	XColor foreground = new XColor();
-	foreground.pixel = OS.XWhitePixel(xDisplay, screenNum);
-	foreground.red = foreground.green = foreground.blue = (short)0xFFFF;
-	XColor background = new XColor();
-	background.pixel = OS.XBlackPixel(xDisplay, screenNum);
-	/* Create the cursor */
-	handle = OS.XCreatePixmapCursor(xDisplay, sourcePixmap, maskPixmap, foreground, background, hotspotX, hotspotY);
-	/* Dispose the pixmaps */
-	OS.XFreePixmap(xDisplay, sourcePixmap);
-	OS.XFreePixmap(xDisplay, maskPixmap);
+	handle = createCursor(sourceData, maskData, source.width, source.height, hotspotX, hotspotY, false);
 	if (handle == 0) SWT.error(SWT.ERROR_NO_HANDLES);
 	if (device.tracking) device.new_Object(this);
+}
+int createCursor(byte[] sourceData, byte[] maskData, int width, int height, int hotspotX, int hotspotY, boolean reverse) {
+	int xDisplay = device.xDisplay;
+	int drawable = OS.XDefaultRootWindow(xDisplay);
+	int sourcePixmap = OS.XCreateBitmapFromData(xDisplay, drawable, sourceData, width, height);
+	int maskPixmap = OS.XCreateBitmapFromData(xDisplay, drawable, maskData, width, height);
+	int cursor = 0;
+	if (sourcePixmap != 0 && maskPixmap != 0) {
+		int screenNum = OS.XDefaultScreen(xDisplay);
+		XColor foreground = new XColor();
+		foreground.pixel = !reverse ? OS.XWhitePixel(xDisplay, screenNum) : OS.XBlackPixel(xDisplay, screenNum);
+		if (!reverse) foreground.red = foreground.green = foreground.blue = (short)0xFFFF;
+		XColor background = new XColor();
+		background.pixel = reverse ? OS.XWhitePixel(xDisplay, screenNum) : OS.XBlackPixel(xDisplay, screenNum);
+		if (reverse) background.red = background.green = background.blue = (short)0xFFFF;
+		cursor = OS.XCreatePixmapCursor(xDisplay, sourcePixmap, maskPixmap, foreground, background, hotspotX, hotspotY);
+	}
+	if (sourcePixmap != 0) OS.XFreePixmap(xDisplay, sourcePixmap);
+	if (maskPixmap != 0) OS.XFreePixmap(xDisplay, maskPixmap);
+	return cursor;
 }
 /**
  * Disposes of the operating system resources associated with
@@ -375,7 +394,7 @@ public boolean equals (Object object) {
 }
 /**
  * Returns an integer hash code for the receiver. Any two 
- * objects which return <code>true</code> when passed to 
+ * objects that return <code>true</code> when passed to 
  * <code>equals</code> must return the same value for this
  * method.
  *

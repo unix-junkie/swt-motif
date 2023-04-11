@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -203,7 +203,7 @@ public int getPageIncrement () {
 	return argList [1];
 }
 /**
- * Returns the single <em>selection</em> that is the receiver's position.
+ * Returns the 'selection', which is the receiver's position.
  *
  * @return the selection
  *
@@ -224,6 +224,10 @@ void hookEvents () {
 	OS.XtAddCallback (handle, OS.XmNvalueChangedCallback, windowProc, VALUE_CHANGED_CALLBACK);
 	OS.XtAddCallback (handle, OS.XmNdragCallback, windowProc, DRAG_CALLBACK);
 	if (scrollHandle != 0) {
+		OS.XtAddEventHandler (scrollHandle, OS.ButtonPressMask, false, windowProc, BUTTON_PRESS);
+		OS.XtAddEventHandler (scrollHandle, OS.ButtonReleaseMask, false, windowProc, BUTTON_RELEASE);
+		OS.XtAddEventHandler (scrollHandle, OS.EnterWindowMask, false, windowProc, ENTER_WINDOW);
+		OS.XtAddEventHandler (scrollHandle, OS.LeaveWindowMask, false, windowProc, LEAVE_WINDOW);
 		OS.XtAddEventHandler (scrollHandle, OS.KeyPressMask, false, windowProc, KEY_PRESS);
 		OS.XtAddEventHandler (scrollHandle, OS.KeyReleaseMask, false, windowProc, KEY_RELEASE);
 		OS.XtInsertEventHandler (scrollHandle, OS.FocusChangeMask, false, windowProc, FOCUS_CHANGE, OS.XtListTail);
@@ -343,9 +347,8 @@ public void setPageIncrement (int pageIncrement) {
 	display.setWarnings (warnings);
 }
 /**
- * Sets the single <em>selection</em> that is the receiver's
- * value to the argument which must be greater than or equal
- * to zero.
+ * Sets the 'selection', which is the receiver's value,
+ * to the argument which must be greater than or equal to zero.
  *
  * @param value the new selection (must be zero or greater)
  *

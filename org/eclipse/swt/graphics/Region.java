@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -17,24 +17,25 @@ import org.eclipse.swt.*;
 /**
  * Instances of this class represent areas of an x-y coordinate
  * system that are aggregates of the areas covered by a number
- * of rectangles.
+ * of polygons.
  * <p>
  * Application code must explicitly invoke the <code>Region.dispose()</code> 
  * method to release the operating system resources managed by each instance
  * when those instances are no longer required.
  * </p>
  */
-public final class Region {
+public final class Region extends Resource {
 	/**
 	 * the OS resource for the region
 	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	public int handle;
-
-	/**
-	 * The device where this image was created.
-	 */
-	Device device;
 
 /**
  * Constructs a new empty region.
@@ -54,11 +55,11 @@ public Region () {
  *
  * @param device the device on which to allocate the region
  *
-* @exception SWTError <ul>
- *    <li>ERROR_NO_HANDLES if a handle could not be obtained for region creation</li>
- * </ul>
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if device is null and there is no current device</li>
+ * </ul>
+ * @exception SWTError <ul>
+ *    <li>ERROR_NO_HANDLES if a handle could not be obtained for region creation</li>
  * </ul>
  *
  * @see #dispose
@@ -78,7 +79,7 @@ Region (Device device, int handle) {
 	this.handle = handle;
 }
 /**
- * Adds the given polygon to the collection of rectangles
+ * Adds the given polygon to the collection of polygons
  * the receiver maintains to describe its area.
  *
  * @param pointArray points that describe the polygon to merge with the receiver
@@ -105,7 +106,7 @@ public void add (int[] pointArray) {
 	OS.XDestroyRegion(polyRgn);
 }
 /**
- * Adds the given rectangle to the collection of rectangles
+ * Adds the given rectangle to the collection of polygons
  * the receiver maintains to describe its area.
  *
  * @param rect the rectangle to merge with the receiver
@@ -121,18 +122,39 @@ public void add (int[] pointArray) {
 public void add (Rectangle rect) {
 	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	if (rect == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
-	if (rect.width < 0 || rect.height < 0) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
-
+	add (rect.x, rect.y, rect.width, rect.height);
+}
+/**
+ * Adds the given rectangle to the collection of polygons
+ * the receiver maintains to describe its area.
+ *
+ * @param x the x coordinate of the rectangle
+ * @param y the y coordinate of the rectangle
+ * @param width the width coordinate of the rectangle
+ * @param height the height coordinate of the rectangle
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the rectangle's width or height is negative</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void add (int x, int y, int width, int height) {
+	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
+	if (width < 0 || height < 0) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	XRectangle xRect = new XRectangle();
-	xRect.x = (short)rect.x;
-	xRect.y = (short)rect.y;
-	xRect.width = (short)rect.width;
-	xRect.height = (short)rect.height;
+	xRect.x = (short)x;
+	xRect.y = (short)y;
+	xRect.width = (short)width;
+	xRect.height = (short)height;
 	OS.XUnionRectWithRegion(xRect, handle, handle);
 }
 /**
- * Adds all of the rectangles which make up the area covered
- * by the argument to the collection of rectangles the receiver
+ * Adds all of the polygons which make up the area covered
+ * by the argument to the collection of polygons the receiver
  * maintains to describe its area.
  *
  * @param region the region to merge
@@ -218,7 +240,7 @@ public boolean equals (Object object) {
 }
 /**
  * Returns a rectangle which represents the rectangular
- * union of the collection of rectangles the receiver
+ * union of the collection of polygons the receiver
  * maintains to describe its area.
  *
  * @return a bounding rectangle for the region
@@ -237,7 +259,7 @@ public Rectangle getBounds() {
 }
 /**
  * Returns an integer hash code for the receiver. Any two 
- * objects which return <code>true</code> when passed to 
+ * objects that return <code>true</code> when passed to 
  * <code>equals</code> must return the same value for this
  * method.
  *
@@ -249,7 +271,7 @@ public int hashCode () {
 	return handle;
 }
 /**
- * Intersects the given rectangle to the collection of rectangles
+ * Intersects the given rectangle to the collection of polygons
  * the receiver maintains to describe its area.
  *
  * @param rect the rectangle to intersect with the receiver
@@ -267,21 +289,42 @@ public int hashCode () {
 public void intersect (Rectangle rect) {
 	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	if (rect == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
-	if (rect.width < 0 || rect.height < 0) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
-
+	intersect(rect.x, rect.y, rect.width, rect.height);
+}
+/**
+ * Intersects the given rectangle to the collection of polygons
+ * the receiver maintains to describe its area.
+ *
+ * @param x the x coordinate of the rectangle
+ * @param y the y coordinate of the rectangle
+ * @param width the width coordinate of the rectangle
+ * @param height the height coordinate of the rectangle
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the rectangle's width or height is negative</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void intersect (int x, int y, int width, int height) {
+	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
+	if (width < 0 || height < 0) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	int rectRgn = OS.XCreateRegion();
 	XRectangle xRect = new XRectangle();
-	xRect.x = (short)rect.x;
-	xRect.y = (short)rect.y;
-	xRect.width = (short)rect.width;
-	xRect.height = (short)rect.height;
+	xRect.x = (short)x;
+	xRect.y = (short)y;
+	xRect.width = (short)width;
+	xRect.height = (short)height;
 	OS.XUnionRectWithRegion(xRect, rectRgn, rectRgn);
 	OS.XIntersectRegion(handle, rectRgn, handle);
 	OS.XDestroyRegion(rectRgn);
 }
 /**
- * Intersects all of the rectangles which make up the area covered
- * by the argument to the collection of rectangles the receiver
+ * Intersects all of the polygons which make up the area covered
+ * by the argument to the collection of polygons the receiver
  * maintains to describe its area.
  *
  * @param region the region to intersect
@@ -304,8 +347,8 @@ public void intersect (Region region) {
 }
 /**
  * Returns <code>true</code> if the rectangle described by the
- * arguments intersects with any of the rectangles the receiver
- * mainains to describe its area, and <code>false</code> otherwise.
+ * arguments intersects with any of the polygons the receiver
+ * maintains to describe its area, and <code>false</code> otherwise.
  *
  * @param x the x coordinate of the origin of the rectangle
  * @param y the y coordinate of the origin of the rectangle
@@ -317,7 +360,7 @@ public void intersect (Region region) {
  *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
  * </ul>
  *
- * @see Rectangle#intersects
+ * @see Rectangle#intersects(Rectangle)
  */
 public boolean intersects (int x, int y, int width, int height) {
 	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
@@ -325,7 +368,7 @@ public boolean intersects (int x, int y, int width, int height) {
 }
 /**
  * Returns <code>true</code> if the given rectangle intersects
- * with any of the rectangles the receiver mainains to describe
+ * with any of the polygons the receiver maintains to describe
  * its area and <code>false</code> otherwise.
  *
  * @param rect the rectangle to test for intersection
@@ -338,7 +381,7 @@ public boolean intersects (int x, int y, int width, int height) {
  *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
  * </ul>
  *
- * @see Rectangle#intersects
+ * @see Rectangle#intersects(Rectangle)
  */
 public boolean intersects (Rectangle rect) {
 	if (rect == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
@@ -376,7 +419,7 @@ public static Region motif_new(Device device, int handle) {
 	return new Region(device, handle);
 }
 /**
- * Subtracts the given polygon from the collection of rectangles
+ * Subtracts the given polygon from the collection of polygons
  * the receiver maintains to describe its area.
  *
  * @param pointArray points that describe the polygon to merge with the receiver
@@ -402,7 +445,7 @@ public void subtract (int[] pointArray) {
 	OS.XDestroyRegion(polyRgn);
 }
 /**
- * Subtracts the given rectangle from the collection of rectangles
+ * Subtracts the given rectangle from the collection of polygons
  * the receiver maintains to describe its area.
  *
  * @param rect the rectangle to subtract from the receiver
@@ -420,21 +463,42 @@ public void subtract (int[] pointArray) {
 public void subtract (Rectangle rect) {
 	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
 	if (rect == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
-	if (rect.width < 0 || rect.height < 0) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
-
+	subtract (rect.x, rect.y, rect.width, rect.height);
+}
+/**
+ * Subtracts the given rectangle from the collection of polygons
+ * the receiver maintains to describe its area.
+ *
+ * @param x the x coordinate of the rectangle
+ * @param y the y coordinate of the rectangle
+ * @param width the width coordinate of the rectangle
+ * @param height the height coordinate of the rectangle
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the rectangle's width or height is negative</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void subtract (int x, int y, int width, int height) {
+	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
+	if (width < 0 || height < 0) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	int rectRgn = OS.XCreateRegion();
 	XRectangle xRect = new XRectangle();
-	xRect.x = (short)rect.x;
-	xRect.y = (short)rect.y;
-	xRect.width = (short)rect.width;
-	xRect.height = (short)rect.height;
+	xRect.x = (short)x;
+	xRect.y = (short)y;
+	xRect.width = (short)width;
+	xRect.height = (short)height;
 	OS.XUnionRectWithRegion(xRect, rectRgn, rectRgn);
 	OS.XSubtractRegion(handle, rectRgn, handle);
 	OS.XDestroyRegion(rectRgn);
 }
 /**
- * Subtracts all of the rectangles which make up the area covered
- * by the argument from the collection of rectangles the receiver
+ * Subtracts all of the polygons which make up the area covered
+ * by the argument from the collection of polygons the receiver
  * maintains to describe its area.
  *
  * @param region the region to subtract
@@ -454,6 +518,43 @@ public void subtract (Region region) {
 	if (region == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
 	if (region.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	OS.XSubtractRegion(handle, region.handle, handle);
+}
+/**
+ * Translate all of the polygons the receiver maintains to describe
+ * its area by the specified point.
+ *
+ * @param x the x coordinate of the point to translate
+ * @param y the y coordinate of the point to translate
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void translate (int x, int y) {
+	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
+	OS.XOffsetRegion (handle, x, y);
+}
+/**
+ * Translate all of the polygons the receiver maintains to describe
+ * its area by the specified point.
+ *
+ * @param pt the point to translate
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the argument is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void translate (Point pt) {
+	if (isDisposed()) SWT.error(SWT.ERROR_GRAPHIC_DISPOSED);
+	if (pt == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
+	translate (pt.x, pt.y);
 }
 /**
  * Returns a string containing a concise, human-readable

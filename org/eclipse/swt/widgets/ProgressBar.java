@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -137,16 +137,6 @@ void destroyTimer () {
 	if (timerId != 0) OS.XtRemoveTimeOut (timerId);
 	timerId = 0;
 }
-void disableButtonPress () {
-	int xWindow = OS.XtWindow (handle);
-	if (xWindow == 0) return;
-	int xDisplay = OS.XtDisplay (handle);
-	if (xDisplay == 0) return;
-	int event_mask = OS.XtBuildEventMask (handle);
-	XSetWindowAttributes attributes = new XSetWindowAttributes ();
-	attributes.event_mask = event_mask & ~OS.ButtonPressMask;
-	OS.XChangeWindowAttributes (xDisplay, xWindow, OS.CWEventMask, attributes);
-}
 int getForegroundPixel () {
 	return foreground == -1 ? super.getForegroundPixel () : foreground;
 }
@@ -183,7 +173,7 @@ public int getMinimum () {
 	return argList [1];
 }
 /**
- * Returns the single <em>selection</em> that is the receiver's position.
+ * Returns the single 'selection' that is the receiver's position.
  *
  * @return the selection
  *
@@ -201,14 +191,6 @@ public int getSelection () {
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	int minimum = argList [1], sliderSize = argList [3];
 	return minimum + (foreground != -1 ? 0 : sliderSize);
-}
-void propagateWidget (boolean enabled) {
-	super.propagateWidget (enabled);
-	if (enabled) disableButtonPress ();
-}
-void realizeChildren () {
-	super.realizeChildren ();
-	disableButtonPress ();
 }
 void releaseWidget () {
 	super.releaseWidget ();
@@ -288,7 +270,7 @@ public void setMinimum (int value) {
 	setThumb(selection - value);
 }
 /**
- * Sets the single <em>selection</em> that is the receiver's
+ * Sets the single 'selection' that is the receiver's
  * position to the argument which must be greater than or equal
  * to zero.
  *
@@ -313,6 +295,7 @@ public void setSelection (int value) {
 	if (selection < minimum) selection = minimum;
 	if (selection > maximum) selection = maximum;
 	setThumb(selection - minimum);
+	update ();
 }
 void setThumb (int sliderSize) {
 	int [] argList1 = new int [] {
@@ -348,5 +331,45 @@ int timerProc (int id) {
 	setSelection (minimum + (value % range));	
 	createTimer ();
 	return 0;
+}
+int XButtonPress (int w, int client_data, int call_data, int continue_to_dispatch) {
+	int result = super.XButtonPress (w, client_data, call_data, continue_to_dispatch);
+	int [] argList = {OS.XmNsensitive, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	if (argList [1] != 0) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
+	}
+	return result;
+}
+int XButtonRelease (int w, int client_data, int call_data, int continue_to_dispatch) {
+	int result = super.XButtonRelease (w, client_data, call_data, continue_to_dispatch);
+	int [] argList = {OS.XmNsensitive, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	if (argList [1] != 0) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
+	}
+	return result;
+}
+int XKeyPress (int w, int client_data, int call_data, int continue_to_dispatch) {
+	int result = super.XKeyPress (w, client_data, call_data, continue_to_dispatch);
+	int [] argList = {OS.XmNsensitive, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	if (argList [1] != 0) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
+	}
+	return result;
+}
+int XKeyRelease (int w, int client_data, int call_data, int continue_to_dispatch) {
+	int result = super.XKeyRelease (w, client_data, call_data, continue_to_dispatch);
+	int [] argList = {OS.XmNsensitive, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	if (argList [1] != 0) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
+	}
+	return result;
 }
 }

@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -18,8 +18,7 @@ import org.eclipse.swt.internal.motif.XTextProperty;
 /**
  * The class <code>TextTransfer</code> provides a platform specific mechanism 
  * for converting plain text represented as a java <code>String</code> 
- * to a platform specific representation of the data and vice versa.  See 
- * <code>Transfer</code> for additional information.
+ * to a platform specific representation of the data and vice versa.
  * 
  * <p>An example of a java <code>String</code> containing plain text is shown 
  * below:</p>
@@ -27,6 +26,8 @@ import org.eclipse.swt.internal.motif.XTextProperty;
  * <code><pre>
  *     String textData = "Hello World";
  * </code></pre>
+ * 
+ * @see Transfer
  */
 public class TextTransfer extends ByteArrayTransfer {
 
@@ -50,18 +51,19 @@ public static TextTransfer getInstance () {
 /**
  * This implementation of <code>javaToNative</code> converts plain text
  * represented by a java <code>String</code> to a platform specific representation.
- * For additional information see <code>Transfer#javaToNative</code>.
  * 
  * @param object a java <code>String</code> containing text
- * @param transferData an empty <code>TransferData</code> object; this
- *  object will be filled in on return with the platform specific format of the data
+ * @param transferData an empty <code>TransferData</code> object; this object
+ *  will be filled in on return with the platform specific format of the data
+ *  
+ * @see Transfer#javaToNative
  */
 public void javaToNative (Object object, TransferData transferData) {
 	transferData.result = 0;
-	if (object == null || !(object instanceof String) || !isSupportedType(transferData)) return;
+	if (!checkText(object) || !isSupportedType(transferData)) {
+		DND.error(DND.ERROR_INVALID_DATA);
+	}
 	String string = (String)object;
-	if (string.length() == 0) return;
-	
 	byte[] buffer = Converter.wcsToMbcs (null, string, true);
 	if (transferData.type ==  COMPOUND_TEXT_ID) {
 		Display display = Display.getCurrent();
@@ -93,7 +95,7 @@ public void javaToNative (Object object, TransferData transferData) {
 		OS.memmove(pValue, buffer, buffer.length);
 		transferData.type = STRING_ID;
 		transferData.format = 8;
-		transferData.length = buffer.length;
+		transferData.length = buffer.length - 1;
 		transferData.pValue = pValue;
 		transferData.result = 1;
 	}
@@ -102,12 +104,11 @@ public void javaToNative (Object object, TransferData transferData) {
 /**
  * This implementation of <code>nativeToJava</code> converts a platform specific 
  * representation of plain text to a java <code>String</code>.
- * For additional information see <code>Transfer#nativeToJava</code>.
  * 
- * @param transferData the platform specific representation of the data to be 
- * been converted
- * @return a java <code>String</code> containing text if the 
- * conversion was successful; otherwise null
+ * @param transferData the platform specific representation of the data to be converted
+ * @return a java <code>String</code> containing text if the conversion was successful; otherwise null
+ * 
+ * @see Transfer#nativeToJava
  */
 public Object nativeToJava(TransferData transferData){
 	if (!isSupportedType(transferData) ||  transferData.pValue == 0) return null;
@@ -153,5 +154,13 @@ protected int[] getTypeIds() {
 
 protected String[] getTypeNames() {
 	return new String[] {COMPOUND_TEXT, STRING};
+}
+
+boolean checkText(Object object) {
+	return (object != null && object instanceof String && ((String)object).length() > 0);
+}
+
+protected boolean validate(Object object) {
+	return checkText(object);
 }
 }

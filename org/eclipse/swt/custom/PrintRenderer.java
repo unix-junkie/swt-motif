@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -37,7 +37,7 @@ class PrintRenderer extends StyledTextRenderer {
  * Creates an instance of <class>PrintRenderer</class>.
  * </p>
  * @param device Device to render on
- * @param regularFont Font to use for regular (non-bold) text.
+ * @param regularFont Font to use for regular text.
  * @param gc printer GC to use for rendering. There can be only one GC for 
  * 	each printer device at any given time.
  * @param logicalContent StyledTextContent to print.
@@ -202,7 +202,8 @@ private int getLogicalLineOffset(int visualLineOffset) {
 	return logicalContent.getOffsetAtLine(logicalLineIndex);
 }
 protected  int getOrientation () {
-	return SWT.LEFT_TO_RIGHT;
+	int mask = SWT.RIGHT_TO_LEFT | SWT.LEFT_TO_RIGHT;
+	return gc.getStyle() & mask;
 }
 protected Color getSelectionBackground() {
 	return null;

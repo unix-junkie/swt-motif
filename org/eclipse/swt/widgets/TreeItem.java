@@ -1,21 +1,19 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 package org.eclipse.swt.widgets;
 
- 
 import org.eclipse.swt.*;
 import org.eclipse.swt.graphics.*;
-import java.util.Enumeration;
-import java.util.Vector;
- 
+import org.eclipse.swt.internal.Compatibility;
+
 /**
  * Instances of this class represent a selectable user interface object
  * that represents a hierarchy of tree items in a tree widget.
@@ -30,452 +28,561 @@ import java.util.Vector;
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
  */
-public class TreeItem extends AbstractTreeItem {
+public class TreeItem extends Item {
+	Tree parent;
+	TreeItem parentItem;
+	TreeItem[] items = NO_ITEMS;
+	int availableIndex = -1;	/* index in parent's flat list of available (though not necessarily within viewport) items */
+	int depth = 0;				/* cached for performance, does not change after instantiation */
+	boolean checked, grayed, expanded;
+
+	String[] texts;
+	int[] textWidths = new int [1];		/* cached string measurements */
+	int fontHeight;						/* cached item font height */
+	int[] fontHeights;
+	Image[] images;
+	Color foreground, background;
+	String[] displayTexts;
+	Color[] cellForegrounds, cellBackgrounds;
+	Font font;
+	Font[] cellFonts;
+	
+	static final int INDENT_HIERARCHY = 6;	/* the margin between an item's expander and its checkbox or content */
+	static final int MARGIN_TEXT = 3;			/* the left and right margins within the text's space */
+	static final TreeItem[] NO_ITEMS = new TreeItem [0];
+
+/**
+ * Constructs a new instance of this class given its parent
+ * (which must be a <code>Tree</code> or a <code>TreeItem</code>)
+ * and a style value describing its behavior and appearance.
+ * The item is added to the end of the items maintained by its parent.
+ * <p>
+ * The style value is either one of the style constants defined in
+ * class <code>SWT</code> which is applicable to instances of this
+ * class, or must be built by <em>bitwise OR</em>'ing together 
+ * (that is, using the <code>int</code> "|" operator) two or more
+ * of those <code>SWT</code> style constants. The class description
+ * lists the style constants that are applicable to the class.
+ * Style bits are also inherited from superclasses.
+ * </p>
+ *
+ * @param parent a tree control which will be the parent of the new instance (cannot be null)
+ * @param style the style of control to construct
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
+ *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
+ * </ul>
+ *
+ * @see SWT
+ * @see Widget#checkSubclass
+ * @see Widget#getStyle
+ */
+public TreeItem (Tree parent, int style) {
+	super (parent, style);
+	this.parent = parent;
+	int index = parent.items.length;
+	int columnCount = parent.columns.length;
+	if (columnCount > 0) {
+		displayTexts = new String [columnCount];
+		if (columnCount > 1) {
+			texts = new String [columnCount];
+			textWidths = new int [columnCount];
+			images = new Image [columnCount];
+		}
+	}
+	parent.createItem (this, index);
+}
+/**
+ * Constructs a new instance of this class given its parent
+ * (which must be a <code>Tree</code> or a <code>TreeItem</code>),
+ * a style value describing its behavior and appearance, and the index
+ * at which to place it in the items maintained by its parent.
+ * <p>
+ * The style value is either one of the style constants defined in
+ * class <code>SWT</code> which is applicable to instances of this
+ * class, or must be built by <em>bitwise OR</em>'ing together 
+ * (that is, using the <code>int</code> "|" operator) two or more
+ * of those <code>SWT</code> style constants. The class description
+ * lists the style constants that are applicable to the class.
+ * Style bits are also inherited from superclasses.
+ * </p>
+ *
+ * @param parent a tree control which will be the parent of the new instance (cannot be null)
+ * @param style the style of control to construct
+ * @param index the index to store the receiver in its parent
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
+ *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
+ * </ul>
+ *
+ * @see SWT
+ * @see Widget#checkSubclass
+ * @see Widget#getStyle
+ */
+public TreeItem (Tree parent, int style, int index) {
+	super (parent, style);
+	int validItemIndex = parent.items.length;
+	if (!(0 <= index && index <= validItemIndex)) error (SWT.ERROR_INVALID_RANGE);
+	this.parent = parent;
+	int columnCount = parent.columns.length;
+	if (columnCount > 0) {
+		displayTexts = new String [columnCount];
+		if (columnCount > 1) {
+			texts = new String [columnCount];
+			textWidths = new int [columnCount];
+			images = new Image [columnCount];
+		}
+	}
+	parent.createItem (this, index);
+}
+/**
+ * Constructs a new instance of this class given its parent
+ * (which must be a <code>Tree</code> or a <code>TreeItem</code>)
+ * and a style value describing its behavior and appearance.
+ * The item is added to the end of the items maintained by its parent.
+ * <p>
+ * The style value is either one of the style constants defined in
+ * class <code>SWT</code> which is applicable to instances of this
+ * class, or must be built by <em>bitwise OR</em>'ing together 
+ * (that is, using the <code>int</code> "|" operator) two or more
+ * of those <code>SWT</code> style constants. The class description
+ * lists the style constants that are applicable to the class.
+ * Style bits are also inherited from superclasses.
+ * </p>
+ *
+ * @param parentItem a tree control which will be the parent of the new instance (cannot be null)
+ * @param style the style of control to construct
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
+ *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
+ * </ul>
+ *
+ * @see SWT
+ * @see Widget#checkSubclass
+ * @see Widget#getStyle
+ */
+public TreeItem (TreeItem parentItem, int style) {
+	super (parentItem, style);
+	this.parentItem = parentItem;
+	parent = parentItem.parent;
+	depth = parentItem.depth + 1;
+	int columnCount = parent.columns.length;
+	if (columnCount > 0) {
+		displayTexts = new String [columnCount];
+		if (columnCount > 1) {
+			texts = new String [columnCount];
+			textWidths = new int [columnCount];
+			images = new Image [columnCount];
+		}
+	}
+	int index = parentItem.items.length;
+	parentItem.addItem (this, index);
+}
+/**
+ * Constructs a new instance of this class given its parent
+ * (which must be a <code>Tree</code> or a <code>TreeItem</code>),
+ * a style value describing its behavior and appearance, and the index
+ * at which to place it in the items maintained by its parent.
+ * <p>
+ * The style value is either one of the style constants defined in
+ * class <code>SWT</code> which is applicable to instances of this
+ * class, or must be built by <em>bitwise OR</em>'ing together 
+ * (that is, using the <code>int</code> "|" operator) two or more
+ * of those <code>SWT</code> style constants. The class description
+ * lists the style constants that are applicable to the class.
+ * Style bits are also inherited from superclasses.
+ * </p>
+ *
+ * @param parentItem a tree control which will be the parent of the new instance (cannot be null)
+ * @param style the style of control to construct
+ * @param index the index to store the receiver in its parent
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
+ *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
+ * </ul>
+ *
+ * @see SWT
+ * @see Widget#checkSubclass
+ * @see Widget#getStyle
+ */
+public TreeItem (TreeItem parentItem, int style, int index) {
+	super (parentItem, style);
+	this.parentItem = parentItem;
+	parent = parentItem.parent;
+	depth = parentItem.depth + 1;
+	int validItemIndex = parentItem.items.length;
+	if (!(0 <= index && index <= validItemIndex)) error (SWT.ERROR_INVALID_RANGE);
+	int columnCount = parent.columns.length;
+	if (columnCount > 0) {
+		displayTexts = new String [columnCount];
+		if (columnCount > 1) {
+			texts = new String [columnCount];
+			textWidths = new int [columnCount];
+			images = new Image [columnCount];
+		}
+	}
+	parentItem.addItem (this, index);
+}
 /*
- * This class caches geometric data for drawing.
- * A description of the cached data follows:
- *
- *  |      1    ||      5        |  
- *  |  2  |               |   6  |   
- *  |3                          7|  
- *   _____  | 4 |f|          |8      
- *  |     |                            ____
- *  |  -  | ===== {image}    root      9
- *  |_____|          |
- *                       |b|c|  |d|
- *               | e |
- * 
- * Widths are measured between vertical lines.
- *
- * Cached item rendering data:
- * 1 = getDecorationsWidth
- * 2 = getHierarchyIndicatorRect
- * 3 = getPaintStartX
- * 4 = getItemConnectorWidth
- * 5 = getItemWidth
- * 6 = getSelectionWidth
- * 7 = getPaintStopX
- * 8 - getTextXPos
- * 9 = getTextYPosition
- *
- * Rendering constants:
- * 4 = DEFAULT_ITEM_CONNECTOR_WIDTH, used when no image is set in the tree.
- *	Otherwise it is the image width.
- * b = IMAGE_PADDING
- * c = TEXT_INDENT
- * d = SELECTION_PADDING
- * e = ITEM_NOIMAGE_OFFSET
- * f = ITEM_CONNECTOR_PADDING;
+ * Updates internal structures in the receiver and its child items to handle the creation of a new column.
  */
-	private static final int DEFAULT_ITEM_CONNECTOR_WIDTH = 8;	// Default width of the horizontal line connecting 
-															// items with the vertical lines. Only used when
-															// no image is set in the tree. Normally connector 
-															// line width is half the image width.
-	private static final int ITEM_CONNECTOR_PADDING = 2;	// Added to the calculated item connector width
-	private static final int IMAGE_PADDING = 3;				// Space behind bitmap
-	private static final int ITEM_NOIMAGE_OFFSET = 8;		// Offset added to the calculated paint position where 
-															// an item starts drawing. To be used when no item 
-															// image has been set. Otherwise children would start 
-															// drawing at the end of the horizontal item connector 
-															// of their parent.
-	private static final int ROOT_INDENT = 5;				// Indent of root items
-	private static final int SELECTION_PADDING = 2;			// Space behind text
-	private static final int TEXT_INDENT = 2;				// Identation of the item label
-	
-	// basic item info
-	private TreeItem parentItem;
-	private int index;										// index in the parent item
-	
-	// geometrical item info
-	private int paintStartX = -1;							// X coordinate of the upper-left corner of the 
-															// receivers bounding rectangle
-	private Point itemExtent;								// Size of the item (image + label)
-	private Point imageExtent;								// original size of the item image	
-	private int textYPosition = -1;							// Centered y position of the item text	
+void addColumn (TreeColumn column) {
+	int index = column.getIndex ();
+	int columnCount = parent.columns.length;
 
-
-	//Determine whether the item is being expanded
-	private boolean isExpanding = false;
-	Color background = null;
-	Color foreground = null;
-	Font font = null;
-	
-/**
- * Constructs a new instance of this class given its parent
- * (which must be a <code>Tree</code> or a <code>TreeItem</code>)
- * and a style value describing its behavior and appearance.
- * The item is added to the end of the items maintained by its parent.
- * <p>
- * The style value is either one of the style constants defined in
- * class <code>SWT</code> which is applicable to instances of this
- * class, or must be built by <em>bitwise OR</em>'ing together 
- * (that is, using the <code>int</code> "|" operator) two or more
- * of those <code>SWT</code> style constants. The class description
- * lists the style constants that are applicable to the class.
- * Style bits are also inherited from superclasses.
- * </p>
- *
- * @param parent a composite control which will be the parent of the new instance (cannot be null)
- * @param style the style of control to construct
- *
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
- * </ul>
- * @exception SWTException <ul>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
- *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
- * </ul>
- *
- * @see SWT
- * @see Widget#checkSubclass
- * @see Widget#getStyle
- */
-public TreeItem(Tree parent, int style) {
-	this(parent, style, checkNull(parent).getItemCount());
-}
-
-/**
- * Constructs a new instance of this class given its parent
- * (which must be a <code>Tree</code> or a <code>TreeItem</code>),
- * a style value describing its behavior and appearance, and the index
- * at which to place it in the items maintained by its parent.
- * <p>
- * The style value is either one of the style constants defined in
- * class <code>SWT</code> which is applicable to instances of this
- * class, or must be built by <em>bitwise OR</em>'ing together 
- * (that is, using the <code>int</code> "|" operator) two or more
- * of those <code>SWT</code> style constants. The class description
- * lists the style constants that are applicable to the class.
- * Style bits are also inherited from superclasses.
- * </p>
- *
- * @param parent a composite control which will be the parent of the new instance (cannot be null)
- * @param style the style of control to construct
- * @param index the index to store the receiver in its parent
- *
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
- * </ul>
- * @exception SWTException <ul>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
- *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
- * </ul>
- *
- * @see SWT
- * @see Widget#checkSubclass
- * @see Widget#getStyle
- */
-public TreeItem(Tree parent, int style, int index) {
-	super(parent, style);
-	parent.addItem(this, index);
-}
-
-/**
- * Constructs a new instance of this class given its parent
- * (which must be a <code>Tree</code> or a <code>TreeItem</code>)
- * and a style value describing its behavior and appearance.
- * The item is added to the end of the items maintained by its parent.
- * <p>
- * The style value is either one of the style constants defined in
- * class <code>SWT</code> which is applicable to instances of this
- * class, or must be built by <em>bitwise OR</em>'ing together 
- * (that is, using the <code>int</code> "|" operator) two or more
- * of those <code>SWT</code> style constants. The class description
- * lists the style constants that are applicable to the class.
- * Style bits are also inherited from superclasses.
- * </p>
- *
- * @param parentItem a composite control which will be the parent of the new instance (cannot be null)
- * @param style the style of control to construct
- *
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
- * </ul>
- * @exception SWTException <ul>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
- *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
- * </ul>
- *
- * @see SWT
- * @see Widget#checkSubclass
- * @see Widget#getStyle
- */
-public TreeItem(TreeItem parentItem, int style) {
-	this(parentItem, style, checkNull(parentItem).getItemCount());
-}
-
-/**
- * Constructs a new instance of this class given its parent
- * (which must be a <code>Tree</code> or a <code>TreeItem</code>),
- * a style value describing its behavior and appearance, and the index
- * at which to place it in the items maintained by its parent.
- * <p>
- * The style value is either one of the style constants defined in
- * class <code>SWT</code> which is applicable to instances of this
- * class, or must be built by <em>bitwise OR</em>'ing together 
- * (that is, using the <code>int</code> "|" operator) two or more
- * of those <code>SWT</code> style constants. The class description
- * lists the style constants that are applicable to the class.
- * Style bits are also inherited from superclasses.
- * </p>
- *
- * @param parentItem a composite control which will be the parent of the new instance (cannot be null)
- * @param style the style of control to construct
- * @param index the index to store the receiver in its parent
- *
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
- * </ul>
- * @exception SWTException <ul>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
- *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
- * </ul>
- *
- * @see SWT
- * @see Widget#checkSubclass
- * @see Widget#getStyle
- */
-public TreeItem(TreeItem parentItem, int style, int index) {
-	super(checkNull(parentItem).getParent(), style);
-	setParentItem(parentItem);	
-	parentItem.add(this, index);
-}
-
-/**
- * Calculate the number of expanded children.
- * Recurse up in the tree to the root item.
- */
-void calculateVisibleItemCount() {
-	Vector children;
-	TreeItem child;
-	int visibleItemCount = 0;
-	
-	// check isExpanded field directly for performance
-	if (internalGetExpanded() == true) {
-		children = getChildren();
-		visibleItemCount = children.size();
-		for (int i = 0; i < children.size(); i++) {
-			child = (TreeItem) children.elementAt(i);
-			visibleItemCount += child.getVisibleItemCount();
+	if (columnCount > 1) {
+		if (columnCount == 2) {
+			texts = new String [2];
+		} else {
+			String[] newTexts = new String [columnCount];
+			System.arraycopy (texts, 0, newTexts, 0, index);
+			System.arraycopy (texts, index, newTexts, index + 1, columnCount - index - 1);
+			texts = newTexts;
 		}
-	}
-	setVisibleItemCount(visibleItemCount);
-	calculateVisibleItemCountParent();
-}
-/**
- * Calculate the number of expanded children for the parent item
- * of this item.
- */
-void calculateVisibleItemCountParent() {
-	TreeItem parentItem = getParentItem();
-
-	if (parentItem != null) {
-		parentItem.calculateVisibleItemCount();
-	}
-	else {
-		getParent().getRoot().calculateVisibleItemCount();
-	}
-}
-/**
- * Throw an SWT.ERROR_NULL_ARGUMENT exception if 'tree' is null.
- * Otherwise return 'tree'
- */
-static Tree checkNull(Tree tree) {
-	if (tree == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
-	return tree;
-}
-/**
- * Throw an SWT.ERROR_NULL_ARGUMENT exception if 'item' is null.
- * Otherwise return 'item'
- */
-static TreeItem checkNull(TreeItem item) {
-	if (item == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
-	return item;
-}
-protected void checkSubclass () {
-	if (!isValidSubclass ()) error (SWT.ERROR_INVALID_SUBCLASS);
-}
-
-/**
- * Draw the hierarchy indicator at 'position'.
- *
- * Note:
- * Assumes that the hierarchy indicators for the expanded and 
- * collapsed state are the same size.
- * @param gc - GC to draw on. 
- * @param position - position on the GC to draw at.
- * @return position to continue drawing 
- */
-Point drawHierarchyIndicator(GC gc, Point position) {
-	Tree parent = getParent();
-	Image hierarchyImage;
-	Rectangle indicatorRectangle = parent.getHierarchyIndicatorRect();
-	int x = position.x;
-	int y = position.y;
-	int yCenter = y + parent.getItemHeight() / 2;
-	Point connectorLinePosition;	
-
-	if (isLeaf() == false) {
-		if (getExpanded() == true) {
-			hierarchyImage = parent.getExpandedImage();
+		if (index == 0) {
+			texts [1] = text;
+			text = "";	//$NON-NLS-1$
 		}
-		else {
-			hierarchyImage = parent.getCollapsedImage();
-		}
-		if (hierarchyImage != null) {
-			gc.drawImage(hierarchyImage, x + indicatorRectangle.x, y + indicatorRectangle.y);
-		}
-		connectorLinePosition = new Point(x + indicatorRectangle.width, yCenter);		
-	}	
-	else {
-		connectorLinePosition = new Point(
-			x + indicatorRectangle.width / 2 				
-			+ indicatorRectangle.width % 2, yCenter);		// % 2 in order to not start the next hierarchy 
-															// component at the middle of the icon but after.	
-	}
-	return connectorLinePosition;
-}
-/**
- * Draw a horizontal line connecting the item image (or label 
- * if there is no image) to the vertical line connecting to 
- * the parent.
- * @param gc - GC to draw on. 
- * @param position - position on the GC to draw at.
- * @return position to continue drawing 
- */
-Point drawHorizontalItemConnector(GC gc, Point position) {
-	int itemConnectorEndPos = position.x + getItemConnectorWidth() - 1;	// -1 because the position of the last pixel needs to be calculated
 
-	gc.drawLine(position.x, position.y, itemConnectorEndPos, position.y);
-	return new Point(itemConnectorEndPos + 1, position.y);		// + 1 in order to resume drawing after line not on end of line
-}
-/** 
- * Display the item image at 'position' using 'gc'.
- * @param gc - GC to draw on
- * @param position - position on the GC to draw at
- * @return position to continue drawing 
- */
-Point drawImage(GC gc, Point destinationPosition) {
-	Tree parent = getParent();
-	Image image = getImage();
-	Point sourceImageExtent;
-	Point destinationImageExtent = parent.getImageExtent();
-	int yCenter;
+		if (columnCount == 2) {
+			images = new Image [2];
+		} else {
+			Image[] newImages = new Image [columnCount];
+			System.arraycopy (images, 0, newImages, 0, index);
+			System.arraycopy (images, index, newImages, index + 1, columnCount - index - 1);
+			images = newImages;
+		}
+		if (index == 0) {
+			images [1] = image;
+			image = null;
+		}
+		
+		int[] newTextWidths = new int [columnCount];
+		System.arraycopy (textWidths, 0, newTextWidths, 0, index);
+		System.arraycopy (textWidths, index, newTextWidths, index + 1, columnCount - index - 1);
+		textWidths = newTextWidths;
+	}
+
+	/*
+	 * The length of displayTexts always matches the parent's column count, unless this
+	 * count is zero, in which case displayTexts is null.  
+	 */
+	String[] newDisplayTexts = new String [columnCount];
+	if (columnCount > 1) {
+		System.arraycopy (displayTexts, 0, newDisplayTexts, 0, index);
+		System.arraycopy (displayTexts, index, newDisplayTexts, index + 1, columnCount - index - 1);
+	}
+	displayTexts = newDisplayTexts;
+
+	if (cellBackgrounds != null) {
+		Color[] newCellBackgrounds = new Color [columnCount];
+		System.arraycopy (cellBackgrounds, 0, newCellBackgrounds, 0, index);
+		System.arraycopy (cellBackgrounds, index, newCellBackgrounds, index + 1, columnCount - index - 1);
+		cellBackgrounds = newCellBackgrounds;
+	}
+	if (cellForegrounds != null) {
+		Color[] newCellForegrounds = new Color [columnCount];
+		System.arraycopy (cellForegrounds, 0, newCellForegrounds, 0, index);
+		System.arraycopy (cellForegrounds, index, newCellForegrounds, index + 1, columnCount - index - 1);
+		cellForegrounds = newCellForegrounds;
+	}
+	if (cellFonts != null) {
+		Font[] newCellFonts = new Font [columnCount];
+		System.arraycopy (cellFonts, 0, newCellFonts, 0, index);
+		System.arraycopy (cellFonts, index, newCellFonts, index + 1, columnCount - index - 1);
+		cellFonts = newCellFonts;
+
+		int[] newFontHeights = new int [columnCount];
+		System.arraycopy (fontHeights, 0, newFontHeights, 0, index);
+		System.arraycopy (fontHeights, index, newFontHeights, index + 1, columnCount - index - 1);
+		fontHeights = newFontHeights;
+	}
+
+	if (index == 0 && columnCount > 1) {
+		/*
+		 * The new second column now has more space available to it than it did while it
+		 * was the first column since it no longer has to show hierarchy decorations, so
+		 * recompute its displayText.
+		 */
+		GC gc = new GC (parent);
+		gc.setFont (getFont (1));
+		computeDisplayText (1, gc);
+		gc.dispose ();
+	}
 	
-	if (image != null) {
-		sourceImageExtent = getImageExtent();
-		yCenter = (parent.getItemHeight() - destinationImageExtent.y) / 2;
-		gc.drawImage(
-			image, 
-			0, 0, 														// source x, y
-			sourceImageExtent.x, sourceImageExtent.y,					// source width, height
-			destinationPosition.x, destinationPosition.y + yCenter,		// destination x, y
-			destinationImageExtent.x, destinationImageExtent.y);		// destination width, height
+	/* notify all child items as well */
+	for (int i = 0; i < items.length; i++) {
+		items[i].addColumn (column);
 	}
-	if (destinationImageExtent != null) {
-		destinationPosition.x += destinationImageExtent.x + IMAGE_PADDING;
-	}
-	return destinationPosition;
 }
-/**
- * Draw a rectangle enclosing the item label. The rectangle
- * indicates that the receiver was selected last and that it has
- * the input focus.
- * The rectangle will only be drawn if the receiver is selected.
- * @param gc - GC to draw on. 
- * @param position - position on the GC to draw at.
+/*
+ * Adds a child item to the receiver.
  */
-void drawSelectionFocus(GC gc, Point position) {
-	Point selectionExtent = getSelectionExtent();
+void addItem (TreeItem item, int index) {
+	TreeItem[] newChildren = new TreeItem [items.length + 1];
+	System.arraycopy (items, 0, newChildren, 0, index);
+	newChildren [index] = item;
+	System.arraycopy (items, index, newChildren, index + 1, items.length - index);
+	items = newChildren;
 
-	if (selectionExtent == null) {
+	if (!item.isAvailable ()) {
+		/* receiver will now need an expander box if this is its first child */
+		if (isAvailable () && items.length == 1) {
+			Rectangle bounds = getExpanderBounds ();
+			parent.redraw (bounds.x, bounds.y, bounds.width, bounds.height, false);
+		}
 		return;
 	}
-	if (getParent().hasFocus(this) == true) {
-		gc.drawFocus(
-			position.x, position.y, 
-			selectionExtent.x, selectionExtent.y);
-	}
-}
-/**
- * Draw a vertical line connecting the horizontal connector line 
- * with that of the previous item.
- * Called recursively to draw the lines on all tree levels.
- * @param gc - GC to draw on. 
- * @param yPosition - y position of the upper side of the 
- *	receiver's bounding box.
- * @param isFirstChild - method is called to draw a vertical 
- *	line for the first child. Leave room for the hierarchy icon.
- */
-void drawVerticalItemConnector(GC gc, int yPosition, boolean isFirstChild) {
-	Tree parent = getParent();
-	TreeItem nextDrawItem = getParentItem();
-	AbstractTreeItem parentItem = nextDrawItem;
-	Rectangle indicatorRectangle = parent.getHierarchyIndicatorRect();
-	int itemHeight = parent.getItemHeight();	
-	int itemHeightDiv2 = itemHeight / 2 + itemHeight % 2;
-	int indicatorHeightDiv2 = indicatorRectangle.height / 2 + indicatorRectangle.height % 2;
-	int lineX = getPaintStartX() + indicatorRectangle.width / 2;
-	int lineStartY = yPosition - itemHeightDiv2;	
-	int lineEndY = yPosition + itemHeightDiv2;
-
-	if (parentItem == null) {
-		parentItem = parent.getRoot();
-	}
-	if (getIndex() != parentItem.getItemCount()-1) {		// if item is not the last child
-		if (isFirstChild == true) {
-			lineStartY += indicatorHeightDiv2;				// leave space for the hierarchy image
-		}	
-		gc.drawLine(lineX, lineStartY, lineX, lineEndY);
+	
+	/* item should be available immediately so update parent */
+	parent.makeAvailable (item);
+	
+	/* update scrollbars */
+	Rectangle bounds = item.getBounds ();
+	int rightX = bounds.x + bounds.width;
+	parent.updateHorizontalBar (rightX, rightX);
+	parent.updateVerticalBar ();
+	/* 
+	 * If new item is above viewport then adjust topIndex and the vertical scrollbar
+	 * so that the current viewport items will not change. 
+	 */
+	if (item.availableIndex < parent.topIndex) {
+		parent.topIndex++;
+		parent.getVerticalBar ().setSelection (parent.topIndex);
+		return;
 	}
 	
-	if (nextDrawItem != null) {
-		nextDrawItem.drawVerticalItemConnector(gc, yPosition, false);
-	}	
+	parent.redrawFromItemDownwards (availableIndex);
 }
-/**
- * Draw a vertical line connecting the horizontal connector line
- * with that of the previous item.
- * Do this on all tree levels up to the root level.
- * @param gc - GC to draw on. 
- * @param position - position on the GC to draw at.
- * @return position to continue drawing 
+static Tree checkNull (Tree tree) {
+	if (tree == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
+	return tree;
+}
+static TreeItem checkNull (TreeItem item) {
+	if (item == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
+	return item;
+}
+/*
+ * Returns a collection of all tree items descending from the receiver, including
+ * the receiver.  The order of the items in this collection are receiver, child0tree,
+ * child1tree, ..., childNtree. 
  */
-Point drawVerticalItemConnector(GC gc, Point position) {
-	Tree parent = getParent();
-	TreeItem parentItem = getParentItem();	
-	Rectangle indicatorRectangle = parent.getHierarchyIndicatorRect();
-	int itemHeight = parent.getItemHeight();
-	int itemHeightDiv2 = itemHeight / 2 + itemHeight % 2;
-	int indicatorHeightDiv2 = indicatorRectangle.height / 2 + indicatorRectangle.height % 2;
-	int lineX = position.x + indicatorRectangle.width / 2;
-	int lineStartY = position.y - itemHeightDiv2;	
-	int lineEndY = position.y + itemHeightDiv2 - itemHeight % 2;
-	TreeItem predecessor;
-	boolean isFirstChild = false;
+TreeItem[] computeAllDescendents () {
+	int childCount = items.length;
+	TreeItem[][] childResults = new TreeItem [childCount][];
+	int count = 1;	/* receiver */
+	for (int i = 0; i < childCount; i++) {
+		childResults [i] = items [i].computeAllDescendents ();
+		count += childResults [i].length;
+	}
+	TreeItem[] result = new TreeItem [count];
+	int index = 0;
+	result [index++] = this;
+	for (int i = 0; i < childCount; i++) {
+		System.arraycopy (childResults [i], 0, result, index, childResults [i].length);
+		index += childResults [i].length;
+	}
+	return result;
+}
+/*
+ * Returns the number of tree items descending from the receiver, including the
+ * receiver, that are currently available.  It is assumed that the receiver is
+ * currently available. 
+ */
+int computeAvailableDescendentCount () {
+	int result = 1;		/* receiver */
+	if (!expanded) return result;
+	for (int i = 0; i < items.length; i++) {
+		result += items [i].computeAvailableDescendentCount ();
+	}
+	return result;
+}
+/*
+ * Returns a collection of the tree items descending from the receiver, including
+ * the receiver, that are currently available.  It is assumed that the receiver is
+ * currently available.  The order of the items in this collection are receiver,
+ * child0tree, child1tree, ..., childNtree. 
+ */
+TreeItem[] computeAvailableDescendents () {
+	if (!expanded) return new TreeItem[] {this};
+	int childCount = items.length;
+	TreeItem[][] childResults = new TreeItem [childCount][];
+	int count = 1;	/* receiver */
+	for (int i = 0; i < childCount; i++) {
+		childResults [i] = items [i].computeAvailableDescendents ();
+		count += childResults [i].length;
+	}
+	TreeItem[] result = new TreeItem [count];
+	int index = 0;
+	result [index++] = this;
+	for (int i = 0; i < childCount; i++) {
+		System.arraycopy (childResults [i], 0, result, index, childResults [i].length);
+		index += childResults [i].length;
+	}
+	return result;
+}
+void computeDisplayText (int columnIndex, GC gc) {
+	int columnCount = parent.columns.length;
+	if (columnCount == 0) {
+		String text = getText (0);
+		textWidths [columnIndex] = gc.stringExtent (text).x;
+		return;
+	}
 
-	if (isRoot() == true) {
-		if (getIndex() == 0) {
-			return position;									// first root, don't draw vertical line
+	TreeColumn column = parent.columns [columnIndex];
+	int availableWidth;
+	if (columnIndex == 0) {
+		/* column 0 is always LEFT and must consider hierarchy decorations */
+		availableWidth = column.getX () + column.width - getTextX (columnIndex) - 2 * MARGIN_TEXT;
+	} else {
+		/* columns > 0 may not be LEFT so cannot use getTextX (int) */
+		availableWidth = column.width - 2 * parent.getCellPadding () - 2 * MARGIN_TEXT;
+		if (images [columnIndex] != null) {
+			availableWidth -= images [columnIndex].getBounds ().width;
+			availableWidth -= Tree.MARGIN_IMAGE;
 		}
 	}
-	else	
-	if (getIndex() == 0) {										// if item is first child
-		lineStartY += itemHeightDiv2;
-		isFirstChild = true;
+	String text = getText (columnIndex);
+	int textWidth = gc.stringExtent (text).x;
+	if (textWidth <= availableWidth) {
+		displayTexts [columnIndex] = text;
+		textWidths [columnIndex] = textWidth;
+		return;
 	}
-	predecessor = getPredecessor();
-	if (predecessor != null && predecessor.isLeaf() == false) {
-		lineStartY += indicatorHeightDiv2;						// leave space for the hierarchy image
+	
+	/* Ellipsis will be needed, so subtract their width from the available text width */
+	int ellipsisWidth = gc.stringExtent (Tree.ELLIPSIS).x;
+	availableWidth -= ellipsisWidth;
+	if (availableWidth <= 0) {
+		displayTexts [columnIndex] = Tree.ELLIPSIS;
+		textWidths [columnIndex] = ellipsisWidth;
+		return;
 	}
-	if (isLeaf() == false) {
-		lineEndY -= indicatorHeightDiv2;
+	
+	/* Make initial guess. */
+	int index = Math.min (availableWidth / gc.getFontMetrics ().getAverageCharWidth (), text.length ());
+	textWidth = gc.stringExtent (text.substring (0, index)).x;
+
+	/* Initial guess is correct. */
+	if (availableWidth == textWidth) {
+		displayTexts [columnIndex] = text.substring (0, index) + Tree.ELLIPSIS;
+		textWidths [columnIndex] = textWidth + ellipsisWidth;
+		return;
 	}
-	gc.drawLine(lineX, lineStartY, lineX, lineEndY);
-	if (parentItem != null) {
-		parentItem.drawVerticalItemConnector(gc, position.y, isFirstChild);
+
+	/* Initial guess is too high, so reduce until fit is found. */
+	if (availableWidth < textWidth) {
+		do {
+			index--;
+			if (index < 0) {
+				displayTexts [columnIndex] = Tree.ELLIPSIS;
+				textWidths [columnIndex] = ellipsisWidth;
+				return;
+			}
+			text = text.substring (0, index);
+			textWidth = gc.stringExtent (text).x;
+		} while (availableWidth < textWidth);
+		displayTexts [columnIndex] = text + Tree.ELLIPSIS;
+		textWidths [columnIndex] = textWidth + ellipsisWidth;
+		return;
 	}
-	return position;
+	
+	/* Initial guess is too low, so increase until overrun is found. */
+	int previousWidth = 0;
+	while (textWidth < availableWidth) {
+		index++;
+		previousWidth = textWidth;
+		textWidth = gc.stringExtent (text.substring (0, index)).x;
+	}
+	displayTexts [columnIndex] = text.substring (0, index - 1) + Tree.ELLIPSIS;
+	textWidths [columnIndex] = previousWidth + ellipsisWidth;
+}
+void computeDisplayTexts (GC gc) {
+	int columnCount = parent.columns.length;
+	if (columnCount == 0) return;
+	
+	for (int i = 0; i < columnCount; i++) {
+		gc.setFont (getFont (i));
+		computeDisplayText (i, gc);
+	}
+}
+public void dispose () {
+	if (isDisposed ()) return;
+	int startIndex = -1, endIndex = -1;
+	Tree parent = this.parent;
+	int index = getIndex ();
+	
+	/* determine the indices, if any, that will need to be visually updated */
+	if (isAvailable ()) {
+		if (isLastChild () && index > 0) {
+			/* vertical connector lines no longer needed for this item */
+			if (parentItem != null) {
+				startIndex = parentItem.items [index - 1].availableIndex;
+			} else {
+				startIndex = parent.items [index - 1].availableIndex;
+			}
+		} else {
+			startIndex = availableIndex;
+		}
+		endIndex = parent.availableItemsCount - 1;
+	}
+
+	/* for performance do this upfront for whole descendent chain */
+	TreeItem focusItem = parent.focusItem; 
+	if (focusItem != null && focusItem.hasAncestor (this)) {
+		parent.setFocusItem (this, false);
+		parent.reassignFocus ();
+		focusItem = parent.focusItem;
+		if (focusItem != null) {
+			parent.redrawItem (focusItem.availableIndex, true);
+		}
+	}
+	if (parentItem != null) parentItem.removeItem (this, index);
+	dispose (true);
+	if (startIndex != -1) {
+		parent.redrawItems (startIndex, endIndex, false);
+	}
+}
+void dispose (boolean notifyParent) {
+	if (isDisposed ()) return;
+	if (notifyParent) parent.destroyItem (this);
+	super.dispose ();	/* super is intentional here */
+	for (int i = 0; i < items.length; i++) {
+		items [i].dispose (notifyParent);
+	}
+	background = foreground = null;
+	cellBackgrounds = cellForegrounds = null;
+	font = null;
+	cellFonts = null;
+	images = null;
+	texts = displayTexts = null;
+	textWidths = fontHeights = null;
+	parent = null;
+	parentItem = null;
+	items = null;
+}
+/*
+ * Ensure that all ancestors of the receiver are expanded
+ */
+void expandAncestors () {
+	if (parentItem != null) parentItem.expandAncestors ();
+	setExpanded (true);
 }
 /**
  * Returns the receiver's background color.
@@ -493,8 +600,27 @@ Point drawVerticalItemConnector(GC gc, Point position) {
 public Color getBackground () {
 	checkWidget ();
 	if (background != null) return background;
-	Tree parent = getParent();
-	return parent.getBackground();
+	return parent.getBackground ();
+}
+/**
+ * Returns the background color at the given column index in the receiver.
+ *
+ * @param index the column index
+ * @return the background color
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public Color getBackground (int columnIndex) {
+	checkWidget ();
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return getBackground ();
+	if (cellBackgrounds == null || cellBackgrounds [columnIndex] == null) return getBackground ();
+	return cellBackgrounds [columnIndex];
 }
 /**
  * Returns a rectangle describing the receiver's size and location
@@ -507,33 +633,222 @@ public Color getBackground () {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public Rectangle getBounds() {
-	checkWidget();
-	Tree parent = getParent();
-	Point extent = getItemExtent();
-	int x = getTextXPos() - TEXT_INDENT;
+public Rectangle getBounds () {
+	checkWidget ();
+	if (!isAvailable ()) return new Rectangle (0, 0, 0, 0);
+	int textPaintWidth = textWidths [0] + 2 * MARGIN_TEXT;
+	return new Rectangle (getTextX (0), parent.getItemY (this), textPaintWidth, parent.itemHeight - 1);
+}
+/**
+ * Returns a rectangle describing the receiver's size and location
+ * relative to its parent at a column in the tree.
+ *
+ * @param index the index that specifies the column
+ * @return the receiver's bounding column rectangle
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public Rectangle getBounds (int columnIndex) {
+	checkWidget ();
+	if (!isAvailable ()) return new Rectangle (0, 0, 0, 0);
+	TreeColumn[] columns = parent.columns;
+	int columnCount = columns.length;
+	int validColumnCount = Math.max (1, columnCount);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) {
+		return new Rectangle (0, 0, 0, 0);
+	}
+	/*
+	 * If there are no columns then this is the bounds of the receiver's content.
+	 */
+	if (columnCount == 0) {
+		return new Rectangle (
+			getContentX (0),
+			parent.getItemY (this),
+			getContentWidth (0),
+			parent.itemHeight - 1);
+	}
 	
-	return new Rectangle(x, parent.getRedrawY(this), extent.x - (x - getItemStartX()), extent.y);	
+	TreeColumn column = columns [columnIndex];
+	if (columnIndex == 0) {
+		/* 
+		 * For column 0 this is bounds from the beginning of the content to the
+		 * end of the column.
+		 */
+		int x = getContentX (0);
+		int offset = x - column.getX ();
+		int width = Math.max (0, column.width - offset);		/* max is for columns with small widths */
+		return new Rectangle (x, parent.getItemY (this), width, parent.itemHeight - 1);
+	}
+	/*
+	 * For columns > 0 this is the bounds of the tree cell.
+	 */
+	return new Rectangle (column.getX (), parent.getItemY (this), column.width, parent.itemHeight - 1);
 }
-
-/**
- * Answer the x position of the item check box
+/*
+ * Returns the full bounds of a cell in a tree, regardless of its content.
  */
-int getCheckboxXPosition() {
-	return getPaintStartX() + getDecorationsWidth();
+Rectangle getCellBounds (int columnIndex) {
+	int y = parent.getItemY (this);
+	if (parent.columns.length == 0) {
+		int textPaintWidth = textWidths [0] + 2 * MARGIN_TEXT;
+		int width = getTextX (0) + textPaintWidth + parent.horizontalOffset;
+		return new Rectangle (-parent.horizontalOffset, y, width, parent.itemHeight);
+	}
+	TreeColumn column = parent.columns [columnIndex];
+	return new Rectangle (column.getX (), y, column.width, parent.itemHeight);
+}
+/*
+ * Returns the bounds of the receiver's checkbox, or null if the parent's style does not
+ * include SWT.CHECK.
+ */
+Rectangle getCheckboxBounds () {
+	if ((parent.getStyle () & SWT.CHECK) == 0) return null;
+	int itemHeight = parent.itemHeight;
+	Rectangle result = parent.checkboxBounds;
+	Point[] hLinePoints = getHconnectorEndpoints ();
+	result.x = hLinePoints [1].x;
+	result.y = parent.getItemY (this) + (itemHeight - result.height) / 2;
+	return result;
 }
 /**
- * Answer the combined width of the hierarchy indicator and 
- * the horizontal item connector line.
+ * Returns <code>true</code> if the receiver is checked,
+ * and false otherwise.  When the parent does not have
+ * the <code>CHECK style, return false.
+ * <p>
+ *
+ * @return the checked state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
  */
-int getDecorationsWidth() {
-	int indicatorWidth = getParent().getHierarchyIndicatorRect().width;
-	int width = indicatorWidth + getItemConnectorWidth();
-
-	if (isLeaf() == true) {
-		width -= indicatorWidth / 2;
+public boolean getChecked () {
+	checkWidget ();
+	return checked;
+}
+int getContentWidth (int columnIndex) {
+	int width = textWidths [columnIndex] + 2 * MARGIN_TEXT;
+	if (columnIndex == 0) {
+		width += parent.col0ImageWidth;
+		if (parent.col0ImageWidth > 0) width += Tree.MARGIN_IMAGE;
+	} else {
+		Image image = getImage (columnIndex);
+		if (image != null) {
+			width += image.getBounds ().width + Tree.MARGIN_IMAGE;
+		}
 	}
 	return width;
+}
+/*
+ * Returns the x value where the receiver's content (ie.- its image or text) begins
+ * for the specified column.  For columns > 0 this is dependent upon column alignment,
+ * and for column 0 this is dependent upon the receiver's depth in the tree item
+ * hierarchy and the presence/absence of a checkbox.
+ */
+int getContentX (int columnIndex) {
+	if (columnIndex > 0) {
+		TreeColumn column = parent.columns [columnIndex];
+		int contentX = column.getX () + parent.getCellPadding ();
+		if ((column.style & SWT.LEFT) != 0) return contentX;
+		
+		/* column is not left-aligned */
+		int contentWidth = getContentWidth (columnIndex);
+		if ((column.style & SWT.RIGHT) != 0) {
+			int padding = parent.getCellPadding ();
+			contentX = Math.max (contentX, column.getX () + column.width - padding - contentWidth);	
+		} else {	/* SWT.CENTER */
+			contentX = Math.max (contentX, column.getX () + (column.width - contentWidth) / 2);
+		}
+		return contentX;
+	}
+
+	/* column 0 (always left-aligned) */
+	if ((parent.style & SWT.CHECK) != 0) {
+		Rectangle checkBounds = getCheckboxBounds ();
+		return checkBounds.x + checkBounds.width + Tree.MARGIN_IMAGE;
+	}
+	
+	int contentX = parent.getCellPadding () - parent.horizontalOffset;
+	if (parentItem != null) {
+		int expanderWidth = parent.expanderBounds.width + INDENT_HIERARCHY;
+		contentX += expanderWidth * depth;
+	}
+	contentX += parent.expanderBounds.width;
+	return contentX + Tree.MARGIN_IMAGE + INDENT_HIERARCHY;
+}
+String getDisplayText (int columnIndex) {
+	if (parent.columns.length == 0) return getText (0);
+	String result = displayTexts [columnIndex];
+	return result != null ? result : "";	//$NON-NLS-1$
+}
+/**
+ * Returns <code>true</code> if the receiver is expanded,
+ * and false otherwise.
+ * <p>
+ *
+ * @return the expanded state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
+public boolean getExpanded () {
+	checkWidget ();
+	return expanded;
+}
+/*
+ * Returns the bounds of the receiver's expander box, regardless of whether the
+ * receiver currently has children or not.
+ */ 
+Rectangle getExpanderBounds () {
+	int itemHeight = parent.itemHeight;
+	int x = parent.getCellPadding () - parent.horizontalOffset;
+	int y = parent.getItemY (this);
+	if (parentItem != null) {
+		int expanderWidth = parent.expanderBounds.width + INDENT_HIERARCHY;
+		x += expanderWidth * depth;
+	}
+	return new Rectangle (
+		x, y + (itemHeight - parent.expanderBounds.height) / 2,
+		parent.expanderBounds.width, parent.expanderBounds.height);
+}
+/*
+ * Returns the bounds that should be used for drawing a focus rectangle on the receiver
+ */
+Rectangle getFocusBounds () {
+	int x = getTextX (0);
+	TreeColumn[] columns = parent.columns;
+	if (columns.length > 0) {
+		/* ensure that the focus x does not start beyond the right bound of column 0 */
+		int rightX = columns [0].getX () + columns [0].width;
+		x = Math.min (x, rightX - 1);
+	}
+
+	int width;
+	if (columns.length == 0) {
+		width = textWidths [0] + 2 * MARGIN_TEXT;
+	} else {
+		TreeColumn column;
+		if ((parent.style & SWT.FULL_SELECTION) != 0) {
+			column = columns [columns.length - 1];
+		} else {
+			column = columns [0];
+		}
+		width = column.getX () + column.width - x - 1;
+	}
+
+	return new Rectangle (
+		x,
+		parent.getItemY (this) + (parent.linesVisible ? 1 : 0),
+		width,
+		parent.itemHeight - (parent.linesVisible ? 1 : 0));
 }
 /**
  * Returns the font that the receiver will use to paint textual information for this item.
@@ -550,8 +865,36 @@ int getDecorationsWidth() {
 public Font getFont () {
 	checkWidget ();
 	if (font != null) return font;
-	Tree parent = getParent ();
 	return parent.getFont ();
+}
+/**
+ * Returns the font that the receiver will use to paint textual information
+ * for the specified cell in this item.
+ *
+ * @param index the column index
+ * @return the receiver's font
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.1
+ */
+public Font getFont (int columnIndex) {
+	checkWidget ();
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return getFont ();
+	if (cellFonts == null || cellFonts [columnIndex] == null) return getFont ();
+	return cellFonts [columnIndex];
+}
+int getFontHeight () {
+	if (fontHeight != 0) return fontHeight;
+	return parent.fontHeight;
+}
+int getFontHeight (int columnIndex) {
+	if (fontHeights == null || fontHeights [columnIndex] == 0) return getFontHeight ();
+	return fontHeights [columnIndex];
 }
 /**
  * Returns the foreground color that the receiver will use to draw.
@@ -569,720 +912,28 @@ public Font getFont () {
 public Color getForeground () {
 	checkWidget ();
 	if (foreground != null) return foreground;
-	Tree parent = getParent();
-	return parent.getForeground();
+	return parent.getForeground ();
 }
 /**
- * Answer the index of the receiver relative to the first root 
- * item.
- * @return
- *	The index of the receiver relative to the first root item.
- */
-int getGlobalIndex() {
-	int globalItemIndex = getIndex();
-	AbstractTreeItem item = null;
-
-	if (isRoot() == false) {
-		item = getParentItem();
-		globalItemIndex++;						// adjust for 0-based non-root items
-	}
-	else {	
-		item = getParent().getRoot();
-	}
-
-	globalItemIndex += item.getVisibleIndex(getIndex());
-	return globalItemIndex;
-}
-/**
- * Answer the original size of the image of the receiver.
- */
-Point getImageExtent() {
-	Image image = getImage();
-	Rectangle imageBounds;
-	
-	if (imageExtent == null && image != null) {
-		imageBounds = image.getBounds();
-		imageExtent = new Point(imageBounds.width, imageBounds.height);
-	}
-	return imageExtent;
-}
-/**
- * Answer the receiver's index into its parent's list of children
- */
-int getIndex() {
-	return index;
-}
-/**
- * Answer the width of the horizontal item connector line.
- */
-int getItemConnectorWidth() {
-	Tree parent = getParent();
-	Point imageExtent = parent.getImageExtent();
-	int itemConnectorWidth;
-	int indicatorWidth = parent.getHierarchyIndicatorRect().width;
-
-	if (imageExtent != null) {
-		itemConnectorWidth = imageExtent.x / 2 + ITEM_CONNECTOR_PADDING;
-	}
-	else {
-		itemConnectorWidth = DEFAULT_ITEM_CONNECTOR_WIDTH;
-	}
-	if (isLeaf() == false) {	// has children = has hierarchy indicator = shorter connector
-		itemConnectorWidth -= indicatorWidth / 2;
-	}
-	return itemConnectorWidth;
-}
-/**
- * Returns the number of items contained in the receiver
- * that are direct item children of the receiver.
+ * 
+ * Returns the foreground color at the given column index in the receiver.
  *
- * @return the number of items
+ * @param index the column index
+ * @return the foreground color
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @since 3.1
  */
-public int getItemCount() {
-	checkWidget();
-	return super.getItemCount();
-}
-/**
- * Answer the size of the receiver as displayed on the screen.
- */
-Point getItemExtent() {
-	Tree parent;
-	Point imageExtent;
-	String text;
-	int itemWidth;
-	
-	if (itemExtent == null) {
-		parent = getParent();
-		imageExtent = parent.getImageExtent();
-		text = getText();
-		itemWidth = SELECTION_PADDING;
-		if (text != null) {
-			itemWidth += getTextWidth(text) + TEXT_INDENT;
-		}
-		if (imageExtent != null) {
-			itemWidth += imageExtent.x + IMAGE_PADDING;
-		}
-		itemExtent = new Point(itemWidth, parent.getItemHeight());
-	}
-	return itemExtent;
-}
-/**
- * Answer the x position at which painting of the receiver's 
- * contents (ie. image, text) can begin.
- */
-int getItemStartX() {
-	int itemStartX = getPaintStartX() + getDecorationsWidth();
-	
-	if (isCheckable() == true) {
-		itemStartX += getCheckboxBounds().width + CHECKBOX_PADDING;
-	}
-	return itemStartX;
-}
-/**
- * Returns an array of <code>TreeItem</code>s which are the
- * direct item children of the receiver.
- * <p>
- * Note: This is not the actual structure used by the receiver
- * to maintain its list of items, so modifying the array will
- * not affect the receiver. 
- * </p>
- *
- * @return the receiver's items
- *
- * @exception SWTException <ul>
- *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- */
-public TreeItem [] getItems() {
-	checkWidget();
-	TreeItem childrenArray[] = new TreeItem[getItemCount()];
-
-	getChildren().copyInto(childrenArray);
-	return childrenArray;	
-}
-/**
- * Answer the x position where the receiver is drawn.
- */
-int getPaintStartX() {
-	Tree parent = getParent();
-	Point imageExtent;
-	TreeItem parentItem;
-
-	if (paintStartX == -1) {
-		if (isRoot() == true) {
-			paintStartX = ROOT_INDENT;
-		}
-		else {
-			parentItem = getParentItem();
-			// subtract parent.getHorizontalOffset() to calculate the cached start 
-			// position independent of the horizontal scroll offset. Fixes 1G1L7EU.
-			paintStartX = parentItem.getPaintStartX() 
-				- parent.getHorizontalOffset()	
-				+ parentItem.getDecorationsWidth()
-				- parent.getHierarchyIndicatorRect().width / 2;
-			imageExtent = parent.getImageExtent();
-			if (imageExtent != null) {
-				paintStartX += imageExtent.x / 2;
-			}
-			else {
-				paintStartX += ITEM_NOIMAGE_OFFSET;
-			}
-		}
-	}
-	return paintStartX + parent.getHorizontalOffset();
-}
-/**
- * Answer the pixel at which the receiver stops drawing.
- */
-int getPaintStopX() {
-	return (getItemStartX() + getItemExtent().x - getParent().getHorizontalOffset());
-}
-/**
- * Returns the receiver's parent, which must be a <code>Tree</code>.
- *
- * @return the receiver's parent
- *
- * @exception SWTException <ul>
- *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- */
-public Tree getParent() {
-	checkWidget();
-	return (Tree) super.getSelectableParent();
-}
-/**
- * Returns the receiver's parent item, which must be a
- * <code>TreeItem</code> or null when the receiver is a
- * root.
- *
- * @return the receiver's parent item
- *
- * @exception SWTException <ul>
- *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- */
-public TreeItem getParentItem() {
-	checkWidget();
-	return parentItem;
-}
-/**
- * Answer the item that directly precedes the receiver.
- * Answer null if this is the first item in a hierarchy level
- * or if there are expanded children in the previous item.
- */
-TreeItem getPredecessor() {
-	AbstractTreeItem parentItem = getParentItem();
-	Vector children;
-	int previousIndex = getIndex() - 1;
-	TreeItem previousItem = null;
-
-	if (parentItem == null) {
-		parentItem = getParent().getRoot();
-	}
-	if (previousIndex >= 0) {
-		children = parentItem.getChildren();
-		previousItem = (TreeItem) children.elementAt(previousIndex);
-		if (previousItem.isLeaf() == false && previousItem.getExpanded() == true) {
-			previousItem = null;	// no immediate predecessor because there are expanded children
-		}
-	}
-	return previousItem;	
-}
-/**
- * Answer the size of the rectangle drawn to indicate the
- * selected state of the receiver.
- * This is also used to draw the selection focus rectangle.
- */
-Point getSelectionExtent() {
-	Point selectionExtent = getItemExtent();
-	Point imageExtent = getParent().getImageExtent();
-	int x = selectionExtent.x;
-
-	if (imageExtent != null) {
-		x -= imageExtent.x + IMAGE_PADDING;
-	}
-	return new Point(x, selectionExtent.y);
-}
-/**
- * Return the x position of the selection rectangle
- */
-int getSelectionX() {
-	return getTextXPos() - TEXT_INDENT;
-}
-/**
- * Answer the x position where the receiver draws the item text.
- * This position is relative to the item start position.
- */
-int getTextXPos() {
-	Point imageExtent = getParent().getImageExtent();
-	int textXPos = getItemStartX() + TEXT_INDENT;
-
-	if (imageExtent != null) {
-		textXPos += imageExtent.x + IMAGE_PADDING;
-	}
-	return textXPos;
-}
-/**
- * Answer the y position of the receiver's text.
- * @param 
- *	gc - GC to use for calculating the text y position 
- */
-int getTextYPosition(GC gc) {
-	String text;
-
-	if (textYPosition == -1) {
-		text = getText();
-		if (text != null) {
-			textYPosition = (getParent().getItemHeight() - gc.stringExtent(text).y) / 2;
-		}
-		else {
-			textYPosition = 0;
-		}
-	}
-	return textYPosition;
-}
-/**
- * Answer the width of 'text' in pixel.
- * Answer 0 if 'text' is null.
- */
-int getTextWidth(String text) {
-	int textWidth = 0;
-	if (text != null) {
-		GC gc = new GC(getParent());
-		gc.setFont(getFont());
-		textWidth = gc.stringExtent(text).x;
-		gc.dispose();
-	}
-	return textWidth;
-}
-/**
- * Answer the index of the receiver relative to the first root 
- * item.
- * If 'anIndex' is the index of the expanded item 'anItem' 
- * then the following expressions are true:
- * 'anItem  == theRoot.getVisibleItem(anIndex)' and
- * 'anIndex == anItem.getVisibleIndex()'
- * @return
- *	The index of the receiver relative to the first root item.
- *	Answer -1 if the receiver is not visible (because the parent 
- *	is collapsed).
- */
-int getVisibleIndex() {
-	int visibleItemIndex = getIndex();
-	AbstractTreeItem item = null;
-
-	if (isRoot() == false) {
-		if (isVisible() == false) {
-			return -1;		
-		}
-		item = getParentItem();
-		visibleItemIndex++;						// adjust for 0-based non-root items
-	}
-	else {	
-		item = getParent().getRoot();
-	}
-
-	visibleItemIndex += item.getVisibleIndex(getIndex());
-	return visibleItemIndex;
-}
-/**
- * Answer the index of the child item identified by 'childIndex' 
- * relative to the first root item.
- */
-int getVisibleIndex(int childIndex) {
-	Enumeration children = getChildren().elements();
-	TreeItem child;
-	int visibleItemIndex = getIndex();
-
-	if (isRoot() == false) {
-		visibleItemIndex++;									// adjust for 0-based non-root items
-	}
-
-	while (children.hasMoreElements() == true) {
-		child = (TreeItem) children.nextElement();
-		if (child.getIndex() == childIndex) {
-			if (isRoot() == false) {
-				visibleItemIndex += getParentItem().getVisibleIndex(getIndex());
-			}
-			else {
-				visibleItemIndex += getParent().getRoot().getVisibleIndex(getIndex());
-			}
-			break;
-		}
-		visibleItemIndex += child.getVisibleItemCount();		
-	}	
-	return visibleItemIndex;
-}
-/**
- * Answer the item at 'searchIndex' relativ to the receiver.
- * When this method is called for the root item, 'searchIndex' 
- * represents the global index into all items of the tree.
- * searchIndex=0 returns the receiver. 
- * searchIndex=1 returns the first visible child.
- * Note: searchIndex must be >= 0
- *
- * Note: 
- * Visible in this context does not neccessarily mean that the 
- * item is displayed on the screen. Visible here means that all 
- * the parents of the item are expanded. An item is only 
- * visible on screen if it is within the widget client area.
- */
-TreeItem getVisibleItem(int searchIndex) {
-	TreeItem child;
-	TreeItem foundItem = null;
-	Enumeration children = getChildren().elements();
-
-	if (searchIndex == 0) {
-		return this;
-	}
-	else					
-	if (getExpanded() == false) { 		// trying to find a child when this item isn't expanded ? 
-		return null;
-	}
-
-	// Search for expanded items first. Count all subitems in the process.
-	while (children.hasMoreElements() == true && foundItem == null) {
-		child = (TreeItem) children.nextElement();
-		searchIndex--;
-		if (child.getExpanded() == true) {
-			searchIndex -= child.getVisibleItemCount();	// count children of all expanded items
-		}
-		if (searchIndex <= 0) {								// is searched item past child ?
-			// add back children of current item (that's what we want to search)			
-			foundItem = child.getVisibleItem(searchIndex + child.getVisibleItemCount());
-		}
-	}
-
-	return foundItem;
-}
-/**
- * Answer whether 'item' is a child, direct or indirect, of the receiver.
- * It is an indirect child if it is a child of one of the receiver's children.
- */
-boolean isChild(TreeItem item) {
-	Vector children = getChildren();
-	TreeItem child;
-	
-	if (children.contains(item) == true) {
-		return true;
-	}
-	for (int i = 0; i < children.size(); i++) {
-		child = (TreeItem) children.elementAt(i);
-		if (child.isChild(item) == true) {
-			return true;
-		}
-	}
-	return false;
-}
-/**
- * Answer whether the receiver is a root item.
- * The receiver is a root item when it does not have a parent item.
- * @return 
- *	true - the receiver is a root item.
- * 	false - the receiver is not a root item.
- */
-boolean isRoot() {
-	return (getParentItem() == null);
-}
-/**
- * Answer whether the click at 'position' on the receiver is a selection 
- * click.
- * @param position - location of the mouse click relative to the 
- *	upper left corner of the receiver.
- * @return true - receiver was clicked.
- *	false - receiver was not clicked.
- */
-boolean isSelectionHit(Point position) {
-	Point itemExtent = getItemExtent();
-
-	if (itemExtent == null) {		// neither image nor text have been set
-		return false;
-	}
-	return (new Rectangle(
-		getItemStartX() - getPaintStartX(), 0, 
-		itemExtent.x, itemExtent.y)).contains(position);
-}
-/**
- * Answer whether the receiver is visible
- * An item is visible when its parent item is visible and 
- * expanded. Root items are always visible.
- *
- * Note: 
- * Visible in this context does not neccessarily mean that the 
- * item is displayed on the screen. Visible here means that all 
- * the parents of the item are expanded. An item is only 
- * visible on screen if it is within the receiver's parent's 
- * client area.
- * @return 
- *	true - the receiver is visible
- * 	false - the receiver is not visible
- */
-boolean isVisible() {
-	boolean isVisible = true;
-	TreeItem parentItem = getParentItem();
-
-	if (isRoot() == false) {
-		isVisible = parentItem.getExpanded();
-		if (isVisible == true) {
-			isVisible = parentItem.isVisible();
-		}
-	}
-	return isVisible;		
-}
-/**
- * Make this item visible by expanding its parent item.
- */
-void makeVisible() {
-	TreeItem parentItem = getParentItem();
-	
-	if (isVisible() == false && parentItem != null) {
-		getParent().expand(parentItem, true);			// have to call Tree.expand directly in order to trigger Expand event
-		parentItem.makeVisible();
-	}
-}
-/** 
- * Draw the receiver at 'yPosition' in the client area of the parent.
- * @param gc - GC to draw on.
- * @param yPosition - y coordinate where the receiver should draw at.
- */
-void paint(GC gc, int yPosition) {
-	if (isVisible() == false) {
-		return;
-	}
-	Tree parent = getParent();
-	Font font = getFont();
-	gc.setFont(font);
-	Point paintPosition = new Point(getPaintStartX(), yPosition);
-	Point extent = getSelectionExtent();
-	gc.setForeground(parent.CONNECTOR_LINE_COLOR);
-	paintPosition = drawVerticalItemConnector(gc, paintPosition);
-	paintPosition = drawHierarchyIndicator(gc, paintPosition);
-	paintPosition = drawHorizontalItemConnector(gc, paintPosition);
-	gc.setForeground(parent.getForeground());
-	// paint the rest
-	if (isCheckable() == true) {
-		paintPosition = drawCheckbox(gc, new Point(paintPosition.x, yPosition));
-	}
-	paintPosition = drawImage(gc, new Point(paintPosition.x, yPosition));
-	if (isSelected() == true) {
-		gc.setBackground(getSelectionBackgroundColor());
-		gc.setForeground(getSelectionForegroundColor());
-		gc.fillRectangle(paintPosition.x, paintPosition.y, extent.x, extent.y);
-	} else {
-		gc.setBackground(getBackground());
-		gc.setForeground(getForeground());
-		if(getBackground() != parent.getBackground()){
-			gc.fillRectangle(paintPosition.x, paintPosition.y, extent.x, extent.y);		
-		}
-	}	
-	if (text != null) {		
-		gc.drawString(text, getTextXPos(), paintPosition.y + getTextYPosition(gc), true);
-	}
-	if (this == parent.getInsertItem()) {
-		drawInsertMark(gc, paintPosition);
-	}
-	drawSelectionFocus(gc, paintPosition);
-}
-
-void redraw(){
-	Rectangle bounds = getBounds();
-	getParent().redraw(bounds.x, bounds.y, bounds.width, bounds.height, false);
-}
-
-/**
- * Update the display to reflect the expanded state of the
- * receiver.
- * @param itemIndex - index position in the receiver's client 
- *	area where should be drawn.
- */
-void redrawExpanded(int itemIndex) {
-	Tree parent = getParent();
-	int indicatorWidth = parent.getHierarchyIndicatorRect().width;
-	int itemHeight = parent.getItemHeight();
-
-	parent.redraw(
-		getPaintStartX(), itemIndex * itemHeight,
-		indicatorWidth, itemHeight, false);
-}
-/**
- * Reset cached size and position data.
- */
-void reset() {
-	super.reset();
-	setImageExtent(null);
-	setItemExtent(null);	
-	setPaintStartX(-1);
-	setTextYPosition(-1);	
-}
-/**
- * Sets the expanded state of the receiver.
- * <p>
- *
- * @param expanded the new expanded state
- *
- * @exception SWTException <ul>
- *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- */
-public void setExpanded(boolean expand) {
-	checkWidget();
-	if (isLeaf() == false && expand == true) {
-		getParent().expand(this, false);
-	}
-	else {
-		getParent().collapse(this, false);
-	}
-}
-public void setImage(Image newImage) {
-	checkWidget();
-	Tree parent = getParent();
-	Image oldImage = getImage();
-	boolean isSameImage;
-	int imageWidth = 0;
-	int redrawX = 0;
-
-	super.setImage(newImage);	
-	if (newImage != null && oldImage != null) {
-		isSameImage = newImage.equals(oldImage) && newImage.type == SWT.ICON;
-	}
-	else {
-		isSameImage = newImage == oldImage;
-	}
-	if (isSameImage == false) {
-		if (parent.getVisibleRedrawY(this) != -1) {
-			if (parent.getImageExtent() != null) {
-				imageWidth = parent.getImageExtent().x;
-			}
-			else
-			if (newImage != null) {
-				imageWidth = newImage.getBounds().width;
-			}
-			redrawX = getItemStartX();
-		}
-		parent.itemChanged(this, redrawX, imageWidth);
-	}
-}
-/**
- * Set the size of the original image of the receiver to 'imageExtent'. 
- */
-void setImageExtent(Point imageExtent) {
-	this.imageExtent = imageExtent;
-}
-/**
- * Set the index of the receiver to 'index'.
- * This index is used to reference children in their parent.
- */
-void setIndex(int index) {
-	this.index = index;
-}
-/**
- * Set the size of the receiver to 'extent'.
- */
-void setItemExtent(Point extent) {
-	itemExtent = extent;
-}
-/**
- * Set the x position where the receiver is drawn to 'startX'.
- * @param startX - the x position where the receiver is drawn
- */
-void setPaintStartX(int startX) {
-	paintStartX = startX;
-}
-/**
- * Set the parent item of the receiver to 'parentItem'.
- * @param parentItem - the receiver's parent item. 
- *	Receiver is a root if this is null.
- */
-void setParentItem(TreeItem parentItem) {
-	this.parentItem = parentItem;
-}
-
-public void setText(String newText) {
-	checkWidget();
-	Tree parent = getParent();	
-	String oldText = getText();
-	int redrawX = 0;
-	int redrawWidth = 0;
-
-	if (newText == null) {
-		error(SWT.ERROR_NULL_ARGUMENT);
-	}
-	super.setText(newText);	
-	if (newText.equals(oldText) == false) {
-		if (parent.getVisibleRedrawY(this) != -1) {
-			redrawX = getTextXPos();
-			redrawWidth = parent.getClientArea().width - redrawX;
-		}
-		parent.itemChanged(this, redrawX, redrawWidth);
-	}
-}
-/**
- * Set the y position of the receiver's text to 'yPosition'.
- */
-void setTextYPosition(int yPosition) {
-	textYPosition = yPosition;
-}
-
-public void dispose() {
-	if (isDisposed()) return;
-	// if the tree is being disposed don't bother collapsing the item since all 
-	// items in the tree will be deleted and redraws will not be processed anyway
-	Tree parent = getParent();
-	if (parent.isRemovingAll() == false) {
-		parent.collapseNoRedraw(this);
-	}	
-	
-	if (parentItem != null) {
-		parentItem.removeItem(this);
-	}
-	else {
-		parent.removeItem(this);
-	}
-	
-	super.dispose();
-}
-
-void doDispose() {	
-	// Notify the parent that the receiver is being removed.
-	// Reset cached data.
-	setParentItem(null);
-	setImageExtent(null);
-	setItemExtent(null);	
-	setIndex(-1);
-	setPaintStartX(-1);
-	setTextYPosition(-1);
-	background = foreground = null;
-	font = null;
-	super.doDispose();
-}
-/**
- * Returns <code>true</code> if the receiver is checked,
- * and false otherwise.  When the parent does not have
- * the <code>CHECK style, return false.
- * <p>
- *
- * @return the checked state
- *
- * @exception SWTException <ul>
- *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- */
-public boolean getChecked() {
-	checkWidget();
-	return super.getChecked();
-}
-boolean getExpanding(){
-	return isExpanding;
+public Color getForeground (int columnIndex) {
+	checkWidget ();
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return getForeground ();
+	if (cellForegrounds == null || cellForegrounds [columnIndex] == null) return getForeground ();
+	return cellForegrounds [columnIndex];
 }
 /**
  * Returns <code>true</code> if the receiver is grayed,
@@ -1297,9 +948,702 @@ boolean getExpanding(){
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public boolean getGrayed() {
-	checkWidget();
-	return super.getGrayed();
+public boolean getGrayed () {
+	checkWidget ();
+	return grayed;
+}
+/*
+ * Answers the start and end points of the horizontal connector line that is
+ * drawn between an item's expander box and its checkbox or content.
+ */
+Point[] getHconnectorEndpoints () {
+	Rectangle expanderBounds = getExpanderBounds ();
+	int x, width;
+	if (items.length == 0) {	/* no child items, so no expander box */
+		x = expanderBounds.x + Compatibility.ceil (expanderBounds.width, 2);
+		width = Compatibility.floor (expanderBounds.width, 2) + INDENT_HIERARCHY;
+	} else {					/* has child items */
+		x = expanderBounds.x + expanderBounds.width;
+		width = INDENT_HIERARCHY;
+	}
+	int y = expanderBounds.y + expanderBounds.height / 2;
+	return new Point[] {
+		new Point (x, y),
+		new Point (x + width, y)
+	};
+}
+/*
+ * Returns the bounds representing the clickable region that should select the receiver.
+ */
+Rectangle getHitBounds () {
+	int contentX = getContentX (0);
+	int width = 0;
+	TreeColumn[] columns = parent.columns;
+	if (columns.length == 0) {
+		width = getContentWidth (0); 
+	} else {
+		/* 
+		 * If there are columns then this spans from the beginning of the receiver's column 0
+		 * image or text to the end of either column 0 or the last column (FULL_SELECTION).
+		 */
+		TreeColumn column;
+		if ((parent.style & SWT.FULL_SELECTION) != 0) {
+			column = columns [columns.length - 1];
+		} else {
+			column = columns [0];
+		}
+		width = column.getX () + column.width - contentX;
+	}
+	return new Rectangle (contentX, parent.getItemY (this), width, parent.itemHeight);
+}
+public Image getImage () {
+	checkWidget ();
+	return super.getImage ();
+}
+/**
+ * Returns the image stored at the given column index in the receiver,
+ * or null if the image has not been set or if the column does not exist.
+ *
+ * @param index the column index
+ * @return the image stored at the given column index in the receiver
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public Image getImage (int columnIndex) {
+	checkWidget ();
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return null;
+	if (columnIndex == 0) return getImage ();
+	return images [columnIndex];
+}
+/**
+ * Returns a rectangle describing the size and location
+ * relative to its parent of an image at a column in the
+ * table.
+ *
+ * @param index the index that specifies the column
+ * @return the receiver's bounding image rectangle
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public Rectangle getImageBounds (int columnIndex) {
+	checkWidget ();
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return new Rectangle (0,0,0,0);
+
+	int padding = parent.getCellPadding ();
+	int startX = getContentX (columnIndex);
+	int itemHeight = parent.itemHeight;
+	int imageSpaceY = itemHeight - 2 * padding;
+	int y = parent.getItemY (this);
+	Image image = getImage (columnIndex); 
+	if (image == null) {
+		return new Rectangle (startX, y + padding, 0, imageSpaceY);
+	}
+	
+	Rectangle imageBounds = image.getBounds ();
+	/* 
+	 * For column 0 all images have the same width, which may be larger or smaller
+	 * than the image to be drawn here.  Therefore the image bounds to draw must be
+	 * specified.
+	 */
+	int drawWidth;
+	if (columnIndex == 0) {
+		int imageSpaceX = parent.col0ImageWidth;
+		drawWidth = Math.min (imageSpaceX, imageBounds.width);
+	} else {
+		drawWidth = imageBounds.width;
+	}
+	int drawHeight = Math.min (imageSpaceY, imageBounds.height);
+	return new Rectangle (
+		startX, y + (itemHeight - drawHeight) / 2,
+		drawWidth, drawHeight);
+}
+int getIndex () {
+	TreeItem[] items;
+	if (parentItem != null) {
+		items = parentItem.items;
+	} else {
+		items = parent.items;
+	}
+	for (int i = 0; i < items.length; i++) {
+		if (items [i] == this) return i;
+	}
+	return -1;
+}
+/**
+ * Returns the item at the given, zero-relative index in the
+ * receiver. Throws an exception if the index is out of range.
+ *
+ * @param index the index of the item to return
+ * @return the item at the given index
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_RANGE - if the index is not between 0 and the number of elements in the list minus 1 (inclusive)</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public TreeItem getItem (int index) {
+	checkWidget ();
+	if (!(0 <= index && index < items.length)) error (SWT.ERROR_INVALID_RANGE);
+	return items [index];
+}
+/**
+ * Returns the number of items contained in the receiver
+ * that are direct item children of the receiver.
+ *
+ * @return the number of items
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
+public int getItemCount () {
+	checkWidget ();
+	return items.length;
+}
+/**
+ * Returns a (possibly empty) array of <code>TreeItem</code>s which
+ * are the direct item children of the receiver.
+ * <p>
+ * Note: This is not the actual structure used by the receiver
+ * to maintain its list of items, so modifying the array will
+ * not affect the receiver. 
+ * </p>
+ *
+ * @return the receiver's items
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
+public TreeItem [] getItems () {
+	checkWidget ();
+	TreeItem[] result = new TreeItem [items.length];
+	System.arraycopy (items, 0, result, 0, items.length);
+	return result;
+}
+/**
+ * Returns the receiver's parent, which must be a <code>Tree</code>.
+ *
+ * @return the receiver's parent
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
+public Tree getParent () {
+	checkWidget ();
+	return parent;
+}
+/**
+ * Returns the receiver's parent item, which must be a
+ * <code>TreeItem</code> or null when the receiver is a
+ * root.
+ *
+ * @return the receiver's parent item
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
+public TreeItem getParentItem () {
+	checkWidget ();
+	return parentItem;
+}
+/*
+ * Returns the receiver's ideal width for the specified columnIndex.
+ */
+int getPreferredWidth (int columnIndex) {
+	GC gc = new GC (parent);
+	gc.setFont (getFont (columnIndex));
+	int textPaintWidth = gc.stringExtent (getText (columnIndex)).x + 2 * MARGIN_TEXT;
+	gc.dispose ();
+	if (columnIndex == 0) {
+		return getTextX (columnIndex) + parent.horizontalOffset + textPaintWidth + parent.getCellPadding ();	/* right side cell pad */
+	}
+	/* column > 0 */
+	int width = 2 * parent.getCellPadding () + textPaintWidth;
+	Image image = getImage (columnIndex);
+	if (image != null) {
+		width += image.getBounds ().width;
+		width += Table.MARGIN_IMAGE;
+	}
+	return width;
+}
+public String getText () {
+	checkWidget ();
+	return super.getText ();
+}
+/**
+ * Returns the text stored at the given column index in the receiver,
+ * or empty string if the text has not been set.
+ *
+ * @param index the column index
+ * @return the text stored at the given column index in the receiver
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public String getText (int columnIndex) {
+	checkWidget ();
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return "";	//$NON-NLS-1$
+	if (columnIndex == 0) return getText ();
+	if (texts [columnIndex] == null) return "";	//$NON-NLS-1$
+	return texts [columnIndex];
+}
+/*
+ * Returns the x value where the receiver's text begins.
+ */
+int getTextX (int columnIndex) {
+	int textX = getContentX (columnIndex);
+	if (columnIndex == 0) {
+		textX += parent.col0ImageWidth;
+		if (parent.col0ImageWidth > 0) textX += Tree.MARGIN_IMAGE;
+	} else {
+		Image image = getImage (columnIndex);
+		if (image != null) {
+			textX += image.getBounds ().width + Tree.MARGIN_IMAGE;	
+		}
+	}
+	return textX;
+}
+/*
+ * Returns true if the receiver descends from (or is identical to) the item.
+ */
+boolean hasAncestor (TreeItem item) {
+	if (this == item) return true;
+	if (parentItem == null) return false;
+	return parentItem.hasAncestor (item);
+}
+/**
+ * Searches the receiver's list starting at the first item
+ * (index 0) until an item is found that is equal to the 
+ * argument, and returns the index of that item. If no item
+ * is found, returns -1.
+ *
+ * @param item the search item
+ * @return the index of the item
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the tool item is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the tool item has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public int indexOf (TreeItem item) {
+	checkWidget ();
+	if (item == null) error (SWT.ERROR_NULL_ARGUMENT);
+	if (item.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
+	if (item.parentItem != this) return -1;
+	return item.getIndex ();
+}
+/*
+ * Returns true if the receiver is currently available (though not necessary in the viewport).
+ */
+boolean isAvailable () {
+	if (parentItem == null) return true; 	/* root items are always available */
+	if (!parentItem.expanded) return false;
+	return parentItem.isAvailable ();
+}
+/*
+ * Returns true if the receiver is the last child of its parent item, or of its parent
+ * if the receiver is a root item, and false otherwise.
+ */
+boolean isLastChild () {
+	if (parentItem != null) {
+		return getIndex () == parentItem.items.length - 1;
+	}
+	return getIndex () == parent.items.length - 1;
+}
+boolean isSelected () {
+	return parent.getSelectionIndex (this) != -1;
+}
+/*
+ * The paintCellContent argument indicates whether the item should paint
+ * its cell contents (ie.- its text, image, check and hierarchy) in addition
+ * to its item-level attributes (ie.- background color and selection).
+ */
+void paint (GC gc, TreeColumn column, boolean paintCellContent) {
+	int columnIndex = 0, x = 0;
+	if (column != null) {
+		columnIndex = column.getIndex ();
+		x = column.getX ();
+	}
+	/* if this cell is completely to the right of the client area then there's no need to paint it */
+	Rectangle clientArea = parent.getClientArea ();
+	if (clientArea.x + clientArea.width < x) return;
+
+	Rectangle cellBounds = getCellBounds (columnIndex);
+	if (parent.linesVisible) {
+		cellBounds.y++;
+		cellBounds.height--;
+	}
+	int cellRightX = 0;
+	if (column != null) {
+		cellRightX = column.getX () + column.width;
+	} else {
+		cellRightX = cellBounds.x + cellBounds.width;
+	}
+
+	/* restrict the clipping region to the cell */
+	gc.setClipping (x, cellBounds.y, clientArea.width - x, cellBounds.height);
+	
+	int y = parent.getItemY (this);
+	int itemHeight = parent.itemHeight;
+
+	/* draw the background color of this cell */
+	Color background = getBackground (columnIndex);
+	if (columnIndex == 0) {
+		Rectangle focusBounds = getFocusBounds ();
+		gc.setBackground (parent.getBackground ());
+		if (focusBounds.x > 0) {
+			/* fill space to left of selection rect */
+			gc.fillRectangle (0, y, focusBounds.x, itemHeight);
+		}
+		if (column == null) {
+			/* fill space to right of selection rect */
+			int rightX = focusBounds.x + focusBounds.width;
+			int width = clientArea.width - rightX;
+			if (width > 0) {
+				gc.fillRectangle (rightX, y, width, itemHeight);
+			}
+		}
+		int fillWidth = 0;
+		if (column == null) {
+			fillWidth = focusBounds.width;
+		} else {
+			fillWidth = column.width - focusBounds.x;
+			if (parent.linesVisible) fillWidth--;
+		}
+		gc.setBackground (background);
+		gc.fillRectangle (focusBounds.x, cellBounds.y, fillWidth, cellBounds.height);
+	} else {
+		int fillWidth = cellBounds.width;
+		if (parent.linesVisible) fillWidth--;
+		gc.setBackground (background);
+		gc.fillRectangle (cellBounds.x, cellBounds.y, fillWidth, cellBounds.height);
+	}
+
+	/* draw the selection bar if the receiver is selected */
+	if (isSelected () && (columnIndex == 0 || (parent.style & SWT.FULL_SELECTION) != 0)) {
+		gc.setBackground (display.getSystemColor (SWT.COLOR_LIST_SELECTION));
+		if (columnIndex == 0) {
+			Rectangle focusBounds = getFocusBounds ();
+			int fillWidth = focusBounds.width;
+			if (parent.columns.length < 2 || (parent.style & SWT.FULL_SELECTION) == 0) {
+				fillWidth -= 2;	/* space for right bound of focus rect */
+			}
+			if (fillWidth > 0) {
+				gc.fillRectangle (focusBounds.x + 1, focusBounds.y + 1, fillWidth, focusBounds.height - 2);
+			}
+		} else {
+			int fillWidth = column.width;
+			if (columnIndex == parent.columns.length - 1) {
+				fillWidth -= 2;		/* space for right bound of focus rect */
+			}
+			if (fillWidth > 0) {
+				gc.fillRectangle (
+					column.getX (),
+					cellBounds.y + 1,
+					fillWidth,
+					cellBounds.height - 2);
+			}
+		}
+	}
+		
+	if (!paintCellContent) return;
+
+	/* Draw column 0 decorations */
+	if (columnIndex == 0) {
+		/* Draw hierarchy connector lines */
+		Rectangle expanderBounds = getExpanderBounds ();
+		gc.setForeground (parent.getConnectorColor ());
+
+		/* Draw vertical line above expander */
+		int lineX = expanderBounds.x + expanderBounds.width / 2;
+		int y2 = expanderBounds.y;
+		if (items.length == 0) {
+			y2 += expanderBounds.height / 2;
+		}
+		/* Do not draw this line iff this is the very first item in the tree */ 
+		if (parentItem != null || getIndex () != 0) {
+			gc.drawLine (lineX, y, lineX, y2);
+		}
+
+		/* Draw vertical line below expander if the receiver has lower siblings */
+		if (!isLastChild ()) {
+			if (items.length != 0) y2 += expanderBounds.height;
+			gc.drawLine (lineX, y2, lineX, y + itemHeight);
+		}
+
+		/* Draw horizontal line to right of expander */
+		Point[] endpoints = getHconnectorEndpoints ();
+		gc.drawLine (endpoints [0].x, endpoints [0].y, endpoints [1].x - Tree.MARGIN_IMAGE, endpoints [1].y);
+		
+		/* 
+		 * Draw hierarchy lines that are needed by other items that are shown below
+		 * this item but whose parents are shown above (ie.- lines to the left of
+		 * this item's connector line).
+		 */
+		TreeItem item = parentItem;
+		while (item != null) {
+			if (!item.isLastChild ()) {
+				Rectangle itemExpanderBounds = item.getExpanderBounds ();
+				lineX = itemExpanderBounds.x + itemExpanderBounds.width / 2;
+				gc.drawLine (lineX, y, lineX, y + itemHeight);
+			}
+			item = item.parentItem;
+		}
+		
+		/* Draw expand/collapse image if receiver has children */
+		if (items.length > 0) {
+			Image image = expanded ? parent.getExpandedImage () : parent.getCollapsedImage ();
+			gc.drawImage (image, expanderBounds.x, expanderBounds.y);
+		}
+		
+		/* Draw checkbox if parent Tree has style SWT.CHECK */
+		if ((parent.style & SWT.CHECK) != 0) {
+			Image baseImage = grayed ? parent.getGrayUncheckedImage () : parent.getUncheckedImage ();
+			Rectangle checkboxBounds = getCheckboxBounds ();
+			gc.drawImage (baseImage, checkboxBounds.x, checkboxBounds.y);
+			/* Draw checkmark if item is checked */
+			if (checked) {
+				Image checkmarkImage = parent.getCheckmarkImage ();
+				Rectangle checkmarkBounds = checkmarkImage.getBounds ();
+				int xInset = (checkboxBounds.width - checkmarkBounds.width) / 2;
+				int yInset = (checkboxBounds.height - checkmarkBounds.height) / 2;
+				gc.drawImage (checkmarkImage, checkboxBounds.x + xInset, checkboxBounds.y + yInset);
+			}
+		}
+	}
+
+	Image image = getImage (columnIndex);
+	String text = getDisplayText (columnIndex);
+	Rectangle imageArea = getImageBounds (columnIndex);
+	int startX = imageArea.x;
+	
+	/* while painting the cell's content restrict the clipping region */
+	int padding = parent.getCellPadding ();
+	gc.setClipping (
+		startX,
+		cellBounds.y + padding - (parent.linesVisible ? 1 : 0),
+		cellRightX - startX - padding,
+		cellBounds.height - 2 * (padding - (parent.linesVisible ? 1 : 0)));
+
+	/* draw the image */
+	if (image != null) {
+		Rectangle imageBounds = image.getBounds ();
+		gc.drawImage (
+			image,
+			0, 0,									/* source x, y */
+			imageBounds.width, imageBounds.height,	/* source width, height */
+			imageArea.x, imageArea.y,				/* dest x, y */
+			imageArea.width, imageArea.height);		/* dest width, height */
+	}
+	
+	/* draw the text */
+	if (text.length () > 0) {
+		gc.setFont (getFont (columnIndex));
+		int fontHeight = getFontHeight (columnIndex);
+		if (isSelected () && (columnIndex == 0 || (parent.style & SWT.FULL_SELECTION) != 0)) {
+			gc.setForeground (display.getSystemColor (SWT.COLOR_LIST_SELECTION_TEXT));
+		} else {
+			gc.setForeground (getForeground (columnIndex));
+		}
+		x = getTextX (columnIndex) + MARGIN_TEXT;
+		gc.drawString (text, x, y + (itemHeight - fontHeight) / 2, true);
+	}
+}
+/*
+ * Recomputes the cached text widths.
+ */
+void recomputeTextWidths (GC gc) {
+	int validColumnCount = Math.max (1, parent.columns.length);
+	textWidths = new int [validColumnCount];
+	for (int i = 0; i < textWidths.length; i++) {
+		String value = getDisplayText (i);
+		if (value != null) {
+			gc.setFont (getFont (i));
+			textWidths [i] = gc.stringExtent (value).x;
+		}
+	}
+}
+void redrawItem () {
+	if (!isAvailable ()) return;
+	parent.redraw (0, parent.getItemY (this), parent.getClientArea ().width, parent.itemHeight, false);
+}
+/*
+ * Updates internal structures in the receiver and its child items to handle the removal of a column.
+ */
+void removeColumn (TreeColumn column, int index) {
+	int columnCount = parent.columns.length;
+
+	if (columnCount == 0) {
+		/* reverts to normal tree when last column disposed */
+		cellBackgrounds = cellForegrounds = null;
+		displayTexts = null;
+		cellFonts = null;
+		fontHeights = null;
+		GC gc = new GC (parent);
+		recomputeTextWidths (gc);
+		gc.dispose ();
+		/* notify all child items as well */
+		for (int i = 0; i < items.length; i++) {
+			items [i].removeColumn (column, index);
+		}
+		return;
+	}
+
+	String[] newTexts = new String [columnCount];
+	System.arraycopy (texts, 0, newTexts, 0, index);
+	System.arraycopy (texts, index + 1, newTexts, index, columnCount - index);
+	texts = newTexts;
+	
+	Image[] newImages = new Image [columnCount];
+	System.arraycopy (images, 0, newImages, 0, index);
+	System.arraycopy (images, index + 1, newImages, index, columnCount - index);
+	images = newImages;
+
+	int[] newTextWidths = new int [columnCount];
+	System.arraycopy (textWidths, 0, newTextWidths, 0, index);
+	System.arraycopy (textWidths, index + 1, newTextWidths, index, columnCount - index);
+	textWidths = newTextWidths;
+
+	String[] newDisplayTexts = new String [columnCount];
+	System.arraycopy (displayTexts, 0, newDisplayTexts, 0, index);
+	System.arraycopy (displayTexts, index + 1, newDisplayTexts, index, columnCount - index);
+	displayTexts = newDisplayTexts;
+
+	if (cellBackgrounds != null) {
+		Color[] newCellBackgrounds = new Color [columnCount];
+		System.arraycopy (cellBackgrounds, 0, newCellBackgrounds, 0, index);
+		System.arraycopy (cellBackgrounds, index + 1, newCellBackgrounds, index, columnCount - index);
+		cellBackgrounds = newCellBackgrounds;
+	}
+	if (cellForegrounds != null) {
+		Color[] newCellForegrounds = new Color [columnCount];
+		System.arraycopy (cellForegrounds, 0, newCellForegrounds, 0, index);
+		System.arraycopy (cellForegrounds, index + 1, newCellForegrounds, index, columnCount - index);
+		cellForegrounds = newCellForegrounds;
+	}
+	if (cellFonts != null) {
+		Font[] newCellFonts = new Font [columnCount];
+		System.arraycopy (cellFonts, 0, newCellFonts, 0, index);
+		System.arraycopy (cellFonts, index + 1, newCellFonts, index, columnCount - index);
+		cellFonts = newCellFonts;
+
+		int[] newFontHeights = new int [columnCount];
+		System.arraycopy (fontHeights, 0, newFontHeights, 0, index);
+		System.arraycopy (fontHeights, index + 1, newFontHeights, index, columnCount - index);
+		fontHeights = newFontHeights;
+	}
+
+	if (index == 0) {
+		text = texts [0] != null ? texts [0] : "";	//$NON-NLS-1$
+		texts [0] = null;
+		image = images [0];
+		images [0] = null;
+		/* 
+		 * The new first column will not have as much width available to it as it did when it was
+		 * the second column since it now has to show hierarchy decorations as well, so recompute
+		 * its displayText. 
+		 */
+		GC gc = new GC (parent);
+		gc.setFont (getFont (0));
+		computeDisplayText (0, gc);
+		gc.dispose ();
+	}
+	if (columnCount < 2) {
+		texts = null;
+		images = null;
+	}
+
+	/* notify all child items as well */
+	for (int i = 0; i < items.length; i++) {
+		items [i].removeColumn (column, index);
+	}
+}
+/**
+ * Removes all of the items from the receiver.
+ * <p>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.1
+ */
+public void removeAll () {
+	checkWidget ();
+	if (items.length == 0) return;
+
+	int lastAvailableIndex = parent.availableItemsCount - 1;
+	/* for performance do this upfront for whole descendent chain */
+	TreeItem focusItem = parent.focusItem; 
+	if (focusItem != null && focusItem.hasAncestor (this)) {
+		parent.setFocusItem (this, false);
+	}
+
+	while (items.length > 0) {
+		items [0].dispose (true);
+		removeItem (items [0], 0);
+	}
+	items = NO_ITEMS;
+	expanded = false;
+	if (isAvailable ()) {
+		parent.redrawItems (availableIndex, lastAvailableIndex, false);
+	}
+}
+/*
+ * Removes a child item from the receiver.
+ */
+void removeItem (TreeItem item, int index) {
+	if (isDisposed ()) return;
+	TreeItem[] newItems = new TreeItem [items.length - 1];
+	System.arraycopy (items, 0, newItems, 0, index);
+	System.arraycopy (items, index + 1, newItems, index, newItems.length - index);
+	items = newItems;
+	if (items.length == 0) {
+		items = NO_ITEMS;
+		/* condition below handles creation of item within Expand callback */
+		if (!parent.inExpand) {
+			expanded = false;
+			if (availableIndex == -1) return;
+			Rectangle bounds = getExpanderBounds ();	/* expander box no longer needed */
+			parent.redraw (bounds.x, bounds.y, bounds.width, bounds.height, false);
+		}
+		return;
+	}
 }
 /**
  * Sets the receiver's background color to the color specified
@@ -1319,15 +1663,51 @@ public boolean getGrayed() {
  * @since 2.0
  * 
  */
-public void setBackground (Color color) {
+public void setBackground (Color value) {
 	checkWidget ();
-	if (color != null && color.isDisposed ()) {
+	if (value != null && value.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
-	if (background == color) return;
-	if (background != null && background.equals (color)) return;
-	background = color;	
-	redraw();
+	if (background == value) return;
+	if (background != null && background.equals (value)) return;
+	background = value;
+	redrawItem ();
+}
+/**
+ * Sets the background color at the given column index in the receiver 
+ * to the color specified by the argument, or to the default system color for the item
+ * if the argument is null.
+ *
+ * @param index the column index
+ * @param color the new color (or null)
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li> 
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ * 
+ */
+public void setBackground (int columnIndex, Color value) {
+	checkWidget ();
+	if (value != null && value.isDisposed ()) {
+		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
+	}
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return;
+	if (cellBackgrounds == null) {
+		cellBackgrounds = new Color [validColumnCount];
+	}
+	if (cellBackgrounds [columnIndex] == value) return;
+	if (cellBackgrounds [columnIndex] != null && cellBackgrounds [columnIndex].equals (value)) return;
+	cellBackgrounds [columnIndex] = value;
+	if (availableIndex == -1) return;
+	Rectangle bounds = getCellBounds (columnIndex);
+	parent.redraw (bounds.x, bounds.y, bounds.width, bounds.height, false);
 }
 /**
  * Sets the checked state of the receiver.
@@ -1340,12 +1720,130 @@ public void setBackground (Color color) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public void setChecked(boolean checked) {
-	checkWidget();
-	super.setChecked(checked);
+public void setChecked (boolean value) {
+	checkWidget ();
+	if ((parent.getStyle () & SWT.CHECK) == 0) return;
+	if (checked == value) return;
+	checked = value;
+	if (availableIndex == -1) return;
+	Rectangle bounds = getCheckboxBounds ();
+	parent.redraw (bounds.x, bounds.y, bounds.width, bounds.height, false);
 }
-void setExpanding(boolean expanding){
-	isExpanding = expanding;
+/**
+ * Sets the expanded state of the receiver.
+ * <p>
+ *
+ * @param expanded the new expanded state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
+public void setExpanded (boolean value) {
+	checkWidget ();
+	if (expanded == value) return;
+	if (items.length == 0) return;
+	if (parent.inExpand) return;
+	if (value) {
+		expanded = value;
+		if (availableIndex == -1) return;
+
+		TreeItem[] availableDescendents = computeAvailableDescendents ();
+		int descendentsCount = availableDescendents.length;
+		if (availableIndex != parent.availableItemsCount - 1) {
+			/* the receiver is not the last available item */
+			Rectangle clientArea = parent.getClientArea ();
+			int y = parent.getItemY (this) + parent.itemHeight;
+			if (0 < y && y < clientArea.height) {
+				if (parent.drawCount == 0) {
+					parent.update ();
+					GC gc = new GC (parent);
+					gc.copyArea (
+						0, y,
+						clientArea.width, clientArea.height - y,
+						0, y + ((descendentsCount - 1) * parent.itemHeight));				
+					gc.dispose ();
+				}
+			}
+		}
+
+		parent.makeDescendentsAvailable (this, availableDescendents);
+
+		/* update scrollbars */
+		int rightX = 0;
+		for (int i = 1; i < availableDescendents.length; i++) {
+			Rectangle bounds = availableDescendents [i].getBounds ();
+			rightX = Math.max (rightX, bounds.x + bounds.width);
+		}
+		parent.updateHorizontalBar (rightX, rightX);
+		parent.updateVerticalBar ();
+		/* 
+		 * If new item is above viewport then adjust topIndex and the vertical scrollbar
+		 * so that the current viewport items will not change. 
+		 */
+		if (availableIndex < parent.topIndex) {
+			parent.topIndex += descendentsCount - 1;
+			parent.getVerticalBar ().setSelection (parent.topIndex);
+			return;
+		}
+
+		int redrawStart = availableIndex + 1;
+		int redrawEnd = redrawStart + descendentsCount - 2;
+		parent.redrawItems (redrawStart, redrawEnd, false);
+	} else {
+		TreeItem[] descendents = computeAvailableDescendents ();
+		expanded = value;
+		if (availableIndex == -1) return;
+		Rectangle clientArea = parent.getClientArea ();
+
+		int y = parent.getItemY (this) + parent.itemHeight;
+		int startY = y + (descendents.length - 1) * parent.itemHeight;
+		if (y < clientArea.height && 0 < startY) {	/* determine whether any some visual update is actually needed */
+			if (parent.drawCount == 0) {
+				parent.update ();
+				GC gc = new GC (parent);
+				gc.copyArea (0, startY, clientArea.width, clientArea.height - startY, 0, y);
+				gc.dispose ();
+				int redrawY = clientArea.height - startY + y;
+				parent.redraw (0, redrawY, clientArea.width, clientArea.height - redrawY, false);
+			}
+		}
+
+		parent.makeDescendentsUnavailable (this, descendents);
+
+		/* 
+		 * If all collapsed items are above the viewport then adjust topIndex and
+		 * the vertical scrollbar so that the current viewport items will not change.
+		 */
+		int bottomIndex = availableIndex + descendents.length - 1;
+		if (bottomIndex < parent.topIndex) {
+			parent.topIndex = parent.topIndex - descendents.length + 1;
+			parent.getVerticalBar ().setSelection (parent.topIndex);
+		}
+		
+		parent.updateHorizontalBar ();
+		parent.updateVerticalBar ();
+
+		/* move focus (and selection if SWT.SINGLE) to item if a descendent had focus */
+		TreeItem focusItem = parent.focusItem;
+		if (focusItem != null && focusItem != this && focusItem.hasAncestor (this)) {
+			parent.setFocusItem (this, false);
+			if ((parent.style & SWT.SINGLE) != 0) {
+				parent.selectItem (this, false);
+			}
+			/* Fire an event since the selection is being changed automatically */
+			Event newEvent = new Event ();
+			newEvent.item = this;
+			parent.sendEvent (SWT.Selection, newEvent);
+			if (isDisposed ()) return;
+			parent.showItem (this);
+			parent.redrawItem (availableIndex, true);
+		}
+	}
+	/* redraw the receiver's expander box */
+	Rectangle bounds = getExpanderBounds ();
+	parent.redraw (bounds.x, bounds.y, bounds.width, bounds.height, false);
 }
 /**
  * Sets the font that the receiver will use to paint textual information
@@ -1364,15 +1862,77 @@ void setExpanding(boolean expanding){
  * 
  * @since 3.0
  */
-public void setFont (Font font){
+public void setFont (Font value) {
 	checkWidget ();
-	if (font != null && font.isDisposed ()) {
+	if (value != null && value.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
-	if (this.font == font) return;
-	if (this.font != null && this.font.equals (font)) return;
-	this.font = font;
-	redraw ();
+	if (font == value) return;
+	if (value != null && value.equals (font)) return;
+	
+	Rectangle bounds = getBounds ();
+	int oldRightX = bounds.x + bounds.width;
+	font = value;
+	
+	/* recompute cached values for string measurements */
+	GC gc = new GC (parent);
+	gc.setFont (getFont ());
+	fontHeight = gc.getFontMetrics ().getHeight ();
+	computeDisplayTexts (gc);
+	recomputeTextWidths (gc);
+	gc.dispose ();
+	
+	/* horizontal bar could be affected if tree has no columns */
+	if (parent.columns.length == 0) {
+		bounds = getBounds ();
+		int newRightX = bounds.x + bounds.width;
+		parent.updateHorizontalBar (newRightX, newRightX - oldRightX);
+	}
+	redrawItem ();
+}
+/**
+ * Sets the font that the receiver will use to paint textual information
+ * for the specified cell in this item to the font specified by the 
+ * argument, or to the default font for that kind of control if the 
+ * argument is null.
+ *
+ * @param index the column index
+ * @param font the new font (or null)
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li> 
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void setFont (int columnIndex, Font value) {
+	checkWidget ();
+	if (value != null && value.isDisposed ()) {
+		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
+	}
+
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return;
+	if (cellFonts == null) cellFonts = new Font [validColumnCount];
+	if (cellFonts [columnIndex] == value) return;
+	if (cellFonts [columnIndex] != null && cellFonts [columnIndex].equals (value)) return;
+	cellFonts [columnIndex] = value;
+	
+	/* recompute cached values for string measurements */
+	GC gc = new GC (parent);
+	gc.setFont (getFont (columnIndex));
+	if (fontHeights == null) fontHeights = new int [validColumnCount];
+	fontHeights [columnIndex] = gc.getFontMetrics ().getHeight ();
+	computeDisplayText (columnIndex, gc);
+	gc.dispose ();
+
+	if (availableIndex == -1) return;
+	Rectangle bounds = getCellBounds (columnIndex);
+	parent.redraw (bounds.x, bounds.y, bounds.width, bounds.height, false);
 }
 /**
  * Sets the receiver's foreground color to the color specified
@@ -1394,15 +1954,55 @@ public void setFont (Font font){
  * @since 2.0
  * 
  */
-public void setForeground (Color color) {
+public void setForeground (Color value) {
 	checkWidget ();
-	if (color != null && color.isDisposed ()) {
+	if (value != null && value.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
-	if (foreground == color) return;
-	if (foreground != null && foreground.equals (color)) return;
-	foreground = color;
-	redraw(); 
+	if (foreground == value) return;
+	if (foreground != null && foreground.equals (value)) return;
+	foreground = value;
+	redrawItem ();
+}
+/**
+ * Sets the foreground color at the given column index in the receiver 
+ * to the color specified by the argument, or to the default system color for the item
+ * if the argument is null.
+ *
+ * @param index the column index
+ * @param color the new color (or null)
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li> 
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ * 
+ */
+public void setForeground (int columnIndex, Color value) {
+	checkWidget ();
+	if (value != null && value.isDisposed ()) {
+		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
+	}
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return;
+	if (cellForegrounds == null) {
+		cellForegrounds = new Color [validColumnCount];
+	}
+	if (cellForegrounds [columnIndex] == value) return;
+	if (cellForegrounds [columnIndex] != null && cellForegrounds [columnIndex].equals (value)) return;
+	cellForegrounds [columnIndex] = value;
+	if (availableIndex == -1) return;
+	parent.redraw (
+		getTextX (columnIndex),
+		parent.getItemY (this),
+		textWidths [columnIndex] + 2 * MARGIN_TEXT,
+		parent.itemHeight,
+		false);
 }
 /**
  * Sets the grayed state of the receiver.
@@ -1415,9 +2015,260 @@ public void setForeground (Color color) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public void setGrayed (boolean grayed) {
-	checkWidget();
-	super.setGrayed(grayed);
+public void setGrayed (boolean value) {
+	checkWidget ();
+	if ((parent.getStyle () & SWT.CHECK) == 0) return;
+	if (grayed == value) return;
+	grayed = value;
+	if (availableIndex == -1) return;
+	Rectangle bounds = getCheckboxBounds ();
+	parent.redraw (bounds.x, bounds.y, bounds.width, bounds.height, false);
 }
+public void setImage (Image value) {
+	checkWidget ();
+	setImage (0, value);
+}
+/**
+ * Sets the image for multiple columns in the tree. 
+ * 
+ * @param images the array of new images
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the array of images is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if one of the images has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void setImage (Image[] value) {
+	checkWidget ();
+	if (value == null) error (SWT.ERROR_NULL_ARGUMENT);
+	
+	// TODO make a smarter implementation of this
+	for (int i = 0; i < value.length; i++) {
+		if (value [i] != null) setImage (i, value [i]);
+	}
+}
+/**
+ * Sets the receiver's image at a column.
+ *
+ * @param index the column index
+ * @param image the new image
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the image has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void setImage (int columnIndex, Image value) {
+	checkWidget ();
+	if (value != null && value.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
 
+	TreeColumn[] columns = parent.columns;
+	int validColumnCount = Math.max (1, columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return;
+	Image image = getImage (columnIndex);
+	if (value == image) return;
+	if (value != null && value.equals (image)) return;
+	if (columnIndex == 0) {
+		super.setImage (value);
+	} else {
+		images [columnIndex] = value;
+	}
+	
+	/* 
+	 * An image width change may affect the space available for the item text, so
+	 * recompute the displayText if there are columns.
+	 */
+	if (columns.length > 0) {
+		GC gc = new GC (parent);
+		gc.setFont (getFont (columnIndex));
+		computeDisplayText (columnIndex, gc);
+		gc.dispose ();
+	}
+	
+	if (value == null) {
+		redrawItem ();
+		return;
+	}
+
+	/*
+	 * If this is the first image being put into the tree then its item height
+	 * may be adjusted, in which case a full redraw is needed.
+	 */
+	if (parent.imageHeight == 0) {
+		int oldItemHeight = parent.itemHeight;
+		parent.setImageHeight (value.getBounds ().height);
+		if (oldItemHeight != parent.itemHeight) {
+			if (columnIndex == 0) {
+				parent.col0ImageWidth = value.getBounds ().width;
+				if (columns.length > 0) {
+					/* 
+					 * All column 0 cells will now have less room available for their texts,
+					 * so all items must now recompute their column 0 displayTexts.
+					 */
+					GC gc = new GC (parent);
+					TreeItem[] rootItems = parent.items;
+					for (int i = 0; i < rootItems.length; i++) {
+						rootItems [i].updateColumnWidth (columns [0], gc);
+					}
+					gc.dispose ();
+				}
+			}
+			parent.redraw ();
+			return;
+		}
+	}
+
+	/* 
+	 * If this is the first image being put into column 0 then all cells
+	 * in the column should also indent accordingly. 
+	 */
+	if (columnIndex == 0 && parent.col0ImageWidth == 0) {
+		parent.col0ImageWidth = value.getBounds ().width;
+		/* redraw the column */
+		if (columns.length == 0) {
+			parent.redraw ();
+		} else {
+			/* 
+			 * All column 0 cells will now have less room available for their texts,
+			 * so all items must now recompute their column 0 displayTexts.
+			 */
+			GC gc = new GC (parent);
+			TreeItem[] rootItems = parent.items;
+			for (int i = 0; i < rootItems.length; i++) {
+				rootItems [i].updateColumnWidth (columns [0], gc);
+			}
+			gc.dispose ();
+			parent.redraw (
+				columns [0].getX (), 0,
+				columns [0].width,
+				parent.getClientArea ().height,
+				true);
+		}
+		return;
+	}
+	redrawItem ();
+}
+public void setText (String value) {
+	checkWidget ();
+	Rectangle bounds = getBounds ();
+	int oldRightX = bounds.x + bounds.width;
+	setText (0, value);
+	/* horizontal bar could be affected if tree has no columns */
+	if (parent.columns.length == 0) {
+		bounds = getBounds ();
+		int newRightX = bounds.x + bounds.width;
+		parent.updateHorizontalBar (newRightX, newRightX - oldRightX);
+	}
+}
+/**
+ * Sets the text for multiple columns in the tree. 
+ * 
+ * @param strings the array of new strings
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the text is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void setText (String[] value) {
+	checkWidget ();
+	if (value == null) error (SWT.ERROR_NULL_ARGUMENT);
+	Rectangle bounds = getBounds ();
+	int oldRightX = bounds.x + bounds.width;
+	// TODO make a smarter implementation of this
+	for (int i = 0; i < value.length; i++) {
+		if (value [i] != null) setText (i, value [i]);
+	}
+	/* horizontal bar could be affected if tree has no columns */
+	if (parent.columns.length == 0) {
+		bounds = getBounds ();
+		int newRightX = bounds.x + bounds.width;
+		parent.updateHorizontalBar (newRightX, newRightX - oldRightX);
+	}
+}
+/**
+ * Sets the receiver's text at a column
+ *
+ * @param index the column index
+ * @param string the new text
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the text is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void setText (int columnIndex, String value) {
+	checkWidget ();
+	if (value == null) error (SWT.ERROR_NULL_ARGUMENT);
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return;
+	if (value.equals (getText (columnIndex))) return;
+	if (columnIndex == 0) {
+		super.setText (value);
+	} else {
+		texts [columnIndex] = value;		
+	}
+	
+	int oldWidth = textWidths [columnIndex];
+	GC gc = new GC (parent);
+	gc.setFont (getFont (columnIndex));
+	computeDisplayText (columnIndex, gc);
+	gc.dispose ();
+	if (availableIndex == -1) return;
+	if (parent.columns.length == 0) {
+		Rectangle bounds = getBounds ();
+		int rightX = bounds.x + bounds.width;
+		parent.updateHorizontalBar (rightX, textWidths [columnIndex] - oldWidth);
+	}
+	parent.redraw (
+		getTextX (columnIndex),
+		parent.getItemY (this),
+		Math.max (oldWidth, textWidths [columnIndex]) + 2 * MARGIN_TEXT,
+		parent.itemHeight,
+		false);
+}
+void updateColumnWidth (TreeColumn column, GC gc) {
+	int columnIndex = column.getIndex ();
+	gc.setFont (getFont (columnIndex));
+	computeDisplayText (columnIndex, gc);
+	for (int i = 0; i < items.length; i++) {
+		items [i].updateColumnWidth (column, gc);
+	}
+}
+/*
+ * The parent's font has changed, so if this font was being used by the receiver then
+ * recompute its cached text sizes using the gc argument.  Pass this notification on to
+ * all child items as well.
+ */
+void updateFont (GC gc) {
+	if (font == null) {		/* receiver is using the Tree's font */
+		computeDisplayTexts (gc);
+		recomputeTextWidths (gc);
+	}
+	/* pass notification on to all children */
+	for (int i = 0; i < items.length; i++) {
+		items [i].updateFont (gc);
+	}
+}
 }

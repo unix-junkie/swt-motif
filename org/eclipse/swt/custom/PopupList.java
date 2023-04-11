@@ -1,10 +1,10 @@
 /*******************************************************************************
  * Copyright (c) 2000, 2004 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -91,9 +91,9 @@ private static int checkStyle (int style) {
 * <p>
 * @return the widget font
 *
-* @exception SWTError <ul>
-*		<li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
-*		<li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
+* @exception SWTException <ul>
+*    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+*    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
 *	</ul>
 */
 public Font getFont () {
@@ -107,10 +107,9 @@ public Font getFont () {
 *
 * @return the items in the widget
 *
-* @exception SWTError <ul>
-*		<li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
-*		<li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
-* 		<li>ERROR_CANNOT_GET_ITEM when the operation fails</li>
+* @exception SWTException <ul>
+*    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+*    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
 *	</ul>
 */
 public String[] getItems () {
@@ -134,7 +133,7 @@ public int getMinimumWidth () {
 */
 public String open (Rectangle rect) {
 
-	Point listSize = list.computeSize (rect.width, SWT.DEFAULT);
+	Point listSize = list.computeSize (rect.width, SWT.DEFAULT, false);
 	Rectangle screenSize = shell.getDisplay().getBounds();
 
 	// Position the dialog so that it does not run off the screen and the largest number of items are visible
@@ -197,9 +196,9 @@ public String open (Rectangle rect) {
 *
 * @param string the text of the item
 *
-* @exception SWTError <ul>
-*		<li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
-*		<li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
+* @exception SWTException <ul>
+*    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+*    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
 *	</ul>
 */
 public void select(String string) {
@@ -225,9 +224,9 @@ public void select(String string) {
 *
 * @param font the new font (or null)
 * 
-* @exception SWTError <ul>
-*		<li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
-*		<li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
+* @exception SWTException <ul>
+*    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+*    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
 *	</ul>
 */
 public void setFont (Font font) {
@@ -245,12 +244,14 @@ public void setFont (Font font) {
 *
 * This operation will fail when an item is null
 * or could not be added in the OS.
-*
-* @exception SWTError <ul>
-*		<li>ERROR_THREAD_INVALID_ACCESS when called from the wrong thread</li>
-*		<li>ERROR_WIDGET_DISPOSED when the widget has been disposed</li>
-*		<li>ERROR_NULL_ARGUMENT when items is null</li>
-*		<li>ERROR_ITEM_NOT_ADDED when the operation fails</li>
+* 
+* @exception IllegalArgumentException <ul>
+*    <li>ERROR_NULL_ARGUMENT - if the items array is null</li>
+*    <li>ERROR_INVALID_ARGUMENT - if an item in the items array is null</li>
+* </ul>
+* @exception SWTException <ul>
+*    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+*    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
 *	</ul>
 */
 public void setItems (String[] strings) {

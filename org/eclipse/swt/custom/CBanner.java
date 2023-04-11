@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -21,7 +21,7 @@ import org.eclipse.swt.*;
  * a separator between the left and right children which can be dragged
  * to resize the right control.
  * CBanner is used in the workbench to layout the toolbar area and
- * perspective switching toolbar at the top of the workbench.
+ * perspective switching toolbar.
  * <p>
  * Note that although this class is a subclass of <code>Composite</code>,
  * it does not make sense to set a layout on it.
@@ -54,6 +54,8 @@ public class CBanner extends Composite {
 	int curve_indent = -2;
 	
 	int rightWidth = SWT.DEFAULT;
+	int rightMinWidth = SWT.DEFAULT;
+	int rightMinHeight = SWT.DEFAULT;
 	Cursor resizeCursor;
 	boolean dragging = false;
 	int rightDragDisplacement = 0;
@@ -66,8 +68,6 @@ public class CBanner extends Composite {
 	static final int BEZIER_RIGHT = 30;
 	static final int BEZIER_LEFT = 30;
 	static final int MIN_LEFT = 10;
-	static final int MIN_RIGHT = 160;
-	
 	static int BORDER1 = SWT.COLOR_WIDGET_HIGHLIGHT_SHADOW;
 	
 		
@@ -97,6 +97,7 @@ public class CBanner extends Composite {
  */
 public CBanner(Composite parent, int style) {
 	super(parent, checkStyle(style));
+	super.setLayout(new CBannerLayout());
 	resizeCursor = new Cursor(getDisplay(), SWT.CURSOR_SIZEWE);
 	
 	Listener listener = new Listener() {
@@ -126,7 +127,7 @@ public CBanner(Composite parent, int style) {
 }
 static int[] bezier(int x0, int y0, int x1, int y1, int x2, int y2, int x3, int y3, int count) {
 	// The parametric equations for a Bezier curve for x[t] and y[t] where  0 <= t <=1 are:
-	// x[t] = x0+3(x1-x0)t+3(x0+x2-2x1)t^3+(x3-x0+3x1-3x2)t^3
+	// x[t] = x0+3(x1-x0)t+3(x0+x2-2x1)t^2+(x3-x0+3x1-3x2)t^3
 	// y[t] = y0+3(y1-y0)t+3(y0+y2-2y1)t^2+(y3-y0+3y1-3y2)t^3
 	double a0 = x0;
 	double a1 = 3*(x1 - x0);
@@ -147,59 +148,6 @@ static int[] bezier(int x0, int y0, int x1, int y1, int x2, int y2, int x3, int 
 }
 static int checkStyle (int style) {
 	return SWT.NONE;
-}
-public Point computeSize(int wHint, int hHint, boolean changed) {
-	checkWidget();
-	boolean showCurve = left != null && right != null;
-	int height = hHint;
-	int width = wHint;
-	
-	Point bottomSize = new Point(0, 0);
-	if (bottom != null) {
-		Point trim = bottom.computeSize(width, SWT.DEFAULT);
-		trim.x = trim.x - width;
-		bottomSize = bottom.computeSize(width == SWT.DEFAULT ? SWT.DEFAULT : width - trim.x, SWT.DEFAULT);
-		if (height != SWT.DEFAULT) {
-			bottomSize.y = Math.min(bottomSize.y, height);
-			height -= bottomSize.y + BORDER_TOP + BORDER_STRIPE + BORDER_BOTTOM;
-		}
-	}
-	if (showCurve && height != SWT.DEFAULT ) height -= BORDER_TOP + BORDER_BOTTOM + 2*BORDER_STRIPE;
-	Point rightSize = new Point(0, 0);
-	if (right != null) {
-		Point trim = right.computeSize(rightWidth, height);
-		trim.x = trim.x - rightWidth;
-		rightSize = right.computeSize(rightWidth == SWT.DEFAULT ? SWT.DEFAULT : rightWidth - trim.x, rightWidth == SWT.DEFAULT ? SWT.DEFAULT : height);
-		if (width != SWT.DEFAULT) {
-			rightSize.x = Math.min(rightSize.x, width);
-			width -= rightSize.x + curve_width - 2* curve_indent;
-			width = Math.max(width, MIN_LEFT);
-		}
-	}
-	Point leftSize = new Point(0, 0);
-	if (left != null) {
-		Point trim = left.computeSize(width, SWT.DEFAULT);
-		trim.x = trim.x - width;
-		leftSize = left.computeSize(width == SWT.DEFAULT ? SWT.DEFAULT : width - trim.x, SWT.DEFAULT);
-	}
-	int w = 0, h = 0;
-	h += bottomSize.y;
-	if (bottom != null && (left != null || right != null)) h += BORDER_TOP + BORDER_BOTTOM + BORDER_STRIPE;
-	w += leftSize.x + rightSize.x;
-	if (showCurve) {
-		w += curve_width - 2*curve_indent;
-		h +=  BORDER_TOP + BORDER_BOTTOM + 2*BORDER_STRIPE;
-	}
-	h += left != null ? leftSize.y : rightSize.y;
-	
-	if (wHint != SWT.DEFAULT) w = wHint;
-	if (hHint != SWT.DEFAULT) h = hHint;
-	
-	return new Point(w, h);
-}
-public Rectangle computeTrim (int x, int y, int width, int height) {
-	checkWidget ();
-	return new Rectangle(x, y, width, height);
 }
 /**
 * Returns the Control that appears on the bottom side of the banner.
@@ -255,6 +203,17 @@ public Control getRight() {
 	return right;
 }
 /**
+ * Returns the minimum size of the control that appears on the right of the banner.
+ * 
+ * @return the minimum size of the control that appears on the right of the banner
+ * 
+ * @since 3.1
+ */
+public Point getRightMinimumSize() {
+	checkWidget();
+	return new Point(rightMinWidth, rightMinHeight);
+}
+/**
  * Returns the width of the control that appears on the right of the banner.
  * 
  * @return the width of the control that appears on the right of the banner
@@ -264,7 +223,10 @@ public Control getRight() {
 public int getRightWidth() {
 	checkWidget();
 	if (right == null) return 0;
-	if (rightWidth == SWT.DEFAULT) return right.computeSize(SWT.DEFAULT, getSize().y).x;
+	if (rightWidth == SWT.DEFAULT) {
+		Point size = right.computeSize(SWT.DEFAULT, getSize().y, false);
+		return size.x;
+	}
 	return rightWidth;
 }
 /**
@@ -278,71 +240,6 @@ public int getRightWidth() {
 public boolean getSimple() {
 	checkWidget();
 	return simple;
-}
-public void layout (boolean changed) {
-	checkWidget();
-	Point size = getSize();
-	boolean showCurve = left != null && right != null;
-	int width = size.x;
-	int height = size.y;
-	
-	Point bottomSize = new Point(0, 0);
-	if (bottom != null) {
-		Point trim = bottom.computeSize(width, SWT.DEFAULT);
-		trim.x = trim.x - width;
-		bottomSize = bottom.computeSize(width - trim.x, SWT.DEFAULT);
-		bottomSize.y = Math.min(bottomSize.y, height);
-		height -= bottomSize.y + BORDER_TOP + BORDER_BOTTOM + BORDER_STRIPE;
-	}
-	
-	if (showCurve) height -=  BORDER_TOP + BORDER_BOTTOM + 2*BORDER_STRIPE;
-	height = Math.max(0, height);
-	Point rightSize = new Point(0,0);
-	if (right != null) {
-		Point trim = right.computeSize(rightWidth, height);
-		trim.x = trim.x - rightWidth;
-		rightSize = right.computeSize(rightWidth == SWT.DEFAULT ? SWT.DEFAULT : rightWidth - trim.x, rightWidth == SWT.DEFAULT ? SWT.DEFAULT : height);
-		rightSize.x = Math.min(rightSize.x, width);
-		width -= rightSize.x + curve_width - 2*curve_indent;
-		width = Math.max(width, MIN_LEFT); 
-	}
-
-	Point leftSize = new Point(0, 0);
-	if (left != null) {
-		Point trim = left.computeSize(width, SWT.DEFAULT);
-		trim.x = trim.x - width;
-		leftSize = left.computeSize(width - trim.x, SWT.DEFAULT);
-	}
-
-	int x = 0;
-	int y = 0;
-	int oldStart = curveStart;
-	Rectangle leftRect = null;
-	Rectangle rightRect = null;
-	Rectangle bottomRect = null;
-	if (bottom != null) {
-		bottomRect = new Rectangle(x, y+size.y-bottomSize.y, bottomSize.x, bottomSize.y);
-	}
-	if (showCurve) y += BORDER_TOP + BORDER_STRIPE;
-	if(left != null) {
-		leftRect = new Rectangle(x, y, leftSize.x, leftSize.y);
-		curveStart = x + leftSize.x - curve_indent;
-		x += leftSize.x + curve_width - 2*curve_indent;
-	}
-	if (right != null) {
-		rightRect = new Rectangle(x, y, rightSize.x, rightSize.y);
-	}
-	if (curveStart < oldStart) {
-		redraw(curveStart - CURVE_TAIL, 0, oldStart + curve_width - curveStart + CURVE_TAIL + 5, size.y, false);
-	}
-	if (curveStart > oldStart) {
-		redraw(oldStart - CURVE_TAIL, 0, curveStart + curve_width - oldStart + CURVE_TAIL + 5, size.y, false);
-	}
-	curveRect = new Rectangle(curveStart, 0, curve_width, size.y);
-	update();
-	if (bottomRect != null) bottom.setBounds(bottomRect);
-	if (rightRect != null) right.setBounds(rightRect);
-	if (leftRect != null) left.setBounds(leftRect);
 }
 void onDispose() {
 	if (resizeCursor != null) resizeCursor.dispose();
@@ -363,9 +260,11 @@ void onMouseMove(int x, int y) {
 	if (dragging) {
 		Point size = getSize();
 		if (!(0 < x && x < size.x)) return;
-		rightWidth = size.x - x - rightDragDisplacement;
-		rightWidth = Math.max(MIN_RIGHT, rightWidth);
-		layout();
+		rightWidth = Math.max(0, size.x - x - rightDragDisplacement);
+		if (rightMinWidth != SWT.DEFAULT) {
+			rightWidth = Math.max(rightMinWidth, rightWidth);
+		}
+		layout(false);
 		return;
 	}
 	if (curveRect.contains(x, y)) {
@@ -389,7 +288,7 @@ void onPaint(GC gc) {
 	
 	if (bottom != null && (left != null || right != null)) {
 		gc.setForeground(border1);
-		int y = bottom.getBounds().y - BORDER_BOTTOM - BORDER_STRIPE;
+		int y = bottom.getBounds().y - BORDER_STRIPE - 1;
 		gc.drawLine(0, y, size.x, y);
 	}
 	
@@ -455,7 +354,6 @@ void onPaint(GC gc) {
 
 void onResize() {
 	updateCurve(getSize().y);
-	layout();
 }
 /**
 * Set the control that appears on the bottom side of the banner.
@@ -482,13 +380,14 @@ public void setBottom(Control control) {
 		bottom.setLocation(OFFSCREEN - size.x, OFFSCREEN - size.y);
 	}
 	bottom = control;
-	layout();
+	layout(false);
 }
 /**
  * Sets the layout which is associated with the receiver to be
  * the argument which may be null.
  * <p>
- * Note : CBanner does not use a layout class to size and position its children.
+ * Note : No Layout can be set on this Control because it already
+ * manages the size and position of its children.
  * </p>
  *
  * @param layout the receiver's new layout or null
@@ -528,7 +427,7 @@ public void setLeft(Control control) {
 		left.setLocation(OFFSCREEN - size.x, OFFSCREEN - size.y);
 	}
 	left = control;
-	layout();
+	layout(false);
 }
 /**
 * Set the control that appears on the right side of the banner.
@@ -555,16 +454,36 @@ public void setRight(Control control) {
 		right.setLocation(OFFSCREEN - size.x, OFFSCREEN - size.y);
 	}
 	right = control;
-	layout();
+	layout(false);
 }
 /**
- * Set the width of the control control that appears on the right side of the banner.
+ * Set the minumum height of the control that appears on the right side of the banner.
+ * 
+ * @param size the minimum size of the control on the right
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the size is null or the values of size are less than SWT.DEFAULT</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void setRightMinimumSize(Point size) {
+	checkWidget();
+	if (size == null || size.x < SWT.DEFAULT || size.y < SWT.DEFAULT) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+	rightMinWidth = size.x;
+	rightMinHeight = size.y;
+}
+/**
+ * Set the width of the control that appears on the right side of the banner.
  * 
  * @param width the width of the control on the right
  * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if width is less than SWT.DEFAULT</li>
  * </ul>
  * 
  * @since 3.0
@@ -573,7 +492,7 @@ public void setRightWidth(int width) {
 	checkWidget();
 	if (width < SWT.DEFAULT) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	rightWidth = width;
-	layout(true);
+	layout(false);
 }
 /**
  * Sets the shape that the CBanner will use to render itself.  
@@ -599,7 +518,7 @@ public void setSimple(boolean simple) {
 			curve_indent = 5;
 		}
 		updateCurve(getSize().y);
-		layout();
+		layout(false);
 		redraw();
 	}
 }

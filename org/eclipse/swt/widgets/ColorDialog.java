@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -44,7 +44,6 @@ public class ColorDialog extends Dialog {
 
 	private boolean okSelected;
 	private RGB rgb;
-	private int colorDepth;								// color depth of the display
 	private int colorSwatchExtent;						// the size of each color square
 	private Color colorGrid[][];						// the colors displayed in the dialog
 	
@@ -285,11 +284,11 @@ void initialize16BitColors() {
 
 	for (red = 0; red <= 255; red += iterationStep) {
 		for (blue = 0; blue <= 255; blue += iterationStep) {
-			if (blue == iterationStep && column < 20) {		// hack to evenly distribute 256 colors on 32 columns
+			if (blue == iterationStep && column < 20) {		// evenly distribute 256 colors on 32 columns
 				blue += iterationStep;
 			}
 			for (green = 0; green <= 255; green += iterationStep) {
-				if (row == 2 || row == 5) {					// hack to evenly distribute 256 colors on 8 rows
+				if (row == 2 || row == 5) {					// evenly distribute 256 colors on 8 rows
 					colorGrid[column][row++] = new Color(display, red, green - iterationStep / 2, blue);
 				}
 				if (row == numRows) {
@@ -425,7 +424,6 @@ void paint(Event event) {
 	}
 }
 void setColorDepth(int bits) {
-	colorDepth = bits;
 	if (bits == 4) {
 		colorSwatchExtent = COLORSWATCH_SIZE_DEPTH4;
 		colorGrid = new Color[8][2];

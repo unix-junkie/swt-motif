@@ -1,10 +1,10 @@
 /*******************************************************************************
  * Copyright (c) 2000, 2004 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -12,6 +12,7 @@ package org.eclipse.swt.internal;
 
  
 import java.io.*;
+import java.text.MessageFormat;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 import org.eclipse.swt.SWT;
@@ -121,7 +122,7 @@ public static int floor(int p, int q) {
  * @return the closest integer to the rational number p / q
  */
 public static int round(int p, int q) {
-	return (int)Math.round((float)p / q);
+	return Math.round((float)p / q);
 }
 
 /**
@@ -272,7 +273,30 @@ public static String getMessage(String key) {
 	}
 	return answer;
 }
+
+public static String getMessage(String key, Object[] args) {
+	String answer = key;
 	
+	if (key == null || args == null) {
+		SWT.error (SWT.ERROR_NULL_ARGUMENT);
+	}
+	if (msgs == null) {
+		try {
+			msgs = ResourceBundle.getBundle("org.eclipse.swt.internal.SWTMessages"); //$NON-NLS-1$
+		} catch (MissingResourceException ex) {
+			answer = key + " (no resource bundle)"; //$NON-NLS-1$
+		}
+	}
+	if (msgs != null) {
+		try {
+			MessageFormat formatter = new MessageFormat("");			
+			formatter.applyPattern(msgs.getString(key));			
+			answer = formatter.format(args);
+		} catch (MissingResourceException ex2) {}
+	}
+	return answer;
+}
+
 /**
  * Interrupt the current thread. 
  * <p>

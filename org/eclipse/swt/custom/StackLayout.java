@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -87,7 +87,6 @@ public class StackLayout extends Layout {
 
 protected Point computeSize(Composite composite, int wHint, int hHint, boolean flushCache) {
 	Control children[] = composite.getChildren();
-	
 	int maxWidth = 0;
 	int maxHeight = 0;
 	for (int i = 0; i < children.length; i++) {
@@ -95,11 +94,15 @@ protected Point computeSize(Composite composite, int wHint, int hHint, boolean f
 		maxWidth = Math.max(size.x, maxWidth);
 		maxHeight = Math.max(size.y, maxHeight);
 	}
-	
-	int width = wHint, height = hHint;
-	if (wHint == SWT.DEFAULT) width = maxWidth;
-	if (hHint == SWT.DEFAULT) height = maxHeight;
-	return new Point(width + 2 * marginWidth, height + 2 * marginHeight);
+	int width = maxWidth + 2 * marginWidth;
+	int height = maxHeight + 2 * marginHeight;
+	if (wHint != SWT.DEFAULT) width = wHint;
+	if (hHint != SWT.DEFAULT) height = hHint;
+	return new Point(width, height);
+}
+
+protected boolean flushCache(Control control) {
+	return true;
 }
 
 protected void layout(Composite composite, boolean flushCache) {
@@ -114,5 +117,28 @@ protected void layout(Composite composite, boolean flushCache) {
 		children[i].setVisible(children[i] == topControl);
 			
 	}
+}
+
+String getName () {
+	String string = getClass ().getName ();
+	int index = string.lastIndexOf ('.');
+	if (index == -1) return string;
+	return string.substring (index + 1, string.length ());
+}
+
+/**
+ * Returns a string containing a concise, human-readable
+ * description of the receiver.
+ *
+ * @return a string representation of the event
+ */
+public String toString () {
+ 	String string = getName ()+" {";
+ 	if (marginWidth != 0) string += "marginWidth="+marginWidth+" ";
+ 	if (marginHeight != 0) string += "marginHeight="+marginHeight+" ";
+ 	if (topControl != null) string += "topControl="+topControl+" ";
+ 	string = string.trim();
+ 	string += "}";
+ 	return string;
 }
 }

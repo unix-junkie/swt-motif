@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -234,37 +234,6 @@ void propagateWidget (boolean enabled) {
 		if (verticalBar != null) verticalBar.propagateWidget (enabled);
 	}
 }
-void redrawWidget (int x, int y, int width, int height, boolean all) {
-	super.redrawWidget (x, y, width, height, all);
-	/*
-	* Uncomment this code to force the window trimmings to redraw.
-	*/
-//	if (formHandle == 0 && scrolledHandle == 0) return;
-//	short [] root_x = new short [1], root_y = new short [1];
-//	OS.XtTranslateCoords (handle, (short) x, (short) y, root_x, root_y);
-//	if (formHandle != 0) {
-//		short [] form_x = new short [1], form_y = new short [1];
-//		OS.XtTranslateCoords (formHandle, (short) 0, (short) 0, form_x, form_y);
-//		redrawHandle (root_x [0] - form_x [0], root_y [0] - form_y [0], width, height, formHandle);
-//	}
-//	if (scrolledHandle != 0) {
-//		short [] scrolled_x = new short [1], scrolled_y = new short [1];
-//		OS.XtTranslateCoords (scrolledHandle, (short) 0, (short) 0, scrolled_x, scrolled_y);
-//		redrawHandle (root_x [0] - scrolled_x [0], root_y [0] - scrolled_y [0], width, height, scrolledHandle);
-//		if (horizontalBar != null && horizontalBar.getVisible ()) {
-//			int horizontalHandle = horizontalBar.handle;
-//			short [] hscroll_x = new short [1], hscroll_y = new short [1];
-//			OS.XtTranslateCoords (horizontalHandle, (short) 0, (short) 0, hscroll_x, hscroll_y);
-//			redrawHandle (root_x [0] - hscroll_x [0], root_y [0] - hscroll_y [0], width, height, horizontalHandle);
-//		}
-//		if (verticalBar != null && verticalBar.getVisible ()) {
-//			int verticalHandle = verticalBar.handle;
-//			short [] vscroll_x = new short [1], vscroll_y = new short [1];
-//			OS.XtTranslateCoords (verticalHandle, (short) 0, (short) 0, vscroll_x, vscroll_y);
-//			redrawHandle (root_x [0] - vscroll_x [0], root_y [0] - vscroll_y [0], width, height, verticalHandle);
-//		}
-//	}
-}
 void register () {
 	super.register ();
 	if (formHandle != 0) display.addWidget (formHandle, this);
@@ -282,21 +251,24 @@ void releaseWidget () {
 }
 void setBackgroundPixel (int pixel) {
 	super.setBackgroundPixel (pixel);
-	if (scrolledHandle != 0) {
-		int [] argList1 = {
-			OS.XmNhorizontalScrollBar, 0,
-			OS.XmNverticalScrollBar, 0,
-		};
-		OS.XtGetValues (scrolledHandle, argList1, argList1.length / 2);
-		if (argList1 [1] != 0) OS.XmChangeColor (argList1 [1], pixel);
-		if (argList1 [3] != 0) OS.XmChangeColor (argList1 [3], pixel);
-	}
+	/*
+	* Uncomment this code to force scrollbars to change color.
+	*/
+//	if (scrolledHandle != 0) {
+//		int [] argList1 = {
+//			OS.XmNhorizontalScrollBar, 0,
+//			OS.XmNverticalScrollBar, 0,
+//		};
+//		OS.XtGetValues (scrolledHandle, argList1, argList1.length / 2);
+//		if (argList1 [1] != 0) OS.XmChangeColor (argList1 [1], pixel);
+//		if (argList1 [3] != 0) OS.XmChangeColor (argList1 [3], pixel);
+//	}
 }
-void setScrollbarVisible (ScrollBar bar, boolean visible) {
-	if (scrolledHandle == 0) return;
+boolean setScrollBarVisible (ScrollBar bar, boolean visible) {
+	if (scrolledHandle == 0) return false;
 	int barHandle = bar.handle;
 	boolean managed = OS.XtIsManaged (barHandle);
-	if (managed == visible) return;
+	if (managed == visible) return false;
 
 	/*
 	* Feature in Motif.  Hiding or showing a scroll bar
@@ -304,8 +276,11 @@ void setScrollbarVisible (ScrollBar bar, boolean visible) {
 	* the OS.  This behavior is unwanted.  The fix is
 	* to force the widget to resize to original size.
 	*/
-	int [] argList = {OS.XmNwidth, 0, OS.XmNheight, 0};
+	int [] argList = {OS.XmNwidth, 0, OS.XmNheight, 0, OS.XmNborderWidth, 0};
 	OS.XtGetValues (scrolledHandle, argList, argList.length / 2);
+	
+	int [] argList1 = {OS.XmNwidth, 0, OS.XmNheight, 0};
+	OS.XtGetValues (handle, argList1, argList1.length / 2);
 	
 	/* Hide or show the scroll bar */
 	if (visible) {
@@ -313,12 +288,36 @@ void setScrollbarVisible (ScrollBar bar, boolean visible) {
 	} else {
 		OS.XtUnmanageChild (barHandle);
 	}
+	if ((state & CANVAS) != 0) {
+		if (formHandle != 0) {	
+			boolean showBorder = (style & SWT.BORDER) != 0;
+			int margin = showBorder || visible ? 3 : 0;
+			if ((bar.style & SWT.V_SCROLL) != 0) {
+				int [] argList2 = new int [] {OS.XmNmarginWidth, margin};
+				OS.XtSetValues (formHandle, argList2, argList2.length/2);
+			}
+			if ((bar.style & SWT.H_SCROLL) != 0) {
+				int [] argList2 = new int [] {OS.XmNmarginHeight, margin};
+				OS.XtSetValues (formHandle, argList2, argList2.length/2);
+			}
+		}
+	}
 	
-	/* Restore the size */
-	OS.XtSetValues (scrolledHandle, argList, argList.length / 2);
+	/*
+	* Feature in Motif.  When XtSetValues() is used to restore the width and
+	* height of the widget, the new width and height are sometimes ignored.
+	* The fix is to use XtResizeWidget().
+	*/
+	OS.XtResizeWidget (scrolledHandle, argList [1], argList [3], argList [5]);
 
-	sendEvent (SWT.Resize);
 	bar.sendEvent (visible ? SWT.Show : SWT.Hide);
+	int [] argList3 = {OS.XmNwidth, 0, OS.XmNheight, 0};
+	OS.XtGetValues (handle, argList3, argList3.length / 2);
+	if (argList1 [1] != argList3 [1] || argList1 [3] != argList3 [3]) {
+		sendEvent (SWT.Resize);
+		return true;
+	}
+	return false;
 }
 int topHandle () {
 	if (scrolledHandle != 0) return scrolledHandle;

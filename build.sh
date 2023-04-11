@@ -1,91 +1,122 @@
+#!/bin/sh
 #*******************************************************************************
-# Copyright (c) 2000, 2004 IBM Corporation and others.
+# Copyright (c) 2000, 2005 IBM Corporation and others.
 # All rights reserved. This program and the accompanying materials
-# are made available under the terms of the Common Public License v1.0
+# are made available under the terms of the Eclipse Public License v1.0
 # which accompanies this distribution, and is available at
-# http://www.eclipse.org/legal/cpl-v10.html
+# http://www.eclipse.org/legal/epl-v10.html
 # 
 # Contributors:
 #     IBM Corporation - initial API and implementation
 #     Kevin Cornell (Rational Software Corporation)
 #     Tom Tromey (Red Hat, Inc.)
 #     Sridhar Bidigalu (ICS)
+#     Sumit Sarkar (Hewlett-Packard)
 #*******************************************************************************
 
-#!/bin/sh
+cd `dirname $0`
 
-# Determine the operating system being built
-OS=`uname -s`
+if [ "${OS}" = "" ]; then
+	OS=`uname -s`
+fi
+if [ "${MODEL}" = "" ]; then
+	MODEL=`uname -m`
+fi
 
-# build according to the operating system
 case $OS in
+	"AIX")
+		case $MODEL in		
+		*) 
+			if [ "${JAVA_HOME}" = "" ]; then
+				JAVA_HOME=/bluebird/teamswt/swt-builddir/aixj9
+			fi
+			if [ "${MOTIF_HOME}" = "" ]; then
+				MOTIF_HOME=/usr
+			fi
+			if [ "${CDE_HOME}" = "" ]; then
+				CDE_HOME=/usr/dt
+			fi
+			OUTPUT_DIR=../../../org.eclipse.swt.motif.aix.ppc
+			makefile="make_aix.mak"
+			echo "Building AIX motif ppc version of SWT"
+		esac
+		;;
+	"Linux")
+		case $MODEL in
+		*) 
+			if [ "${JAVA_HOME}" = "" ]; then
+				JAVA_HOME=/bluebird/teamswt/swt-builddir/IBMJava2-141
+			fi
+			if [ "${MOTIF_HOME}" = "" ]; then
+				MOTIF_HOME=/bluebird/teamswt/swt-builddir/motif21
+			fi
+			if [ "${GECKO_SDK}" = "" ]; then
+				GECKO_SDK=/mozilla/mozilla/1.4/linux_gtk2/mozilla/dist/sdk
+				GECKO_INCLUDES="-include ${GECKO_SDK}/mozilla-config.h -I${GECKO_SDK}/nspr/include -I${GECKO_SDK}/xpcom/include -I${GECKO_SDK}/string/include -I${GECKO_SDK}/embed_base/include -I${GECKO_SDK}/embedstring/include"
+				GECKO_LIBS="-L${GECKO_SDK}/embedstring/bin -lembedstring -L${GECKO_SDK}/embed_base/bin -lembed_base_s -L${GECKO_SDK}/xpcom/bin -lxpcomglue_s -lxpcom -L${GECKO_SDK}/nspr/bin -lnspr4 -lplds4 -lplc4"
+			fi
+			OUTPUT_DIR=../../../org.eclipse.swt.motif.linux.x86
+			makefile="make_linux.mak"
+			echo "Building Linux motif x86 version of SWT"
+		esac
+		;;
+	"SunOS")
+		case $MODEL in
+		*) 
+			if [ "${JAVA_HOME}" = "" ]; then
+				JAVA_HOME=/usr/java
+			fi
+			if [ "${MOTIF_HOME}" = "" ]; then
+				MOTIF_HOME=/usr/dt
+			fi
+			if [ "${CDE_HOME}" = "" ]; then
+				CDE_HOME=/usr/dt		
+			fi
+			OUTPUT_DIR=../../../org.eclipse.swt.motif.solaris.sparc
+			PATH=/usr/ccs/bin:/opt/SUNWspro/bin:$PATH
+			export PATH
+			makefile="make_solaris.mak"
+			echo "Building Solaris motif sparc version of SWT"
+		esac
+		;;
+	"HP-UX")
+		case $MODEL in
+			"ia64")
+				if [ "${JAVA_HOME}" = "" ]; then
+					JAVA_HOME=/opt/jdk14101
+				fi
+				if [ "${MOTIF_HOME}" = "" ]; then
+					MOTIF_HOME=/usr
+				fi
+				if [ "${CDE_HOME}" = "" ]; then
+					CDE_HOME=/usr/dt
+				fi
+				OUTPUT_DIR=../../../org.eclipse.swt.motif.hpux.ia64_32
+				makefile="make_hpux_ia64_32.mak"
+				echo "Building HPUX motif 32 bit ia64 version of SWT"
+				;;
+			*)
+				if [ "${JAVA_HOME}" = "" ]; then
+					JAVA_HOME=/opt/jdk14101
+				fi
+				if [ "${MOTIF_HOME}" = "" ]; then
+					MOTIF_HOME=/usr
+				fi
+				if [ "${CDE_HOME}" = "" ]; then
+					CDE_HOME=/usr/dt
+				fi
+				OUTPUT_DIR=../../../org.eclipse.swt.motif.hpux.PA_RISC
+				makefile="make_hpux_PA_RISC.mak"
+				echo "Building HPUX motif risc version of SWT"
+				;;
+		esac
+		;;
 
-    "AIX")
-        if  [ "$1" = "clean" ]; then
-            make -f make_aix.mak clean
-        else
-            echo "Building AIX version of SWT and CDE DLLs."
-            make -f make_aix.mak make_swt
-            make -f make_aix.mak make_cde
-        fi
-        ;;
-
-    "Linux")
-        if  [ "$1" = "clean" ]; then
-            make -f make_linux.mak clean
-        else
-            echo "Building Linux version of SWT and GNOME DLLs."
-            make -f make_linux.mak make_swt make_awt make_gnome make_gtk
-
-            build_kde=`rpm -q kdebase | grep "not installed"`
-            if [ "$build_kde" = "" ]; then
-                echo "Building Linux version of KDE DLL."
-                make -f make_linux.mak make_kde
-            fi
-        fi
-        ;;
-
-    "SunOS")
-        if  [ "$1" = "clean" ]; then
-            make -f make_solaris.mak clean
-        else
-            echo "Building Solaris version of SWT and CDE DLLs."
-            make -f make_solaris.mak make_swt
-            make -f make_solaris.mak make_cde
-        fi
-        ;;
-
-        "HP-UX")
-        # Determine the model number system being built
-        MODEL=`uname -m`
-       
-        case $MODEL in
-
-        "ia64")
-           # ia64 based systems
-           if  [ "$1" = "clean" ]; then
-               make -f make_hpux_ia64.mak clean
-           else
-               echo "Building HP-UX ia64 version of SWT and CDE DLLs."
-               make -f make_hpux_ia64.mak make_swt
-               make -f make_hpux_ia64.mak make_cde
-           fi
-           ;;
-
-        *)
-          # PA_RISC based systems 
-	      if  [ "$1" = "clean" ]; then
-               make -f make_hpux_PA_RISC.mak clean
-          else
-               echo "Building HP-UX PA_RISC version of SWT and CDE DLLs."
-               make -f make_hpux_PA_RISC.mak make_swt
-               make -f make_hpux_PA_RISC.mak make_cde
-           fi
-           ;;
-        esac
-        ;;
-
-    *)
-        echo "Unknown OS -- build aborted"
-        ;;
+	*)
+		echo "Unknown OS -- build aborted"
+		;;
 esac
+
+export JAVA_HOME MOTIF_HOME CDE_HOME GECKO_SDK GECKO_INCLUDES GECKO_LIBS OUTPUT_DIR
+
+make -f $makefile $1 $2 $3 $4

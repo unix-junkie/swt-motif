@@ -1,10 +1,10 @@
 /*******************************************************************************
  * Copyright (c) 2003, 2004 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -63,6 +63,18 @@ public void hide(WindowEvent event);
  * The client area of the <code>Shell</code> hosting the
  * <code>Browser</code> should be large enough to accomodate that size.
  * It is <code>null</code> if no size is set.
+ * <li>(in) addressBar <code>true</code> if the <code>Shell</code> 
+ * hosting the <code>Browser</code> should display an address bar or
+ * <code>false</code> otherwise
+ * <li>(in) menuBar <code>true</code> if the <code>Shell</code> 
+ * hosting the <code>Browser</code> should display a menu bar or
+ * <code>false</code> otherwise
+ * <li>(in) statusBar <code>true</code> if the <code>Shell</code> 
+ * hosting the <code>Browser</code> should display a status bar or
+ * <code>false</code> otherwise
+ * <li>(in) toolBar <code>true</code> if the <code>Shell</code> 
+ * hosting the <code>Browser</code> should display a tool bar or
+ * <code>false</code> otherwise
  * </ul>
  *
  * @param event the <code>WindowEvent</code> that specifies the

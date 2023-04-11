@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -18,10 +18,10 @@ import org.eclipse.swt.internal.SWTEventListener;
  * that deal with changes in state of <code>Shell</code>s.
  * <p>
  * After creating an instance of a class that implements
- * this interface it can be added to a control using the
+ * this interface it can be added to a shell using the
  * <code>addShellListener</code> method and removed using
  * the <code>removeShellListener</code> method. When the
- * state of a shell changes, the appropriate method will
+ * state of the shell changes, the appropriate method will
  * be invoked.
  * </p>
  *

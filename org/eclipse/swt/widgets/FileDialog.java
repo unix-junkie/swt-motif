@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -25,6 +25,8 @@ import org.eclipse.swt.*;
  * <dd>(none)</dd>
  * </dl>
  * <p>
+ * Note: Only one of the styles SAVE and OPEN may be specified.
+ * </p><p>
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
@@ -34,12 +36,11 @@ public class FileDialog extends Dialog {
 	String [] filterNames = new String [0];
 	String [] filterExtensions = new String [0];
 	String [] fileNames = new String [0];
-	String fileName = "";
-	String filterPath = "";
+	String fileName = ""; //$NON-NLS-1$
+	String filterPath = ""; //$NON-NLS-1$
 	String fullPath;
-	boolean cancel = false;
-	static final String FILTER = "*";
-	static final char SEPARATOR = System.getProperty ("file.separator").charAt (0);
+	static final String FILTER = "*"; //$NON-NLS-1$
+	static final char SEPARATOR = System.getProperty ("file.separator").charAt (0); //$NON-NLS-1$
 
 /**
  * Constructs a new instance of this class given only its parent.
@@ -88,13 +89,13 @@ public FileDialog (Shell parent, int style) {
 }
 
 int cancelPressed (int widget, int client, int call) {
-	cancel = true;
 	OS.XtUnmanageChild (widget);
 	return 0;
 }
 /**
  * Returns the path of the first file that was
- * selected in the dialog relative to the filter path
+ * selected in the dialog relative to the filter path, or an
+ * empty string if no such file has been selected.
  * 
  * @return the relative path of the file
  */
@@ -103,8 +104,8 @@ public String getFileName () {
 }
 
 /**
- * Returns the paths of all files that were selected
- * in the dialog relative to the filter path.
+ * Returns a (possibly empty) array with the paths of all files
+ * that were selected in the dialog relative to the filter path.
  * 
  * @return the relative paths of the files
  */
@@ -123,19 +124,19 @@ public String [] getFilterExtensions () {
 }
 
 /**
- * Returns the file names which the dialog will
- * use to filter the files it shows.
+ * Returns the names that describe the filter extensions
+ * which the dialog will use to filter the files it shows.
  *
- * @return the file name filter
+ * @return the list of filter names
  */
 public String [] getFilterNames () {
 	return filterNames;
 }
 
 /**
- * Returns the directory path that the dialog will use.
- * File names in this path will appear in the dialog,
- * filtered according to the filter extensions.
+ * Returns the directory path that the dialog will use, or an empty
+ * string if this is not set.  File names in this path will appear
+ * in the dialog, filtered according to the filter extensions.
  *
  * @return the directory path string
  * 
@@ -266,7 +267,7 @@ int okPressed (int widget, int client, int call) {
 	}
 
 	// if no file selected then go into the current directory
-	if (fileName.equals("")) {
+	if (fileName.equals("")) { //$NON-NLS-1$
 		int [] argList1 = {OS.XmNdirMask, 0};
 		OS.XtGetValues (dialog, argList1, argList1.length / 2);
 		int directoryHandle = argList1[1];
@@ -321,18 +322,6 @@ int okPressed (int widget, int client, int call) {
  * </ul>
  */
 public String open () {
-
-	/* Get the parent */
-	boolean destroyContext;
-	Display appContext = Display.getCurrent ();
-	if (destroyContext = (appContext == null)) appContext = new Display ();
-	int display = appContext.xDisplay;
-	int parentHandle = appContext.shellHandle;
-	if ((parent != null) && (parent.display == appContext)) {
-		if (OS.IsAIX) parent.realizeWidget ();		/* Fix for bug 17507 */
-		parentHandle = parent.shellHandle;
-	}
-
 	/* Compute the dialog title */	
 	/*
 	* Feature in Motif.  It is not possible to set a shell
@@ -340,7 +329,7 @@ public String open () {
 	* to be a single space.
 	*/
 	String string = title;
-	if (string.length () == 0) string = " ";
+	if (string.length () == 0) string = " "; //$NON-NLS-1$
 	/* Use the character encoding for the default locale */
 	byte [] buffer1 = Converter.wcsToMbcs (null, string, true);
 	int xmStringPtr1 = OS.XmStringParseText (
@@ -380,7 +369,7 @@ public String open () {
 		0);
 
 	/* Compute the filter path */
-	if (filterPath == null) filterPath = "";
+	if (filterPath == null) filterPath = ""; //$NON-NLS-1$
 	int length = filterPath.length ();
 	if (length == 0 || filterPath.charAt (length - 1) != SEPARATOR) {
 		filterPath += SEPARATOR;
@@ -397,15 +386,22 @@ public String open () {
 		0);
 
 	/* Create the dialog */
+	Display display = parent.display;
 	int [] argList1 = {
 		OS.XmNresizePolicy, OS.XmRESIZE_NONE,
 		OS.XmNdialogStyle, OS.XmDIALOG_PRIMARY_APPLICATION_MODAL,
-		OS.XmNwidth, OS.XDisplayWidth (display, OS.XDefaultScreen (display)) * 4 / 9,
+		OS.XmNwidth, OS.XDisplayWidth (display.xDisplay, OS.XDefaultScreen (display.xDisplay)) * 4 / 9,
 		OS.XmNpathMode, OS.XmPATH_MODE_FULL,
 		OS.XmNdialogTitle, xmStringPtr1,
 		OS.XmNpattern, xmStringPtr2,
 		OS.XmNdirMask, xmStringPtr3,
 	};
+	/*
+	* Bug in AIX. The dialog does not responde to input, if the parent
+	* is not realized.  The fix is to realized the parent.  
+	*/
+	if (OS.IsAIX) parent.realizeWidget ();
+	int parentHandle = parent.shellHandle;
 	/*
 	* Feature in Linux.  For some reason, the XmCreateFileSelectionDialog()
 	* will not accept NULL for the widget name.  This works fine on the other
@@ -447,11 +443,13 @@ public String open () {
 	}
 
 	/* Hook the callbacks. */
-	Callback cancelCallback = new Callback (this, "cancelPressed", 3);
+	Callback cancelCallback = new Callback (this, "cancelPressed", 3); //$NON-NLS-1$
 	int cancelAddress = cancelCallback.getAddress ();
+	if (cancelAddress == 0) SWT.error (SWT.ERROR_NO_MORE_CALLBACKS);
 	OS.XtAddCallback (dialog, OS.XmNcancelCallback, cancelAddress, 0);
-	Callback okCallback = new Callback (this, "okPressed", 3);
+	Callback okCallback = new Callback (this, "okPressed", 3); //$NON-NLS-1$
 	int okAddress = okCallback.getAddress ();
+	if (okAddress == 0) SWT.error (SWT.ERROR_NO_MORE_CALLBACKS);
 	OS.XtAddCallback (dialog, OS.XmNokCallback, okAddress, 0);
 	Callback selectCallback = null;
 	if ((style & SWT.MULTI) != 0) {
@@ -459,7 +457,7 @@ public String open () {
 		if (child != 0) {
 			int [] argList3 = {OS.XmNselectionPolicy, OS.XmEXTENDED_SELECT};
 			OS.XtSetValues(child, argList3, argList3.length / 2);
-			selectCallback = new Callback (this, "itemSelected", 3);
+			selectCallback = new Callback (this, "itemSelected", 3); //$NON-NLS-1$
 			int selectAddress = selectCallback.getAddress ();
 			if (selectAddress == 0) error (SWT.ERROR_NO_MORE_CALLBACKS);
 			OS.XtAddCallback (child, OS.XmNextendedSelectionCallback, selectAddress, 0);
@@ -470,11 +468,10 @@ public String open () {
 
 	// Should be a pure OS message loop (no SWT AppContext)
 	while (OS.XtIsRealized (dialog) && OS.XtIsManaged (dialog))
-		if (!appContext.readAndDispatch ()) appContext.sleep ();
+		if (!display.readAndDispatch ()) display.sleep ();
 
 	/* Destroy the dialog and update the display. */
 	if (OS.XtIsRealized (dialog)) OS.XtDestroyWidget (dialog);
-	if (destroyContext) appContext.dispose ();
 	okCallback.dispose ();
 	cancelCallback.dispose ();
 	if (selectCallback != null) selectCallback.dispose ();
@@ -497,6 +494,11 @@ public void setFileName (String string) {
  * Set the file extensions which the dialog will
  * use to filter the files it shows to the argument,
  * which may be null.
+ * <p>
+ * The strings are platform specific. For example, on
+ * Windows, an extension filter string is typically of
+ * the form "*.extension", where "*.*" matches all files.
+ * </p>
  *
  * @param extensions the file extension filter
  */
@@ -505,11 +507,11 @@ public void setFilterExtensions (String [] extensions) {
 }
 
 /**
- * Sets the file names which the dialog will
- * use to filter the files it shows to the argument,
- * which may be null.
+ * Sets the the names that describe the filter extensions
+ * which the dialog will use to filter the files it shows
+ * to the argument, which may be null.
  *
- * @param names the file name filter
+ * @param names the list of filter names
  */
 public void setFilterNames (String [] names) {
 	filterNames = names;
@@ -519,7 +521,14 @@ public void setFilterNames (String [] names) {
  * Sets the directory path that the dialog will use
  * to the argument, which may be null. File names in this
  * path will appear in the dialog, filtered according
- * to the filter extensions.
+ * to the filter extensions. If the string is null,
+ * then the operating system's default filter path
+ * will be used.
+ * <p>
+ * Note that the path string is platform dependent.
+ * For convenience, either '/' or '\' can be used
+ * as a path separator.
+ * </p>
  *
  * @param string the directory path
  * 

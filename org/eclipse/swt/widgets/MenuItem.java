@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -14,6 +14,7 @@ package org.eclipse.swt.widgets;
 import org.eclipse.swt.internal.*;
 import org.eclipse.swt.internal.motif.*;
 import org.eclipse.swt.*;
+import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.events.*;
 
 /**
@@ -217,7 +218,7 @@ public void addHelpListener (HelpListener listener) {
 }
 /**
  * Adds the listener to the collection of listeners who will
- * be notified when the control is selected, by sending
+ * be notified when the menu item is selected, by sending
  * it one of the messages defined in the <code>SelectionListener</code>
  * interface.
  * <p>
@@ -317,11 +318,13 @@ void destroyWidget () {
 	super.destroyWidget ();
 }
 /**
- * Return the widget accelerator.  An accelerator is the bit-wise
+ * Returns the widget accelerator.  An accelerator is the bit-wise
  * OR of zero or more modifier masks and a key. Examples:
  * <code>SWT.CONTROL | SWT.SHIFT | 'T', SWT.ALT | SWT.F2</code>.
+ * The default value is zero, indicating that the menu item does
+ * not have an accelerator.
  *
- * @return the accelerator
+ * @return the accelerator or 0
  *
  * </ul>
  * @exception SWTException <ul>
@@ -333,9 +336,16 @@ public int getAccelerator () {
 	checkWidget();
 	return accelerator;
 }
+/*public*/ Rectangle getBounds () {
+	checkWidget();
+	if (!OS.XtIsManaged (handle)) return new Rectangle (0, 0, 0, 0);
+	int [] argList = {OS.XmNx, 0, OS.XmNy, 0, OS.XmNwidth, 0, OS.XmNheight, 0};
+	OS.XtGetValues (handle, argList, argList.length / 2);
+	return new Rectangle ((short) argList [1], (short) argList [3], argList [5], argList [7]);
+}
 /**
  * Returns <code>true</code> if the receiver is enabled, and
- * <code>false</code> otherwise. A disabled control is typically
+ * <code>false</code> otherwise. A disabled menu item is typically
  * not selectable from the user interface and draws with an
  * inactive or "grayed" look.
  *
@@ -432,13 +442,14 @@ boolean isAccelActive () {
 	while (menu != null && menu.cascade != null) {
 		menu = menu.cascade.parent;
 	}
+	if (menu == null) return false;
 	Decorations shell = menu.parent;
 	return shell.menuBar == menu;
 }
 /**
  * Returns <code>true</code> if the receiver is enabled and all
  * of the receiver's ancestors are enabled, and <code>false</code>
- * otherwise. A disabled control is typically not selectable from the
+ * otherwise. A disabled menu item is typically not selectable from the
  * user interface and draws with an inactive or "grayed" look.
  *
  * @return the receiver's enabled state
@@ -455,20 +466,20 @@ public boolean isEnabled () {
 }
 String keysymName (int keysym) {
 	switch (keysym) {
-		case 8: return "BackSpace";
-		case 9: return "Tab";
+		case SWT.BS: return "BackSpace";
+		case SWT.TAB: return "Tab";
 		/*
 		* Bug in Motif. For some reason, the XmNaccelerator
 		* resource will not accept XK_Linefeed and prints Xt
 		* warnings.  The fix is to use XK_Return instead.
 		*/
-//		case 10:
+//		case SWT.LF:
 //		case OS.XK_Linefeed: return "Linefeed";
-		case 10:
+		case SWT.LF:
 		case OS.XK_Linefeed:
-		case 13: return "Return";
-		case 27: return "Escape";
-		case 127: return "Delete";
+		case SWT.CR: return "Return";
+		case SWT.ESC: return "Escape";
+		case SWT.DEL: return "Delete";
 	}
 	if (('0' <= keysym && keysym <= '9') ||
 		('a' <= keysym && keysym <= 'z') ||
@@ -526,7 +537,7 @@ void removeAccelerators () {
  * Removes the listener from the collection of listeners who will
  * be notified when the arm events are generated for the control.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -549,7 +560,7 @@ public void removeArmListener (ArmListener listener) {
  * Removes the listener from the collection of listeners who will
  * be notified when the help events are generated for the control.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -572,7 +583,7 @@ public void removeHelpListener (HelpListener listener) {
  * Removes the listener from the collection of listeners who will
  * be notified when the control is selected.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -607,6 +618,8 @@ void selectRadio () {
  * OR of zero or more modifier masks and a key. Examples:
  * <code>SWT.MOD1 | SWT.MOD2 | 'T', SWT.MOD3 | SWT.F2</code>.
  * <code>SWT.CONTROL | SWT.SHIFT | 'T', SWT.ALT | SWT.F2</code>.
+ * The default value is zero, indicating that the menu item does
+ * not have an accelerator.
  *
  * @param accelerator an integer that is the bit-wise OR of masks and a key
  *
@@ -630,7 +643,7 @@ public void setAccelerator (int accelerator) {
 }
 /**
  * Enables the receiver if the argument is <code>true</code>,
- * and disables it otherwise. A disabled control is typically
+ * and disables it otherwise. A disabled menu item is typically
  * not selectable from the user interface and draws with an
  * inactive or "grayed" look.
  *
@@ -883,7 +896,7 @@ boolean translateAccelerator (int accel, boolean doit) {
 }
 int XmNactivateCallback (int w, int client_data, int call_data) {
 	if ((style & SWT.CASCADE) != 0) {
-		postEvent (SWT.Arm);
+		sendEvent (SWT.Arm);
 	}
 	if (!isEnabled ()) return 0;
 	XmAnyCallbackStruct struct = new XmAnyCallbackStruct ();
@@ -906,11 +919,17 @@ int XmNactivateCallback (int w, int client_data, int call_data) {
 	return 0;
 }
 int XmNarmCallback (int w, int client_data, int call_data) {
-	postEvent (SWT.Arm);
+	sendEvent (SWT.Arm);
 	return 0;
 }
 int XmNcascadingCallback (int w, int client_data, int call_data) {
-	postEvent (SWT.Arm);
+	/*
+	* Bug in Motif.  When XmNlabelString is set as a result of
+	* an XmNcascadingCallback after the callback has returned,
+	* Motif measures the new string properly but does not draw
+	* it.  The fix is to send rather than post the SWT.Arm event.
+	*/
+	sendEvent (SWT.Arm);
 	return 0;
 }
 int XmNhelpCallback (int w, int client_data, int call_data) {

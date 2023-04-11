@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -23,16 +23,28 @@ import org.eclipse.swt.internal.motif.*;
  */
 public abstract class Device implements Drawable {
 	/**
-	* the handle to the X Display
-	* (Warning: This field is platform dependent)
-	*/
+	 * the handle to the X Display
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
+	 */
 	public int xDisplay;
 	
 	/**
-	* whether the XLFD resolution should match the
-	* resolution of the device when fonts are created
-	* (Warning: This field is platform dependent)
-	*/
+	 * whether the XLFD resolution should match the
+	 * resolution of the device when fonts are created
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
+	 */
 	// TEMPORARY CODE
 	public boolean setDPI;
 	
@@ -60,11 +72,19 @@ public abstract class Device implements Drawable {
 	/* System Font */
 	Font systemFont;
 	
+	int shellHandle;
+
 	/* Parsing Tables */
 	int tabPointer, crPointer;
 	/**
 	 * parse table mappings for tab and cr
 	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
 	 */
 	// TEMPORARY CODE
 	public int tabMapping, crMapping;
@@ -79,6 +99,8 @@ public abstract class Device implements Drawable {
 	static int XErrorProc, XIOErrorProc, XNullErrorProc, XNullIOErrorProc;
 	static Device[] Devices = new Device[4];
 	
+	static final Object CREATE_LOCK = new Object();
+
 	/* Initialize X and Xt */
 	static {
 		/*
@@ -112,11 +134,26 @@ public abstract class Device implements Drawable {
 /* 
 * TEMPORARY CODE 
 */
-static Device getDevice () {
+static synchronized Device getDevice () {
 	if (DeviceFinder != null) DeviceFinder.run();
 	Device device = CurrentDevice;
 	CurrentDevice = null;
 	return device;
+}
+
+/**
+ * Constructs a new instance of this class.
+ * <p>
+ * You must dispose the device when it is no longer required. 
+ * </p>
+ *
+ * @see #create
+ * @see #init
+ * 
+ * @since 3.1
+ */
+public Device() {
+	this(null);
 }
 
 /**
@@ -132,23 +169,33 @@ static Device getDevice () {
  * @see DeviceData
  */
 public Device(DeviceData data) {
-	if (data != null) {
-		display_name = data.display_name;
-		application_name = data.application_name;
-		application_class = data.application_class;
-		tracking = data.tracking;
-		debug = data.debug;
+	synchronized (CREATE_LOCK) {
+		if (data != null) {
+			display_name = data.display_name;
+			application_name = data.application_name;
+			application_class = data.application_class;
+			tracking = data.tracking;
+			debug = data.debug;
+		}
+		if (tracking) {
+			errors = new Error [128];
+			objects = new Object [128];
+		}
+		create (data);
+		init ();
+		register (this);
+		
+		/* Initialize the system font slot */
+		systemFont = getSystemFont ();
 	}
-	if (tracking) {
-		errors = new Error [128];
-		objects = new Object [128];
+}
+
+void checkCairo() {
+	try {
+		Class.forName("org.eclipse.swt.internal.cairo.Cairo");
+	} catch (Throwable t) {
+		SWT.error(SWT.ERROR_NO_GRAPHICS_LIBRARY, t, " [Cairo required]");
 	}
-	create (data);
-	init ();
-	register (this);
-	
-	/* Initialize the system font slot */
-	systemFont = getSystemFont ();
 }
 
 /**
@@ -416,10 +463,14 @@ public FontData [] getFontList (String faceName, boolean scalable) {
 		OS.memmove (buffer2, charPtr, length);
 		/* Use the character encoding for the default locale */
 		char [] chars = Converter.mbcsToWcs (null, buffer2);
-		FontData data = FontData.motif_new (new String (chars));
-		boolean isScalable = data.averageWidth == 0 && data.pixels == 0 && data.points == 0;
-		if (isScalable == scalable) {
-			fd [fdIndex++] = data;
+		try {
+			FontData data = FontData.motif_new (new String (chars));
+			boolean isScalable = data.averageWidth == 0 && data.pixels == 0 && data.points == 0;
+			if (isScalable == scalable) {
+				fd [fdIndex++] = data;
+			}
+		} catch (Exception e) {
+			/* do not add the font to the list */
 		}
 		ptr += 4;
 	}
@@ -436,7 +487,7 @@ public FontData [] getFontList (String faceName, boolean scalable) {
  * specified in class <code>SWT</code>. Any value other
  * than one of the SWT color constants which is passed
  * in will result in the color black. This color should
- * not be free'd because it was allocated by the system,
+ * not be freed because it was allocated by the system,
  * not the application.
  *
  * @param id the color constant
@@ -450,7 +501,6 @@ public FontData [] getFontList (String faceName, boolean scalable) {
  */
 public Color getSystemColor (int id) {
 	checkDevice ();
-	XColor xColor = null;
 	switch (id) {
 		case SWT.COLOR_BLACK: 				return COLOR_BLACK;
 		case SWT.COLOR_DARK_RED: 			return COLOR_DARK_RED;
@@ -469,15 +519,14 @@ public Color getSystemColor (int id) {
 		case SWT.COLOR_CYAN: 				return COLOR_CYAN;
 		case SWT.COLOR_WHITE: 				return COLOR_WHITE;
 	}
-	if (xColor == null) return COLOR_BLACK;
-	return Color.motif_new (this, xColor);
+	return COLOR_BLACK;
 }
 
 /**
  * Returns a reasonable font for applications to use.
  * On some platforms, this will match the "default font"
  * or "system font" if such can be found.  This font
- * should not be free'd because it was allocated by the
+ * should not be freed because it was allocated by the
  * system, not the application.
  * <p>
  * Typically, applications which want the default look
@@ -536,19 +585,16 @@ protected void init () {
 	/* Create the warning and error callbacks */
 	Class clazz = getClass ();
 	synchronized (clazz) {
-		int index = 0;
-		while (index < Devices.length) {
-			if (Devices [index] != null) break;
-			index++;
-		}
-		if (index == Devices.length) {
+		if (XErrorCallback == null) {
 			XErrorCallback = new Callback (clazz, "XErrorProc", 2);
 			XNullErrorProc = XErrorCallback.getAddress ();
 			if (XNullErrorProc == 0) SWT.error (SWT.ERROR_NO_MORE_CALLBACKS);
+			XErrorProc = OS.XSetErrorHandler (XNullErrorProc);
+		}
+		if (XIOErrorCallback == null) {
 			XIOErrorCallback = new Callback (clazz, "XIOErrorProc", 1);
 			XNullIOErrorProc = XIOErrorCallback.getAddress ();
 			if (XNullIOErrorProc == 0) SWT.error (SWT.ERROR_NO_MORE_CALLBACKS);
-			XErrorProc = OS.XSetErrorHandler (XNullErrorProc);
 			XIOErrorProc = OS.XSetIOErrorHandler (XNullIOErrorProc);
 		}
 	}
@@ -592,6 +638,10 @@ protected void init () {
 	COLOR_MAGENTA = new Color (this, 0xFF,0,0xFF);
 	COLOR_CYAN = new Color (this, 0,0xFF,0xFF);
 	COLOR_WHITE = new Color (this, 0xFF,0xFF,0xFF);
+
+	int widgetClass = OS.topLevelShellWidgetClass ();
+	shellHandle = OS.XtAppCreateShell (null, null, widgetClass, xDisplay, null, 0);
+	if (shellHandle == 0) SWT.error(SWT.ERROR_NO_HANDLES);
 
 	/* Create the parsing tables */
 	byte[] tabBuffer = {(byte) '\t', 0};
@@ -722,6 +772,9 @@ protected void release () {
 	OS.XmParseMappingFree(crMapping);
 	tabPointer = crPointer = tabMapping = crMapping = 0;
 
+	if (shellHandle != 0) OS.XtDestroyWidget (shellHandle);
+	shellHandle = 0;
+
 	/*
 	* Free the palette.  Note that this disposes all colors on
 	* the display that were allocated using the Color constructor.
@@ -759,12 +812,11 @@ protected void release () {
 	xtWarningCallback.dispose (); xtWarningCallback = null;
 	xtNullWarningProc = xtWarningProc = 0;
 	
-	int index = 0;
-	while (index < Devices.length) {
-		if (Devices [index] != null) break;
-		index++;
+	int count = 0;
+	for (int i = 0; i < Devices.length; i++){
+		if (Devices [i] != null) count++;
 	}
-	if (index == Devices.length) {
+	if (count == 1) {
 		/* Free the X IO error handler */
 		OS.XSetIOErrorHandler (XIOErrorProc);
 		XIOErrorCallback.dispose (); XIOErrorCallback = null;
@@ -791,11 +843,11 @@ protected void release () {
 
 /**
  * If the underlying window system supports printing warning messages
- * to the console, setting warnings to <code>true</code> prevents these
- * messages from being printed. If the argument is <code>false</code>
+ * to the console, setting warnings to <code>false</code> prevents these
+ * messages from being printed. If the argument is <code>true</code> then
  * message printing is not blocked.
  *
- * @param warnings <code>true</code>if warnings should be handled, and <code>false</code> otherwise
+ * @param warnings <code>true</code>if warnings should be printed, and <code>false</code> otherwise
  *
  * @exception SWTException <ul>
  *    <li>ERROR_DEVICE_DISPOSED - if the receiver has been disposed</li>
@@ -820,6 +872,7 @@ static int XErrorProc (int xDisplay, int xErrorEvent) {
 			OS.Call (XErrorProc, xDisplay, xErrorEvent);
 		}
 	} else {
+		if (DEBUG) new SWTError ().printStackTrace ();
 		OS.Call (XErrorProc, xDisplay, xErrorEvent);
 	}
 	return 0;
@@ -827,8 +880,12 @@ static int XErrorProc (int xDisplay, int xErrorEvent) {
 
 static int XIOErrorProc (int xDisplay) {
 	Device device = findDevice (xDisplay);
-	if (device != null && (DEBUG || device.debug)) {
-		new SWTError ().printStackTrace ();
+	if (device != null) {
+		if (DEBUG || device.debug) {
+			new SWTError ().printStackTrace ();
+		}
+	} else {
+		if (DEBUG) new SWTError ().printStackTrace ();
 	}
 	OS.Call (XIOErrorProc, xDisplay, 0);
 	return 0;

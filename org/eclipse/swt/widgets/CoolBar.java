@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -88,6 +88,7 @@ public CoolBar (Composite parent, int style) {
 				case SWT.MouseUp:      		onMouseUp(event);   		break;
 				case SWT.MouseDoubleClick:	onMouseDoubleClick(event); 	break;
 				case SWT.Paint:        		onPaint(event);     		break;
+				case SWT.Resize:          	onResize();     			break;
 			}
 		}
 	};
@@ -98,7 +99,8 @@ public CoolBar (Composite parent, int style) {
 		SWT.MouseMove, 
 		SWT.MouseUp, 
 		SWT.MouseDoubleClick,
-		SWT.Paint 
+		SWT.Paint,
+		SWT.Resize
 	};
 	for (int i = 0; i < events.length; i++) {
 		addListener(events[i], listener);	
@@ -165,9 +167,6 @@ CoolItem getGrabbedItem(int x, int y) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_CANNOT_GET_ITEM - if the operation fails because of an operating system failure</li>
- * </ul>
  */
 public CoolItem getItem (int index) {
 	checkWidget();
@@ -191,9 +190,6 @@ public CoolItem getItem (int index) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_CANNOT_GET_COUNT - if the operation fails because of an operating system failure</li>
- * </ul>
  */
 public int getItemCount () {
 	checkWidget();
@@ -213,9 +209,6 @@ public int getItemCount () {
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_CANNOT_GET_ITEM - if the operation fails because of an operating system failure</li>
  * </ul>
  */
 public CoolItem [] getItems () {
@@ -705,6 +698,17 @@ void onPaint(Event event) {
 		}
 	}
 }
+void onResize () {
+	layoutItems ();
+}
+void removeControl (Control control) {
+	super.removeControl (control);
+	CoolItem [] items = getItems ();
+	for (int i=0; i<items.length; i++) {
+		CoolItem item = items [i];
+		if (item.control == control) item.setControl (null);
+	}
+}
 /**
  * Remove the item from the row. Adjust the x and width values
  * appropriately.
@@ -746,10 +750,10 @@ void removeItemFromRow(CoolItem item, int rowIndex, boolean disposed) {
 }
 /**
  * Return the height of the bar after it has
- * been properly layed out for the given width.
+ * been properly laid out for the given width.
  */
 int layoutItems () {
-	int y = 0, width = getSize().x;
+	int y = 0, width = getClientArea().width;
 	wrapItems(width);
 	int rowSpacing = (style & SWT.FLAT) != 0 ? 0 : ROW_SPACING; 
 	for (int row = 0; row < items.length; row++) {
@@ -816,14 +820,6 @@ void relayout() {
 	Rectangle trim = computeTrim (0, 0, 0, height);
 	if (height != size.y) super.setSize(size.x, trim.height);
 }
-public void setBounds (int x, int y, int width, int height) {
-	super.setBounds (x, y, width, height);
-	layoutItems();
-}
-public void setSize (int width, int height) {
-	super.setSize (width, height);
-	layoutItems();
-}
 /**
  * Returns an array of zero-relative ints that map
  * the creation order of the receiver's items to the
@@ -843,9 +839,6 @@ public void setSize (int width, int height) {
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_CANNOT_GET_ITEM - if the operation fails because of an operating system failure</li>
  * </ul>
  */
 public int[] getItemOrder () {
@@ -1055,9 +1048,6 @@ public void setWrapIndices (int[] indices) {
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if item order or sizes is null</li>
  *    <li>ERROR_INVALID_ARGUMENT - if item order or sizes is not the same length as the number of items</li>
- * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_CANNOT_GET_ITEM - if the operation fails because of an operating system failure</li>
  * </ul>
  */
 public void setItemLayout (int[] itemOrder, int[] wrapIndices, Point[] sizes) {

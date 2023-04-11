@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -31,8 +31,7 @@ import org.eclipse.swt.*;
  * 
  *  @since 3.0
  */
-public final class TextLayout {
-	Device device;
+public final class TextLayout extends Resource {
 	Font font;
 	String text;
 	int lineSpacing;
@@ -276,6 +275,9 @@ public void dispose () {
  * @exception SWTException <ul>
  *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
  * </ul>
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the gc is null</li>
+ * </ul>
  */
 public void draw (GC gc, int x, int y) {
 	draw(gc, x, y, -1, -1, null, null);
@@ -295,6 +297,9 @@ public void draw (GC gc, int x, int y) {
  *
  * @exception SWTException <ul>
  *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
+ * </ul>
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the gc is null</li>
  * </ul>
  */
 public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Color selectionForeground, Color selectionBackground) {
@@ -350,6 +355,14 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 						if (!run.tab) {
 							gc.setForeground(selectionForeground);
 							gc.drawString(string, drawX, drawRunY, true);
+							if (run.style != null && run.style.underline) {
+								int underlineY = drawRunY + run.baseline + 1;
+								gc.drawLine (drawX, underlineY, drawX + run.width, underlineY);								
+							}
+							if (run.style != null && run.style.strikeout) {
+								int strikeoutY = drawRunY + run.height - run.height/2 - 1;
+								gc.drawLine (drawX, strikeoutY, drawX + run.width, strikeoutY);
+							}
 						}
 					} else {
 						if (run.style != null && run.style.background != null) {
@@ -362,6 +375,14 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 							if (run.style != null && run.style.foreground != null) fg = run.style.foreground;
 							gc.setForeground(fg);
 							gc.drawString(string, drawX, drawRunY, true);
+							if (run.style != null && run.style.underline) {
+								int underlineY = drawRunY + run.baseline + 1;
+								gc.drawLine (drawX, underlineY, drawX + run.width, underlineY);								
+							}
+							if (run.style != null && run.style.strikeout) {
+								int strikeoutY = drawRunY + run.height - run.height/2 - 1;
+								gc.drawLine (drawX, strikeoutY, drawX + run.width, strikeoutY);
+							}
 							boolean partialSelection = hasSelection && !(selectionStart > end || run.start > selectionEnd);
 							if (partialSelection) {
 								int selStart = Math.max(selectionStart, run.start);
@@ -375,6 +396,14 @@ public void draw(GC gc, int x, int y, int selectionStart, int selectionEnd, Colo
 								if (fg != selectionForeground) {
 									gc.setForeground(selectionForeground);
 									gc.drawString(string, selX, drawRunY, true);
+									if (run.style != null && run.style.underline) {
+										int underlineY = drawRunY + run.baseline + 1;
+										gc.drawLine (selX, underlineY, selX + selWidth, underlineY);
+									}
+									if (run.style != null && run.style.strikeout) {
+										int strikeoutY = drawRunY + run.height - run.height/2 - 1;
+										gc.drawLine (selX, strikeoutY, selX + selWidth, strikeoutY);
+									}
 								}
 							}
 						}
@@ -688,7 +717,7 @@ public FontMetrics getLineMetrics (int lineIndex) {
 	computeRuns();
 	if (!(0 <= lineIndex && lineIndex < runs.length)) SWT.error(SWT.ERROR_INVALID_RANGE);
 	GC gc = new GC(device);
-	Font font = this.font != null ? this.font : device.getSystemFont();
+	Font font = this.font != null ? this.font : device.systemFont;
 	FontMetrics metrics = null;
 	if (text.length() == 0) {
 		gc.setFont(font);
@@ -783,7 +812,7 @@ Font getItemFont(StyleItem item) {
 	if (this.font != null) {
 		return this.font;
 	}
-	return device.getSystemFont();
+	return device.systemFont;
 }
 
 /**
@@ -845,6 +874,7 @@ public int getNextOffset (int offset, int movement) {
  *  
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_INVALID_ARGUMENT - if the trailing length is less than <code>1</code></li>
+ *    <li>ERROR_NULL_ARGUMENT - if the point is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
@@ -897,15 +927,8 @@ public int getOffset (int x, int y, int[] trailing) {
 			case SWT.RIGHT: x -= wrapWidth - lineWidth[line]; break;
 		}
 	}
-	if (x < 0) return lineOffset[line];
-	if (x > lineWidth[line]) {
-		if (lineOffset[line + 1] > lineOffset[line]) {
-			if (trailing != null) trailing[0] = 1;
-			return lineOffset[line + 1]  - 1;	
-		}
-		if (trailing != null) trailing[0] = 0;
-		return lineOffset[line + 1];
-	}
+	if (x >= lineWidth[line]) x = lineWidth[line] - 1;
+	if (x < 0) x = 0;
 	StyleItem[] lineRuns = runs[line];
 	int width = 0;
 	for (int i = 0; i < lineRuns.length; i++) {
@@ -1245,7 +1268,7 @@ public void setAlignment (int alignment) {
  * </ul>
  * 
  * @see #setDescent(int)
- * @see #getLineMetrics()
+ * @see #getLineMetrics(int)
  */
 public void setAscent (int ascent) {
 	checkLayout();
@@ -1271,7 +1294,7 @@ public void setAscent (int ascent) {
  * </ul>
  * 
  * @see #setAscent(int)
- * @see #getLineMetrics()
+ * @see #getLineMetrics(int)
  */
 public void setDescent (int descent) {
 	checkLayout();
@@ -1304,7 +1327,7 @@ public void setFont (Font font) {
 	if (font != null && font.equals(this.font)) return;
 	freeRuns();
 	this.font = font;
-	XFontStruct fontStruct = getFontHeigth(font != null ? font : device.getSystemFont());
+	XFontStruct fontStruct = getFontHeigth(font != null ? font : device.systemFont);
 	defaultAscent = fontStruct.ascent;
 	defaultDescent = fontStruct.descent;
 }
@@ -1535,5 +1558,16 @@ public void setWidth (int width) {
 	if (this.wrapWidth == width) return;
 	freeRuns();
 	this.wrapWidth = width;
+}
+
+/**
+ * Returns a string containing a concise, human-readable
+ * description of the receiver.
+ *
+ * @return a string representation of the receiver
+ */
+public String toString () {
+	if (isDisposed()) return "TextLayout {*DISPOSED*}";
+	return "TextLayout {}";
 }
 }

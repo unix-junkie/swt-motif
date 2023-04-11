@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -201,9 +201,9 @@ void calculateChevronTrim () {
  * @see Layout
  * @see #getBounds
  * @see #getSize
- * @see CoolBar#getBorderWidth
- * @see CoolBar#computeTrim
- * @see CoolBar#getClientArea
+ * @see Control#getBorderWidth
+ * @see Scrollable#computeTrim
+ * @see Scrollable#getClientArea
  */
 public Point computeSize (int wHint, int hHint) {
 	checkWidget();
@@ -382,7 +382,7 @@ void onSelection (Event ev) {
  * Removes the listener from the collection of listeners that
  * will be notified when the control is selected.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -502,7 +502,7 @@ public void setMinimumSize (Point size) {
 public void setPreferredSize (int width, int height) {
 	checkWidget();
 	ideal = true;
-	preferredWidth = Math.max (width, minimumWidth + MINIMUM_WIDTH);
+	preferredWidth = Math.max (width, MINIMUM_WIDTH);
 	preferredHeight = height;
 }
 /**

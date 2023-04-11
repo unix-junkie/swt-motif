@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -65,7 +65,11 @@ import org.eclipse.swt.*;
  * <dt><b>Events:</b></dt>
  * <dd>(none)</dd>
  * </dl>
- *
+ * <p>
+ * Note: Only one of the styles APPLICATION_MODAL, PRIMARY_MODAL, and SYSTEM_MODAL 
+ * may be specified.
+ * </p>
+ * 
  * @see Shell
  */
 
@@ -104,6 +108,7 @@ public Dialog (Shell parent) {
  * Style bits are also inherited from superclasses.
  *
  * @param parent a shell which will be the parent of the new instance
+ * @param style the style of dialog to construct
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
@@ -160,7 +165,7 @@ void checkParent (Shell parent) {
  *
  * @param code the descriptive error code
  *
- * @see SWTError#error
+ * @see SWT#error(int)
  */
 void error (int code) {
 	SWT.error(code);
@@ -222,7 +227,7 @@ public String getText () {
  * window manager will typically display as the receiver's
  * <em>title</em>, to the argument, which must not be null. 
  *
- * @param text the new text
+ * @param string the new text
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the text is null</li>

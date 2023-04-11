@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -36,12 +36,10 @@ final class JPEGFileFormat extends FileFormat {
 	int bufferCurrentPosition;
 	int restartsToGo;
 	int nextRestartNumber;
-	JPEGArithmeticConditioningTable arithmeticTables;
 	JPEGHuffmanTable[] acHuffmanTables;
 	JPEGHuffmanTable[] dcHuffmanTables;
 	int[][] quantizationTables;
 	int currentByte;
-	int decoderQFactor;
 	int encoderQFactor = 75;
 	int eobrun = 0;
 	/* JPEGConstants */
@@ -237,9 +235,11 @@ void convert4BitRGBToYCbCr(ImageData image) {
 	byte[] dataCbComp = new byte[bSize];
 	byte[] dataCrComp = new byte[bSize];
 	byte[] origData = image.data;
+	int bytesPerLine = image.bytesPerLine;
+	int maxScanlineByte = srcWidth / 2;
 	for (int yPos = 0; yPos < srcHeight; yPos++) {
-		for (int xPos = 0; xPos < srcWidth / 2; xPos++) {
-			int srcIndex = yPos * (srcWidth / 2) + xPos;
+		for (int xPos = 0; xPos < maxScanlineByte; xPos++) {
+			int srcIndex = yPos * bytesPerLine + xPos;
 			int dstIndex = yPos * srcWidth + (xPos * 2);
 			int value2 = origData[srcIndex] & 0xFF;
 			int value1 = value2 / 16;
@@ -775,7 +775,7 @@ void emit(int huffCode, int nBits) {
 	if ((abs / 8) > 0) {
 		currentByte += codeBuffer[2];
 		emitByte((byte)currentByte);
-		emitByte((byte)codeBuffer[1]);
+		emitByte(codeBuffer[1]);
 		currentByte = codeBuffer[0];
 		currentBitCount += nBits - 16;
 	} else {
@@ -1116,8 +1116,7 @@ void getCOM() {
 	new JPEGComment(inputStream);
 }
 void getDAC() {
-	JPEGArithmeticConditioningTable dac = new JPEGArithmeticConditioningTable(inputStream);
-	arithmeticTables = dac;
+	new JPEGArithmeticConditioningTable(inputStream);
 }
 void getDHT() {
 	JPEGHuffmanTable dht = new JPEGHuffmanTable(inputStream);

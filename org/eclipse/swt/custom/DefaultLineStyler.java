@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -18,7 +18,6 @@ class DefaultLineStyler implements LineStyleListener, LineBackgroundListener {
 	StyledTextContent content;
 	StyleRange styles[] = new StyleRange[0];
 	int styleCount = 0;	// the number of styles	
-	int styleExpandExp = 1; // the expansion exponent, used to increase the styles array exponentially
 	int lineExpandExp = 1; 	// the expansion exponent, used to increase the lines array exponentially
 	int lineCount = 0;
 	Color lineBackgrounds[];
@@ -254,9 +253,8 @@ StyleRange [] getStyleRanges() {
  * Handles the get line background color callback.
  * <p>
  *
- * @param event.lineOffset line number (input)	
- * @param event.lineText line text (input)
- * @param event.background line background color (output)
+ * @param event the lineOffset line number (input), lineText line text (input),
+ * and background line background color (output)
  */
 public void lineGetBackground(LineBackgroundEvent event) {
 	int lineIndex = content.getLineAtOffset(event.lineOffset);
@@ -266,9 +264,8 @@ public void lineGetBackground(LineBackgroundEvent event) {
  * Handles the get line style information callback.
  * <p>
  *
- * @param event.lineOffset line number (input)	
- * @param event.lineText line text (input)
- * @param event.styles array of StyleRanges, need to be in order (output)
+ * @param event the lineOffset line number (input), lineText line text (input),
+ * and styles array of StyleRanges, need to be in order (output)
  */
 public void lineGetStyle(LineStyleEvent event) {
 	int lineStart = event.lineOffset;
@@ -325,7 +322,7 @@ int searchForStyle(int start, int end) {
  * <p>
  *
  * @param startLine index of the first line to color
- * @param lineCount number of lines to color starting at startLine
+ * @param count number of lines to color starting at startLine
  * @param background the background color for the lines
  */ 
 void setLineBackground(int startLine, int count, Color background) {
@@ -345,7 +342,6 @@ void setLineBackground(int startLine, int count, Color background) {
 void setStyleRange(StyleRange newStyle) {
 	if (newStyle == null) {
 		styles = new StyleRange[0];
-		styleExpandExp = 1;
 		styleCount = 0;
 		return;
 	}
@@ -438,9 +434,10 @@ void setStyleRange(StyleRange newStyle) {
 }
 /** 
  * Replace the styles for the given range.
- * <p>
  *
- * @param styles the new styles, must be in order and non-overlapping
+ * @param start the initial style range to replace
+ * @param length the number of ranges to replace
+ * @param ranges the new styles, must be in order and non-overlapping
  */
 void replaceStyleRanges(int start, int length, StyleRange[] ranges) {
 	clearStyle(new StyleRange(start, length, null, null));
@@ -470,7 +467,6 @@ void setStyleRanges(StyleRange[] styles) {
 	this.styles = new StyleRange[styles.length];
 	System.arraycopy(styles, 0, this.styles, 0, styles.length);
 	styleCount = styles.length;
-	styleExpandExp = 1;
 }
 /** 
  * Updates the style ranges and line backgrounds to reflect a pending text 

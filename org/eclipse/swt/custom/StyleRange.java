@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -19,7 +19,9 @@ public class StyleRange implements CloneableCompatibility {
 	public int length;		// style length.	
 	public Color foreground; 
 	public Color background;
-	public int fontStyle = SWT.NORMAL;	// may be SWT.NORMAL or SWT.BOLD
+	public int fontStyle = SWT.NORMAL;	// may be SWT.NORMAL, SWT.ITALIC or SWT.BOLD
+	public boolean underline;
+	public boolean strikeout;
 
 public StyleRange() {
 }
@@ -47,7 +49,7 @@ public StyleRange(int start, int length, Color foreground, Color background) {
  * @param length length of the style 
  * @param foreground foreground color of the style, null if none 
  * @param background background color of the style, null if none
- * @param fontStyle font style of the style, may be SWT.NORMAL or SWT.BOLD
+ * @param fontStyle font style of the style, may be SWT.NORMAL, SWT.ITALIC or SWT.BOLD
  */
 public StyleRange(int start, int length, Color foreground, Color background, int fontStyle) {
 	this.start = start;
@@ -58,13 +60,14 @@ public StyleRange(int start, int length, Color foreground, Color background, int
 }
 
 /**
- * Compare the specified object to this StyleRange and answer if the two 
- * are equal. The object must be an instance of StyleRange and have the
- * same field values.
- * <p>
+ * Compares the argument to the receiver, and returns true
+ * if they represent the <em>same</em> object using a class
+ * specific comparison.
  *
  * @param object the object to compare with this object
- * @return true if the objects are equal, false otherwise
+ * @return <code>true</code> if the object is the same as this object and <code>false</code> otherwise
+ *
+ * @see #hashCode()
  */
 public boolean equals(Object object) {
 	StyleRange style;
@@ -73,21 +76,17 @@ public boolean equals(Object object) {
 	else return false;
 	if (this.start != style.start) return false;
 	if (this.length != style.length) return false;
-	if (this.foreground != null) {
-		if (!this.foreground.equals(style.foreground)) return false;
-	} else if (style.foreground != null) return false;
-	if (this.background != null) {
-		if (!this.background.equals(style.background)) return false;
-	} else if (style.background != null) return false; 
-	if (this.fontStyle != style.fontStyle) return false;
-	return true;
+	return similarTo(style);
 }
 /**
- * Returns an integer hash code for the receiver. Objects which are
- * equal answer the same value for this method.
- * <p>
+ * Returns an integer hash code for the receiver. Any two 
+ * objects that return <code>true</code> when passed to 
+ * <code>equals</code> must return the same value for this
+ * method.
  *
  * @return the receiver's hash
+ *
+ * @see #equals(Object)
  */
 public int hashCode() {
 	int code = start + length;
@@ -109,6 +108,8 @@ public boolean isUnstyled() {
 	if (this.foreground != null) return false;
 	if (this.background != null) return false;
 	if (this.fontStyle != SWT.NORMAL) return false;
+	if (this.underline) return false;
+	if (this.strikeout) return false;
 	return true;
 }
 /**
@@ -117,7 +118,7 @@ public boolean isUnstyled() {
  * same field values for except for start and length.
  * <p>
  *
- * @param object the object to compare with this object
+ * @param style the object to compare with this object
  * @return true if the objects are similar, false otherwise
  */
 public boolean similarTo(StyleRange style) {
@@ -128,6 +129,8 @@ public boolean similarTo(StyleRange style) {
 		if (!this.background.equals(style.background)) return false;
 	} else if (style.background != null) return false; 
 	if (this.fontStyle != style.fontStyle) return false;
+	if (this.underline != style.underline) return false;
+	if (this.strikeout != style.strikeout) return false;
 	return true;
 }
 /**
@@ -138,22 +141,34 @@ public boolean similarTo(StyleRange style) {
  */	
 public Object clone() {
  	StyleRange style = new StyleRange(start, length, foreground, background, fontStyle);
+ 	style.underline = this.underline;
+ 	style.strikeout = this.strikeout;
 	return style;
 }
-/** 
- * Answers a string description of the receiver.
- * <p>
+/**
+ * Returns a string containing a concise, human-readable
+ * description of the receiver.
  *
- * @return a printable representation for the receiver.
+ * @return a string representation of the event
  */
 public String toString() {
 	StringBuffer buf = new StringBuffer();
 	buf.append(start + "," + length + " fg:" + foreground + " bg:" + background + " fStyle:");
-	if (fontStyle == SWT.NORMAL) {
-		buf.append("normal");
-	} else if (fontStyle == SWT.BOLD) {
-		buf.append("bold");
+	switch (fontStyle) {
+		case SWT.BOLD:
+			buf.append("bold");
+			break;
+		case SWT.ITALIC:
+			buf.append("italic");
+			break;
+		case SWT.BOLD | SWT.ITALIC:
+			buf.append("bold-italic");
+			break;
+		default:
+			buf.append("normal");
 	}
+	if (underline) buf.append(" underline");
+	if (strikeout) buf.append(" strikeout");
 	return buf.toString();
 }
 }

@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -37,13 +37,16 @@ public class Text extends Scrollable {
 	char echoCharacter;
 	boolean ignoreChange;
 	String hiddenText;
-	XmTextVerifyCallbackStruct textVerify;
 	int drawCount;
 	
 	static final boolean IsGB18030;
 	/**
 	* The maximum number of characters that can be entered
 	* into a text widget.
+	* <p>
+	* Note that this value is platform dependent, based upon
+	* the native widget implementation.
+	* </p>
 	*/
 	public static final int LIMIT;
 	/**
@@ -211,14 +214,18 @@ public void append (String string) {
 	display.setWarnings(warnings);
 }
 static int checkStyle (int style) {
+	if ((style & SWT.SINGLE) != 0 && (style & SWT.MULTI) != 0) {
+		style &= ~SWT.MULTI;
+	}
 	style = checkBits (style, SWT.LEFT, SWT.CENTER, SWT.RIGHT, 0, 0, 0);
 	if ((style & SWT.SINGLE) != 0) style &= ~(SWT.H_SCROLL | SWT.V_SCROLL | SWT.WRAP);
-	if ((style & SWT.WRAP) != 0) style |= SWT.MULTI;
+	if ((style & SWT.WRAP) != 0) {
+		style |= SWT.MULTI;
+		style &= ~SWT.H_SCROLL;
+	}
 	if ((style & SWT.MULTI) != 0) style &= ~SWT.PASSWORD;
 	if ((style & (SWT.SINGLE | SWT.MULTI)) != 0) return style;
-	if ((style & (SWT.H_SCROLL | SWT.V_SCROLL)) != 0) {
-		return style | SWT.MULTI;
-	}
+	if ((style & (SWT.H_SCROLL | SWT.V_SCROLL)) != 0) return style | SWT.MULTI;
 	return style | SWT.SINGLE;
 }
 /**
@@ -287,6 +294,11 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 		}
 		OS.XtFree (ptr);
 	}
+	Rectangle trim = computeTrim (0, 0, width, height);
+	return new Point (trim.width, trim.height);
+}
+public Rectangle computeTrim (int x, int y, int width, int height) {
+	checkWidget();
 	if (horizontalBar != null) {
 		int [] argList1 = {OS.XmNheight, 0};
 		OS.XtGetValues (horizontalBar.handle, argList1, argList1.length / 2);
@@ -297,23 +309,28 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 		OS.XtGetValues (verticalBar.handle, argList1, argList1.length / 2);
 		width += argList1 [1] + 4;
 	}
+	if ((style & SWT.MULTI) != 0) height+=4;
 	XRectangle rect = new XRectangle ();
 	OS.XmWidgetGetDisplayRect (handle, rect);
-	width += rect.x * 2;  height += rect.y * 2;
-	if ((style & (SWT.MULTI | SWT.BORDER)) != 0) height++;
-	return new Point (width, height);
-}
-public Rectangle computeTrim (int x, int y, int width, int height) {
-	checkWidget();
-	Rectangle trim = super.computeTrim(x, y, width, height);
-	XRectangle rect = new XRectangle ();
-	OS.XmWidgetGetDisplayRect (handle, rect);
-	trim.x -= rect.x;
-	trim.y -= rect.y;
-	trim.width += rect.x;
-	trim.height += rect.y;	
-	if ((style & (SWT.MULTI | SWT.BORDER)) != 0) trim.height += 3;
-	return trim;
+	x -= rect.x;
+	y -= rect.y;
+	width += rect.x * 2;
+	height += rect.y * 2;
+	int shadow = 0, highlight = 0;
+	if ((style & SWT.MULTI) != 0 || (style & SWT.BORDER) != 0) {
+		int [] argList = new int [] {
+			OS.XmNshadowThickness, 0,
+			OS.XmNhighlightThickness, 0,
+		};
+		OS.XtGetValues (handle, argList, argList.length / 2);
+		shadow = argList [1];
+		highlight = argList [3];
+	}
+	x -= shadow + highlight;
+	y -= shadow + highlight;
+	width += (shadow + highlight) * 2;
+	height += (shadow + highlight) * 2;	
+	return new Rectangle (x, y, width, height);
 }
 /**
  * Copies the selected text.
@@ -408,7 +425,7 @@ int defaultForeground () {
 	return display.textForeground;
 }
 /**
- * Gets the line number of the caret.
+ * Returns the line number of the caret.
  * <p>
  * The line number of the caret is returned.
  * </p>
@@ -425,7 +442,8 @@ public int getCaretLineNumber () {
 	return getLineNumber (OS.XmTextGetInsertionPosition (handle));
 }
 /**
- * Gets the location the caret.
+ * Returns a point describing the receiver's location relative
+ * to its parent (or its display if its parent is null).
  * <p>
  * The location of the caret is returned.
  * </p>
@@ -440,19 +458,15 @@ public int getCaretLineNumber () {
 public Point getCaretLocation () {
 	checkWidget();
 	int position;
-	if (textVerify != null) {
-		position = textVerify.currInsert;
-	} else {
-		position = OS.XmTextGetInsertionPosition (handle);
-	}
+	position = OS.XmTextGetInsertionPosition (handle);
 	short [] x = new short [1], y = new short [1];
 	OS.XmTextPosToXY (handle, position, x, y);
 	return new Point (x [0], y [0] - getFontAscent (font.handle));
 }
 /**
- * Gets the position of the caret.
+ * Returns the character position of the caret.
  * <p>
- * The character position of the caret is returned.
+ * Indexing is zero based.
  * </p>
  *
  * @return the position of the caret
@@ -467,7 +481,7 @@ public int getCaretPosition () {
 	return OS.XmTextGetInsertionPosition (handle);
 }
 /**
- * Gets the number of characters.
+ * Returns the number of characters.
  *
  * @return number of characters in the widget
  *
@@ -481,7 +495,7 @@ public int getCharCount () {
 	return OS.XmTextGetLastPosition (handle);
 }
 /**
- * Gets the double click enabled flag.
+ * Returns the double click enabled flag.
  * <p>
  * The double click flag enables or disables the
  * default action of the text widget when the user
@@ -502,7 +516,7 @@ public boolean getDoubleClickEnabled () {
 	return argList [1] != 1;
 }
 /**
- * Gets the echo character.
+ * Returns the echo character.
  * <p>
  * The echo character is the character that is
  * displayed when the user enters text or the
@@ -515,13 +529,15 @@ public boolean getDoubleClickEnabled () {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @see #setEchoChar
  */
 public char getEchoChar () {
 	checkWidget();
 	return echoCharacter;
 }
 /**
- * Gets the editable state.
+ * Returns the editable state.
  *
  * @return whether or not the reciever is editable
  * 
@@ -544,7 +560,7 @@ public boolean getEditable () {
 	return argList [1] != 0;
 }
 /**
- * Gets the number of lines.
+ * Returns the number of lines.
  *
  * @return the number of lines in the widget
  *
@@ -560,7 +576,7 @@ public int getLineCount () {
 	return getLineNumber (lastChar) + 1;
 }
 /**
- * Gets the line delimiter.
+ * Returns the line delimiter.
  *
  * @return a string that is the line delimiter
  *
@@ -568,13 +584,15 @@ public int getLineCount () {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @see #DELIMITER
  */
 public String getLineDelimiter () {
 	checkWidget();
 	return "\n";
 }
 /**
- * Gets the height of a line.
+ * Returns the height of a line.
  *
  * @return the height of a row of text
  *
@@ -642,7 +660,8 @@ int getNavigationType () {
 	return buffer [0];
 }
 /**
- * Returns the orientation of the receiver.
+ * Returns the orientation of the receiver, which will be one of the
+ * constants <code>SWT.LEFT_TO_RIGHT</code> or <code>SWT.RIGHT_TO_LEFT</code>.
  *
  * @return the orientation style
  * 
@@ -658,14 +677,17 @@ public int getOrientation () {
 	return style & (SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT);
 }
 /**
- * Gets the position of the selected text.
+ * Returns a <code>Point</code> whose x coordinate is the
+ * character position representing the start of the selected
+ * text, and whose y coordinate is the character position
+ * representing the end of the selection. An "empty" selection
+ * is indicated by the x and y coordinates having the same value.
  * <p>
- * Indexing is zero based.  The range of
- * a selection is from 0..N where N is
- * the number of characters in the widget.
+ * Indexing is zero based.  The range of a selection is from
+ * 0..N where N is the number of characters in the widget.
  * </p>
- * 
- * @return the start and end of the selection
+ *
+ * @return a point representing the selection start and end
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -674,9 +696,6 @@ public int getOrientation () {
  */
 public Point getSelection () {
 	checkWidget();
-	if (textVerify != null) {
-		return new Point (textVerify.startPos, textVerify.endPos);
-	}
 	int [] start = new int [1], end = new int [1];
 	OS.XmTextGetSelectionPosition (handle, start, end);
 	if (start [0] == end [0]) {
@@ -685,7 +704,7 @@ public Point getSelection () {
 	return new Point (start [0], end [0]);
 }
 /**
- * Gets the number of selected characters.
+ * Returns the number of selected characters.
  *
  * @return the number of selected characters.
  *
@@ -696,15 +715,12 @@ public Point getSelection () {
  */
 public int getSelectionCount () {
 	checkWidget();
-	if (textVerify != null) {
-		return textVerify.endPos - textVerify.startPos;
-	}
 	int [] start = new int [1], end = new int [1];
 	OS.XmTextGetSelectionPosition (handle, start, end);
 	return end [0] - start [0];
 }
 /**
- * Gets the selected text.
+ * Gets the selected text, or an empty string if there is no current selection.
  *
  * @return the selected text
  * 
@@ -715,7 +731,7 @@ public int getSelectionCount () {
  */
 public String getSelectionText () {
 	checkWidget();
-	if (echoCharacter != '\0' || textVerify != null) {
+	if (echoCharacter != '\0') {
 		Point selection = getSelection ();
 		return getText (selection.x, selection.y);
 	}
@@ -728,7 +744,7 @@ public String getSelectionText () {
 	return new String (Converter.mbcsToWcs (getCodePage (), buffer));
 }
 /**
- * Gets the number of tabs.
+ * Returns the number of tabs.
  * <p>
  * Tab stop spacing is specified in terms of the
  * space (' ') character.  The width of a single
@@ -748,9 +764,10 @@ public int getTabs () {
 	return 8;
 }
 /**
- * Gets the widget text.
+ * Returns the widget text.
  * <p>
- * The text for a text widget is the characters in the widget.
+ * The text for a text widget is the characters in the widget, or
+ * an empty string if this has never been set.
  * </p>
  *
  * @return the widget text
@@ -772,7 +789,7 @@ public String getText () {
 	return new String (Converter.mbcsToWcs (getCodePage (), buffer));
 }
 /**
- * Gets a range of text.  Returns an empty string if the
+ * Returns a range of text.  Returns an empty string if the
  * start of the range is greater than the end.
  * <p>
  * Indexing is zero based.  The range of
@@ -823,6 +840,8 @@ public String getText (int start, int end) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @see #LIMIT
  */
 public int getTextLimit () {
 	checkWidget();
@@ -854,7 +873,7 @@ public int getTopIndex () {
 	return argList2 [1];
 }
 /**
- * Gets the top pixel.
+ * Returns the top pixel.
  * <p>
  * The top pixel is the pixel position of the line
  * that is currently at the top of the widget.  On
@@ -899,6 +918,9 @@ int inputContext () {
  *
  * @param string the string
  *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the string is <code>null</code></li>
+ * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -916,7 +938,7 @@ public void insert (String string) {
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XmTextReplace (handle, start [0], end [0], buffer);
-	int position = start [0] + buffer.length - 1;
+	int position = start [0] + Math.max (0, buffer.length - 1);
 	OS.XmTextSetInsertionPosition (handle, position);
 	display.setWarnings (warnings);
 }
@@ -957,7 +979,6 @@ public void paste () {
 void releaseWidget () {
 	super.releaseWidget ();
 	hiddenText = null;
-	textVerify = null;
 }
 /**
  * Removes the listener from the collection of listeners who will
@@ -986,7 +1007,7 @@ public void removeModifyListener (ModifyListener listener) {
  * Removes the listener from the collection of listeners who will
  * be notified when the control is selected.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -1010,7 +1031,7 @@ public void removeSelectionListener(SelectionListener listener) {
  * Removes the listener from the collection of listeners who will
  * be notified when the control is verified.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -1078,21 +1099,6 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
 	display.setWarnings (false);
 	boolean changed = super.setBounds (x, y, width, height, move, resize);
 	display.setWarnings(warnings);
-	
-	/*
-	* Bug in Motif.  When the receiver is a Text widget
-	* (not a Text Field) and is resized to be smaller than
-	* the inset that surrounds the text and the selection
-	* is set, the receiver scrolls to the left.  When the
-	* receiver is resized larger, the text is not scrolled
-	* back.  The fix is to detect this case and scroll the
-	* text back.
-	*/
-//	inset := self inset.
-//	nWidth := self dimensionAt: XmNwidth.
-//	self noWarnings: [super resizeWidget].
-//	nWidth > inset x ifTrue: [^self].
-//	self showPosition: self topCharacter
 	return changed;
 }
 /**
@@ -1101,6 +1107,9 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
  * The double click flag enables or disables the
  * default action of the text widget when the user
  * double clicks.
+ * </p><p>
+ * Note: This operation is a hint and is not supported on
+ * platforms that do not have this concept.
  * </p>
  * 
  * @param doubleClick the new double click flag
@@ -1124,8 +1133,9 @@ public void setDoubleClickEnabled (boolean doubleClick) {
  * the echo character to '\0' clears the echo
  * character and redraws the original text.
  * If for any reason the echo character is invalid,
- * the default echo character for the platform
- * is used.
+ * or if the platform does not allow modification
+ * of the echo character, the default echo character
+ * for the platform is used.
  * </p>
  *
  * @param echo the new echo character
@@ -1177,6 +1187,9 @@ public void setEditable (boolean editable) {
  * Sets the orientation of the receiver, which must be one
  * of the constants <code>SWT.LEFT_TO_RIGHT</code> or <code>SWT.RIGHT_TO_LEFT</code>.
  * <p>
+ * Note: This operation is a hint and is not supported on
+ * platforms that do not have this concept.
+ * </p>
  *
  * @param orientation new orientation style
  * 
@@ -1239,7 +1252,8 @@ public void setSelection (int start) {
 	display.setWarnings (warnings);
 }
 /**
- * Sets the selection.
+ * Sets the selection to the range specified
+ * by the given start and end indices.
  * <p>
  * Indexing is zero based.  The range of
  * a selection is from 0..N where N is
@@ -1292,7 +1306,10 @@ public void setSelection (int start, int end) {
 	display.setWarnings (warnings);
 }
 /**
- * Sets the selection.
+ * Sets the selection to the range specified
+ * by the given point, where the x coordinate
+ * represents the start index and the y coordinate
+ * represents the end index.
  * <p>
  * Indexing is zero based.  The range of
  * a selection is from 0..N where N is
@@ -1381,6 +1398,8 @@ public void setText (String string) {
  * creating a read-only text widget.
  * </p><p>
  * To reset this value to the default, use <code>setTextLimit(Text.LIMIT)</code>.
+ * Specifying a limit value larger than <code>Text.LIMIT</code> sets the
+ * receiver's limit to <code>Text.LIMIT</code>.
  * </p>
  *
  * @param limit new text limit
@@ -1392,6 +1411,8 @@ public void setText (String string) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @see #LIMIT
  */
 public void setTextLimit (int limit) {
 	checkWidget();
@@ -1521,6 +1542,7 @@ int XmNmodifyVerifyCallback (int w, int client_data, int call_data) {
 			newText = new String (charBuffer);
 		}
 		if (newText != text) {
+			OS.XtFree(textBlock.ptr);
 			byte [] buffer2 = Converter.wcsToMbcs (codePage, newText, true);
 			int length = buffer2.length;
 			int ptr = OS.XtMalloc (length);
@@ -1531,7 +1553,6 @@ int XmNmodifyVerifyCallback (int w, int client_data, int call_data) {
 		}
 	}
 	OS.memmove (call_data, textVerify, XmTextVerifyCallbackStruct.sizeof);
-	textVerify = null;
 	return result;
 }
 int XmNvalueChangedCallback (int w, int client_data, int call_data) {

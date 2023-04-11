@@ -1,10 +1,10 @@
 /*******************************************************************************
  * Copyright (c) 2000, 2004 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -31,7 +31,7 @@ abstract class StyledTextRenderer {
  * Creates an instance of <class>StyledTextRenderer</class>.
  * </p>
  * @param device Device to render on
- * @param regularFont Font to use for regular (non-bold) text
+ * @param regularFont Font to use for regular text
  * @param leftMargin margin to the left of the text
  */
 StyledTextRenderer(Device device, Font regularFont) {
@@ -431,15 +431,17 @@ TextLayout getTextLayout(String line, int lineOffset) {
 				end = Math.min(length, start + style.length);
 			}
 			if (start >= length) break;
-			if (lastOffset != start) {
+			if (lastOffset < start) {
 				layout.setStyle(null, lastOffset, start - 1);	
 			}
 			TextStyle textStyle = new TextStyle(getFont(style.fontStyle), style.foreground, style.background);
+			textStyle.underline = style.underline;
+			textStyle.strikeout = style.strikeout;
 			layout.setStyle(textStyle, start, end - 1);
-			lastOffset = end;
+			lastOffset = Math.max(lastOffset, end);
 		}
 	}
-	if (lastOffset != length) layout.setStyle(null, lastOffset, length);
+	if (lastOffset < length) layout.setStyle(null, lastOffset, length);
 	return layout;
 }
 TextLayout createTextLayout(int lineOffset) {

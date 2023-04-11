@@ -1,15 +1,16 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 package org.eclipse.swt;
 
+import org.eclipse.swt.internal.*;
 
 /**
  * This runtime exception is thrown whenever a recoverable error
@@ -40,6 +41,8 @@ public class SWTException extends RuntimeException {
 	 */
 	public Throwable throwable;
 	
+	static final long serialVersionUID = 3257282552304842547L;
+	
 /**
  * Constructs a new instance of this class with its 
  * stack trace filled in. The error code is set to an
@@ -52,7 +55,8 @@ public SWTException () {
 /**
  * Constructs a new instance of this class with its 
  * stack trace and message filled in. The error code is
- * set to an unspecified value.
+ * set to an unspecified value.  Specifying <code>null</code>
+ * as the message is equivalent to specifying an empty string.
  *
  * @param message the detail message for the exception
  */
@@ -73,6 +77,8 @@ public SWTException (int code) {
 /**
  * Constructs a new instance of this class with its 
  * stack trace, error code and message filled in.
+ * Specifying <code>null</code> as the message is
+ * equivalent to specifying an empty string.
  *
  * @param code the SWT error code
  * @param message the detail message for the exception
@@ -83,6 +89,22 @@ public SWTException (int code, String message) {
 }
 
 /**
+ * Returns the underlying throwable that caused the problem,
+ * or null if this information is not available.
+ * <p>
+ * NOTE: This method overrides Throwable.getCause() that was
+ * added to JDK1.4. It is necessary to override this method
+ * in order for inherited printStackTrace() methods to work.
+ * </p>
+ * @return the underlying throwable
+ * 
+ * @since 3.1
+ */
+public Throwable getCause() {
+	return throwable;
+}
+
+/**
  *  Returns the string describing this SWTException object.
  *  <p>
  *  It is combined with the message string of the Throwable
@@ -90,11 +112,9 @@ public SWTException (int code, String message) {
  *  </p>
  *  @return the error message string of this SWTException object
  */
-public String getMessage() {
-	if (throwable == null)
-		return super.getMessage();
-	else
-		return super.getMessage() + " (" + throwable.toString() + ")"; //$NON-NLS-1$ //$NON-NLS-2$
+public String getMessage () {
+	if (throwable == null) return super.getMessage ();
+	return super.getMessage () + " (" + throwable.toString () + ")"; //$NON-NLS-1$ //$NON-NLS-2$
 }
 
 /**
@@ -105,11 +125,11 @@ public String getMessage() {
  * are not provided in order to maintain compatibility with CLDC.
  * </p>
  */
-public void printStackTrace() {
-	super.printStackTrace();
-	if (throwable != null) {
-		System.err.println("*** Stack trace of contained exception ***"); //$NON-NLS-1$
-		throwable.printStackTrace();
+public void printStackTrace () {
+	super.printStackTrace ();
+	if (Library.JAVA_VERSION < Library.JAVA_VERSION(1, 4, 0) && throwable != null) {
+		System.err.println ("*** Stack trace of contained exception ***"); //$NON-NLS-1$
+		throwable.printStackTrace ();
 	}
 }
 

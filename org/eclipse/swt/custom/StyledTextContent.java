@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -186,8 +186,8 @@ public void removeTextChangeListener(TextChangeListener listener);
  * @param start start offset of text to replace, none of the offsets include 
  *	delimiters of preceeding lines, offset 0 is the first character of the 
  * 	document 
- * @param replaceLength start offset of text to replace
- * @param newText start offset of text to replace
+ * @param replaceLength length of text to replace
+ * @param text text to replace
  * @see TextChangeListener
  */
 public void replaceTextRange(int start, int replaceLength, String text);

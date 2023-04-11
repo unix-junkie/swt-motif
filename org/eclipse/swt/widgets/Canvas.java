@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -61,7 +61,6 @@ Canvas () {
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
- *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
  * </ul>
  *
  * @see SWT
@@ -96,10 +95,10 @@ public Caret getCaret () {
 Caret getIMCaret () {
 	return caret;
 }
-void redrawWidget (int x, int y, int width, int height, boolean all) {
+void redrawWidget (int x, int y, int width, int height, boolean redrawAll, boolean allChildren) {
 	boolean isFocus = caret != null && caret.isFocusCaret ();
 	if (isFocus) caret.killFocus ();
-	super.redrawWidget (x, y, width, height, all);
+	super.redrawWidget (x, y, width, height, redrawAll, allChildren);
 	if (isFocus) caret.setFocus ();
 }
 

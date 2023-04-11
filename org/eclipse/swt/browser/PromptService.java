@@ -1,10 +1,10 @@
 /*******************************************************************************
  * Copyright (c) 2003, 2004 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -130,14 +130,7 @@ Browser getBrowser(int aDOMWindow) {
 	if (result[0] == 0) Browser.error(XPCOM.NS_NOINTERFACE);		
 	embeddingSiteWindow.Release();
 	
-	Display display = Display.getCurrent();
-	Shell[] shells = display.getShells();
-	Browser browser = null;
-	for (int i = 0; i < shells.length; i++) {
-		browser = Browser.findBrowser(shells[i], result[0]);
-		if (browser != null) break;
-	}
-	return browser;
+	return Browser.findBrowser(result[0]); 
 }
 
 String getLabel(int buttonFlag, int index, int buttonTitle) {
@@ -186,7 +179,25 @@ public int AlertCheck(int parent, int dialogTitle, int text, int checkMsg, int c
 }
 
 public int Confirm(int parent, int dialogTitle, int text, int _retval) {
-	return XPCOM.NS_ERROR_NOT_IMPLEMENTED;
+	Browser browser = getBrowser(parent);
+	
+	int length = XPCOM.strlen_PRUnichar(dialogTitle);
+	char[] dest = new char[length];
+	XPCOM.memmove(dest, dialogTitle, length * 2);
+	String titleLabel = new String(dest);
+
+	length = XPCOM.strlen_PRUnichar(text);
+	dest = new char[length];
+	XPCOM.memmove(dest, text, length * 2);
+	String textLabel = new String(dest);
+
+	MessageBox messageBox = new MessageBox(browser.getShell(), SWT.OK | SWT.CANCEL);
+	messageBox.setText(titleLabel);
+	messageBox.setMessage(textLabel);
+	int id = messageBox.open();
+	int[] result = { id == SWT.OK ? 1 : 0};
+	XPCOM.memmove(_retval, result, 4);
+	return XPCOM.NS_OK;
 }
 
 public int ConfirmCheck(int parent, int dialogTitle, int text, int checkMsg, int checkValue, int _retval) {
@@ -243,7 +254,7 @@ public int PromptUsernameAndPassword(int parent, int dialogTitle, int text, int 
 		XPCOM.memmove(dest, dialogTitle, length * 2);
 		titleLabel = new String(dest);
 	} else {
-		titleLabel = SWT.getMessage("SWT_Prompt"); //$NON-NLS-1$
+		titleLabel = "";	//$NON-NLS-1$
 	}
 	
 	length = XPCOM.strlen_PRUnichar(text);

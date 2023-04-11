@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -59,6 +59,8 @@ public abstract class Widget {
 	static final int KEYED_DATA		= 1<<2;
 	static final int HANDLE			= 1<<3;
 	static final int FOCUS_FORCED	= 1<<4;
+	static final int LAYOUT_NEEDED	= 1<<5;
+	static final int LAYOUT_CHANGED	= 1<<6;
 	
 	static final int DEFAULT_WIDTH	= 64;
 	static final int DEFAULT_HEIGHT	= 64;
@@ -85,19 +87,18 @@ public abstract class Widget {
 	static final int MODIFY_VERIFY_CALLBACK = 19;
 	static final int PAGE_DECREMENT_CALLBACK = 20;
 	static final int PAGE_INCREMENT_CALLBACK = 21;
-	static final int SELECTION_CALLBACK = 22;
-	static final int TO_BOTTOM_CALLBACK = 23;
-	static final int TO_TOP_CALLBACK = 24;
-	static final int VALUE_CHANGED_CALLBACK = 25;
-	static final int NON_MASKABLE  = 26;
-	static final int POINTER_MOTION  = 27;
-	static final int STRUCTURE_NOTIFY  = 28;
-	static final int MAP_CALLBACK = 29;
-	static final int UNMAP_CALLBACK  = 30;
-	static final int DELETE_WINDOW = 31;
-	static final int EXPOSURE_CALLBACK  = 32;
-	static final int MULTIPLE_SELECTION_CALLBACK  = 33;
-	static final int PROPERTY_CHANGE = 34;
+	static final int TO_BOTTOM_CALLBACK = 22;
+	static final int TO_TOP_CALLBACK = 23;
+	static final int VALUE_CHANGED_CALLBACK = 24;
+	static final int NON_MASKABLE  = 25;
+	static final int POINTER_MOTION  = 26;
+	static final int STRUCTURE_NOTIFY  = 27;
+	static final int MAP_CALLBACK = 28;
+	static final int UNMAP_CALLBACK  = 29;
+	static final int DELETE_WINDOW = 30;
+	static final int EXPOSURE_CALLBACK  = 31;
+	static final int MULTIPLE_SELECTION_CALLBACK  = 32;
+	static final int PROPERTY_CHANGE = 33;
 
 Widget () {
 	/* Do nothing */
@@ -120,6 +121,7 @@ Widget () {
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the parent is disposed</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
@@ -198,6 +200,9 @@ static int checkBits (int style, int int0, int int1, int int2, int int3, int int
 	if ((style & int5) != 0) style = (style & ~mask) | int5;
 	return style;
 }
+void checkOpen () {
+	/* Do nothing */
+}
 void checkOrientation (Widget parent) {
 	style &= ~SWT.MIRRORED;
 	if ((style & (SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT)) == 0) {
@@ -210,7 +215,9 @@ void checkOrientation (Widget parent) {
 }
 void checkParent (Widget parent) {
 	if (parent == null) error (SWT.ERROR_NULL_ARGUMENT);
+	if (parent.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
 	parent.checkWidget ();
+	parent.checkOpen ();
 }
 /**
  * Checks that this class can be subclassed.
@@ -353,6 +360,9 @@ char fixMnemonic (char [] buffer) {
 int focusProc (int w, int client_data, int call_data, int continue_to_dispatch) {
 	return 0;
 }
+String getCodePage () {
+	return null;
+}
 /**
  * Returns the application defined widget data associated
  * with the receiver, or null if it has not been set. The
@@ -373,7 +383,7 @@ int focusProc (int w, int client_data, int call_data, int continue_to_dispatch) 
  *    <li>ERROR_THREAD_INVALID_ACCESS - when called from the wrong thread</li>
  * </ul>
  *
- * @see #setData
+ * @see #setData(Object)
  */
 public Object getData () {
 	checkWidget();
@@ -402,7 +412,7 @@ public Object getData () {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  *
- * @see #setData
+ * @see #setData(String, Object)
  */
 public Object getData (String key) {
 	checkWidget();
@@ -429,7 +439,6 @@ public Object getData (String key) {
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
 public Display getDisplay () {
@@ -506,7 +515,7 @@ public boolean isDisposed () {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-protected boolean isListening (int eventType) {
+public boolean isListening (int eventType) {
 	checkWidget();
 	return hooks (eventType);
 }
@@ -574,18 +583,25 @@ void propagateHandle (boolean enabled, int widgetHandle, int cursor) {
 	attributes.cursor = cursor;
 	OS.XChangeWindowAttributes (xDisplay, xWindow, mask, attributes);
 }
-void redrawHandle (int x, int y, int width, int height, int widgetHandle) {
+void redrawHandle (int x, int y, int width, int height, boolean redrawAll, int widgetHandle) {
 	int display = OS.XtDisplay (widgetHandle);
 	if (display == 0) return;
 	int window = OS.XtWindow (widgetHandle);
 	if (window == 0) return;
-	int [] argList = {OS.XmNborderWidth, 0, OS.XmNborderColor, 0};
-	OS.XtGetValues (widgetHandle, argList, argList.length / 2);
-	if (argList [1] != 0) {
-		/* Force the border to repaint by setting the color */
-		OS.XtSetValues (widgetHandle, argList, argList.length / 2);
+	if (redrawAll) {
+		OS.XClearArea (display, window, 0, 0, 0, 0, true);
+	} else {
+		if (width > 0 && height > 0) {
+			int [] argList = {
+				OS.XmNwidth, 0, 		/* 1 */
+				OS.XmNheight, 0, 		/* 3 */
+			};
+			OS.XtGetValues (widgetHandle, argList, argList.length / 2);
+			if ((x < argList [1]) && (y < argList [3]) && (x + width > 0) && (y + height > 0)) {
+				OS.XClearArea (display, window, x, y, width, height, true);
+			}
+		}
 	}
-	OS.XClearArea (display, window, x, y, width, height, true);
 }
 void register () {
 	if (handle == 0) return;
@@ -754,6 +770,106 @@ void sendEvent (int eventType, Event event, boolean send) {
 		display.postEvent (event);
 	}
 }
+boolean sendIMKeyEvent (int type, XKeyEvent xEvent) {
+	return sendIMKeyEvent (type, xEvent, 0);
+}
+boolean sendIMKeyEvent (int type, XKeyEvent xEvent, int textHandle) {
+	/*
+	* Bug in Motif. On Linux only, XmImMbLookupString () does not return 
+	* XBufferOverflow as the status if the buffer is too small. The fix
+	* is to pass a large buffer.
+	*/
+	byte [] buffer = new byte [512];
+	int [] status = new int [1], unused = new int [1];
+	int focusHandle = OS.XtWindowToWidget (xEvent.display, xEvent.window);
+	int length = OS.XmImMbLookupString (focusHandle, xEvent, buffer, buffer.length, unused, status);
+	if (status [0] == OS.XBufferOverflow) {
+		buffer = new byte [length];
+		length = OS.XmImMbLookupString (focusHandle, xEvent, buffer, length, unused, status);
+	}
+	if (length == 0) return true;
+	
+	/* Convert from MBCS to UNICODE and send the event */
+	/* Use the character encoding for the default locale */
+	char [] chars = Converter.mbcsToWcs (null, buffer);
+	int index = 0, count = 0;
+	while (index < chars.length) {
+		if (chars [index] == 0) {
+			chars [count] = 0;
+			break;
+		}
+		Event event = new Event ();
+		event.time = xEvent.time;
+		event.character = chars [index];
+		setInputState (event, xEvent.state);
+		sendEvent (type, event);
+		// widget could be disposed at this point
+	
+		/*
+		* It is possible (but unlikely), that application
+		* code could have disposed the widget in the key
+		* events.  If this happens, end the processing of
+		* the key by returning false.
+		*/
+		if (isDisposed ()) return false;
+		if (event.doit) chars [count++] = chars [index];
+		index++;
+	}
+	if (count == 0) return false;
+	if (textHandle != 0) {
+		/*
+		* Bug in Motif. On Solaris and Linux, XmImMbLookupString() clears
+		* the characters from the IME. This causes the characters to be
+		* stolen from the text widget. The fix is to detect that the IME
+		* has been cleared and use XmTextInsert() to insert the stolen
+		* characters. This problem does not happen on AIX.
+		*/
+		byte [] testBuffer = new byte [5];
+		int testLength = OS.XmImMbLookupString (textHandle, xEvent, testBuffer, testBuffer.length, unused, unused);
+		if (testLength == 0 || index != count) {
+			int [] start = new int [1], end = new int [1];
+			OS.XmTextGetSelectionPosition (textHandle, start, end);
+			if (start [0] == end [0]) {
+				start [0] = end [0] = OS.XmTextGetInsertionPosition (textHandle);
+			}
+			boolean warnings = display.getWarnings ();
+			display.setWarnings (false);
+			if (index != count) {
+				buffer = Converter.wcsToMbcs (getCodePage (), chars, true);
+			}
+			OS.XmTextReplace (textHandle, start [0], end [0], buffer);
+			int position = start [0] + count;
+			OS.XmTextSetInsertionPosition (textHandle, position);
+			display.setWarnings (warnings);
+			return false;
+		}
+	}
+	return true;
+}
+boolean sendKeyEvent (int type, XKeyEvent xEvent) {
+	Event event = new Event ();
+	event.time = xEvent.time;
+	if (!setKeyState (event, xEvent)) return true;
+	Widget control = this;
+	if ((state & CANVAS) != 0) {
+		if ((style & SWT.NO_FOCUS) != 0) {
+			control = display.getFocusControl ();
+		}
+	}
+	if (control != null) {
+		control.sendEvent (type, event);
+		// widget could be disposed at this point
+	
+		/*
+		* It is possible (but unlikely), that application
+		* code could have disposed the widget in the key
+		* events.  If this happens, end the processing of
+		* the key by returning false.
+		*/
+		if (isDisposed ()) return false;
+	}
+	return event.doit;
+}
 /**
  * Sets the application defined widget data associated
  * with the receiver to be the argument. The <em>widget
@@ -773,6 +889,8 @@ void sendEvent (int eventType, Event event, boolean send) {
  *    <li>ERROR_WIDGET_DISPOSED - when the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - when called from the wrong thread</li>
  * </ul>
+ * 
+ * @see #getData()
  */
 public void setData (Object data) {
 	checkWidget();
@@ -805,7 +923,7 @@ public void setData (Object data) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  *
- * @see #getData
+ * @see #getData(String)
  */
 public void setData (String key, Object value) {
 	checkWidget();
@@ -885,11 +1003,16 @@ boolean XmProcessTraversal (int widget, int direction) {
 	* is to post focus events and run them when the handler
 	* has returned.
 	*/
+	Display display = this.display;
 	boolean oldFocusOut = display.postFocusOut;
 	display.postFocusOut = true;
 	boolean result = OS.XmProcessTraversal (widget, direction);
 	display.postFocusOut = oldFocusOut;
-	if (!display.postFocusOut) display.runFocusOutEvents ();
+	if (!display.postFocusOut) {
+		display.focusEvent = SWT.FocusOut;
+		display.runFocusOutEvents ();
+		display.focusEvent = SWT.None;
+	}
 	return result;
 }
 int hoverProc (int widget) {
@@ -923,7 +1046,6 @@ int windowProc (int w, int client_data, int call_data, int continue_to_dispatch)
 		case MULTIPLE_SELECTION_CALLBACK:		return XmNmultipleSelectionCallback (w, client_data, call_data);
 		case PAGE_DECREMENT_CALLBACK:		return XmNpageDecrementCallback (w, client_data, call_data);
 		case PAGE_INCREMENT_CALLBACK:		return XmNpageIncrementCallback (w, client_data, call_data);
-		case SELECTION_CALLBACK:			return XmNselectionCallback (w, client_data, call_data);
 		case TO_BOTTOM_CALLBACK:			return XmNtoBottomCallback (w, client_data, call_data);
 		case TO_TOP_CALLBACK:				return XmNtoTopCallback (w, client_data, call_data);
 		case VALUE_CHANGED_CALLBACK:		return XmNvalueChangedCallback (w, client_data, call_data);
@@ -956,9 +1078,27 @@ int XFocusChange (int w, int client_data, int call_data, int continue_to_dispatc
 	return 0;
 }
 int XKeyPress (int w, int client_data, int call_data, int continue_to_dispatch) {
+	XKeyEvent xEvent = new XKeyEvent ();
+	OS.memmove (xEvent, call_data, XKeyEvent.sizeof);
+	boolean doit = true;
+	if (xEvent.keycode != 0) {
+		doit = sendKeyEvent (SWT.KeyDown, xEvent);
+	} else {
+		doit = sendIMKeyEvent (SWT.KeyDown, xEvent);
+	}
+	if (!doit) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
+	}
 	return 0;
 }
 int XKeyRelease (int w, int client_data, int call_data, int continue_to_dispatch) {
+	XKeyEvent xEvent = new XKeyEvent ();
+	OS.memmove (xEvent, call_data, XKeyEvent.sizeof);
+	if (!sendKeyEvent (SWT.KeyUp, xEvent)) {
+		OS.memmove (continue_to_dispatch, new int [1], 4);
+		return 1;
+	}
 	return 0;
 }
 int XLeaveWindow (int w, int client_data, int call_data, int continue_to_dispatch) {
@@ -1016,9 +1156,6 @@ int XmNpageDecrementCallback (int w, int client_data, int call_data) {
 	return 0;
 }
 int XmNpageIncrementCallback (int w, int client_data, int call_data) {
-	return 0;
-}
-int XmNselectionCallback (int w, int client_data, int call_data) {
 	return 0;
 }
 int XmNtoBottomCallback (int w, int client_data, int call_data) {

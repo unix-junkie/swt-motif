@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -18,7 +18,7 @@ import org.eclipse.swt.graphics.*;
 public abstract class FileFormat {
 	static final String FORMAT_PACKAGE = "org.eclipse.swt.internal.image"; //$NON-NLS-1$
 	static final String FORMAT_SUFFIX = "FileFormat"; //$NON-NLS-1$
-	static final String[] FORMATS = {"WinBMP", "WinBMP", "GIF", "WinICO", "JPEG", "PNG", "TIFF"}; //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$//$NON-NLS-5$ //$NON-NLS-6$//$NON-NLS-7$
+	static final String[] FORMATS = {"WinBMP", "WinBMP", "GIF", "WinICO", "JPEG", "PNG", "TIFF", "OS2BMP"}; //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$//$NON-NLS-5$ //$NON-NLS-6$//$NON-NLS-7$//$NON-NLS-8$
 	
 	LEDataInputStream inputStream;
 	LEDataOutputStream outputStream;
@@ -76,8 +76,8 @@ public static ImageData[] load(InputStream is, ImageLoader loader) {
 }
 
 public static void save(OutputStream os, int format, ImageLoader loader) {
-	if (format < 0 || format >= FORMATS.length) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
-	if (FORMATS[format] == null) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+	if (format < 0 || format >= FORMATS.length) SWT.error(SWT.ERROR_UNSUPPORTED_FORMAT);
+	if (FORMATS[format] == null) SWT.error(SWT.ERROR_UNSUPPORTED_FORMAT);
 
 	/* We do not currently support writing multi-image files,
 	 * so we use the first image data in the loader's array. */
@@ -88,7 +88,7 @@ public static void save(OutputStream os, int format, ImageLoader loader) {
 		Class clazz = Class.forName(FORMAT_PACKAGE + '.' + FORMATS[format] + FORMAT_SUFFIX);
 		fileFormat = (FileFormat) clazz.newInstance();
 	} catch (Exception e) {
-		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
+		SWT.error(SWT.ERROR_UNSUPPORTED_FORMAT);
 	}
 	if (format == SWT.IMAGE_BMP_RLE) {
 		switch (data.depth) {

@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -16,10 +16,8 @@ import org.eclipse.swt.graphics.*;
 import java.io.*;
 
 final class GIFFileFormat extends FileFormat {
-	String signature, version;
-	boolean sorted;
-	int screenWidth, screenHeight, backgroundPixel, aspect, bitsPerPixel, defaultDepth;
-	boolean userInput = false;
+	String signature;
+	int screenWidth, screenHeight, backgroundPixel, bitsPerPixel, defaultDepth;
 	int disposalMethod = 0;
 	int delayTime = 0;
 	int transparentPixel = -1;
@@ -73,7 +71,6 @@ final class GIFFileFormat extends FileFormat {
 				SWT.error(SWT.ERROR_INVALID_IMAGE);
 
 			inputStream.read(versionBytes);
-			version = new String(versionBytes);
 
 			inputStream.read(block);
 		} catch (IOException e) {
@@ -85,17 +82,17 @@ final class GIFFileFormat extends FileFormat {
 		loader.logicalScreenHeight = screenHeight;
 		byte bitField = block[4];
 		backgroundPixel = block[5] & 0xFF;
-		aspect = block[6] & 0xFF;
+		//aspect = block[6] & 0xFF;
 		bitsPerPixel = ((bitField >> 4) & 0x07) + 1;
 		defaultDepth = (bitField & 0x7) + 1;
 		PaletteData palette = null;
 		if ((bitField & 0x80) != 0) {
 			// Global palette.
-			sorted = (bitField & 0x8) != 0;
+			//sorted = (bitField & 0x8) != 0;
 			palette = readPalette(1 << defaultDepth);
 		} else {
 			// No global palette.
-			sorted = false;
+			//sorted = false;
 			backgroundPixel = -1;
 			defaultDepth = bitsPerPixel;
 		}
@@ -267,7 +264,7 @@ final class GIFFileFormat extends FileFormat {
 			inputStream.read(controlBlock);
 			byte bitField = controlBlock[0];
 			// Store the user input field.
-			userInput = (bitField & 0x02) != 0;
+			//userInput = (bitField & 0x02) != 0;
 			// Store the disposal method.
 			disposalMethod = (bitField >> 2) & 0x07;
 			// Store the delay time.
@@ -354,7 +351,7 @@ final class GIFFileFormat extends FileFormat {
 		int height = (block[6] & 0xFF) | ((block[7] & 0xFF) << 8);
 		byte bitField = block[8];
 		boolean interlaced = (bitField & 0x40) != 0;
-//		boolean sorted = (bitField & 0x20) != 0;
+		//boolean sorted = (bitField & 0x20) != 0;
 		if ((bitField & 0x80) != 0) {
 			// Local palette.
 			depth = (bitField & 0x7) + 1;

@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -46,7 +46,10 @@ public class KeyEvent extends TypedEvent {
 	
 	/**
 	 * the state of the keyboard modifier keys at the time
-	 * the event was generated
+	 * the event was generated, as defined by the key code
+	 * constants in class <code>SWT</code>.
+	 * 
+	 * @see org.eclipse.swt.SWT
 	 */
 	public int stateMask;
 	
@@ -56,6 +59,8 @@ public class KeyEvent extends TypedEvent {
 	 */
 	public boolean doit;
 
+	static final long serialVersionUID = 3256442491011412789L;
+	
 /**
  * Constructs a new instance of this class based on the
  * information in the given untyped event.

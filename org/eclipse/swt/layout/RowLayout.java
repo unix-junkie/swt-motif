@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -60,10 +60,10 @@ public final class RowLayout extends Layout {
 	 * 
 	 * The default value is HORIZONTAL.
 	 * 
-	 * Possible values are:
-	 * 
-	 * HORIZONTAL: Position the controls horizontally from left to right
-	 * VERTICAL: Position the controls vertically from top to bottom
+	 * Possible values are: <ul>
+	 *    <li>HORIZONTAL: Position the controls horizontally from left to right</li>
+	 *    <li>VERTICAL: Position the controls vertically from top to bottom</li>
+	 * </ul>
 	 * 
 	 * @since 2.0
 	 */
@@ -206,6 +206,17 @@ Point computeSize (Control control, boolean flushCache) {
 	return control.computeSize (wHint, hHint, flushCache);
 }
 
+protected boolean flushCache (Control control) {
+	return true;
+}
+
+String getName () {
+	String string = getClass ().getName ();
+	int index = string.lastIndexOf ('.');
+	if (index == -1) return string;
+	return string.substring (index + 1, string.length ());
+}
+
 protected void layout (Composite composite, boolean flushCache) {
 	Rectangle clientArea = composite.getClientArea ();
 	if (type == SWT.HORIZONTAL) {
@@ -216,8 +227,15 @@ protected void layout (Composite composite, boolean flushCache) {
 }
 
 Point layoutHorizontal (Composite composite, boolean move, boolean wrap, int width, boolean flushCache) {
+	int count = 0;
 	Control [] children = composite.getChildren ();
-	int count = children.length;
+	for (int i=0; i<children.length; i++) {
+		Control control = children [i];
+		RowData data = (RowData) control.getLayoutData ();
+		if (data == null || !data.exclude) {
+			children [count++] = children [i];
+		} 
+	}
 	int childWidth = 0, childHeight = 0, maxHeight = 0;
 	if (!pack) {
 		for (int i=0; i<count; i++) {
@@ -313,8 +331,15 @@ Point layoutHorizontal (Composite composite, boolean move, boolean wrap, int wid
 }
 
 Point layoutVertical (Composite composite, boolean move, boolean wrap, int height, boolean flushCache) {
+	int count = 0;
 	Control [] children = composite.getChildren ();
-	int count = children.length;
+	for (int i=0; i<children.length; i++) {
+		Control control = children [i];
+		RowData data = (RowData) control.getLayoutData ();
+		if (data == null || !data.exclude) {
+			children [count++] = children [i];
+		} 
+	}
 	int childWidth = 0, childHeight = 0, maxWidth = 0;
 	if (!pack) {
 		for (int i=0; i<count; i++) {
@@ -407,5 +432,30 @@ Point layoutVertical (Composite composite, boolean move, boolean wrap, int heigh
 		}
 	}
 	return new Point (x + maxWidth + marginRight + marginWidth, maxY);
+}
+
+/**
+ * Returns a string containing a concise, human-readable
+ * description of the receiver.
+ *
+ * @return a string representation of the event
+ */
+public String toString () {
+ 	String string = getName ()+" {";
+ 	string += "type="+((type != SWT.HORIZONTAL) ? "SWT.VERTICAL" : "SWT.HORIZONTAL")+" ";
+ 	if (marginWidth != 0) string += "marginWidth="+marginWidth+" ";
+ 	if (marginHeight != 0) string += "marginHeight="+marginHeight+" ";
+ 	if (marginLeft != 0) string += "marginLeft="+marginLeft+" ";
+ 	if (marginTop != 0) string += "marginTop="+marginTop+" ";
+ 	if (marginRight != 0) string += "marginRight="+marginRight+" ";
+ 	if (marginBottom != 0) string += "marginBottom="+marginBottom+" ";
+ 	if (spacing != 0) string += "spacing="+spacing+" ";
+ 	string += "wrap="+wrap+" ";
+	string += "pack="+pack+" ";
+	string += "fill="+fill+" ";
+	string += "justify="+justify+" ";
+	string = string.trim();
+	string += "}";
+ 	return string;
 }
 }

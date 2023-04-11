@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -251,9 +251,6 @@ int getChunkType() {
 	return CHUNK_UNKNOWN;
 }
 
-
-
-
 /**
  * Read the next PNG chunk from the input stream given.
  * If unable to read a chunk, return null.
@@ -318,6 +315,12 @@ void validate(PngFileReadState readState, PngIhdrChunk headerChunk) {
  */
 void contributeToString(StringBuffer buffer) {}
 
+/**
+ * Returns a string containing a concise, human-readable
+ * description of the receiver.
+ *
+ * @return a string representation of the event
+ */
 public String toString() {
 	StringBuffer buffer = new StringBuffer();
 	buffer.append("{");

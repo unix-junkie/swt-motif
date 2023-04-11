@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -57,9 +57,9 @@ import org.eclipse.swt.internal.motif.*;
  *	// This example will allow the text to be copied or moved to the drop target
  *	int operations = DND.DROP_MOVE | DND.DROP_COPY;
  *	
- *	DragSource source = new DragSource (label, operations);
+ *	DragSource source = new DragSource(label, operations);
  *	source.setTransfer(types);
- *	source.addDragListener (new DragSourceListener() {
+ *	source.addDragListener(new DragSourceListener() {
  *		public void dragStart(DragSourceEvent e) {
  *			// Only start the drag if there is actually text in the
  *			// label - this text will be what is dropped on the target.
@@ -67,7 +67,7 @@ import org.eclipse.swt.internal.motif.*;
  *				event.doit = false;
  *			}
  *		};
- *		public void dragSetData (DragSourceEvent event) {
+ *		public void dragSetData(DragSourceEvent event) {
  *			// A drop has been performed, so provide the data of the 
  *			// requested type.
  *			// (Checking the type of the requested data is only 
@@ -106,8 +106,11 @@ public class DragSource extends Widget {
 	static private Callback DropFinish;
 	static {
 		ConvertProc = new Callback(DragSource.class, "ConvertProcCallback", 10);
+		if (ConvertProc.getAddress() == 0) SWT.error(SWT.ERROR_NO_MORE_CALLBACKS);
 		DragDropFinish = new Callback(DragSource.class, "DragDropFinishCallback", 3);
+		if (DragDropFinish.getAddress() == 0) SWT.error(SWT.ERROR_NO_MORE_CALLBACKS);
 		DropFinish = new Callback(DragSource.class, "DropFinishCallback", 3);
+		if (DropFinish.getAddress() == 0) SWT.error(SWT.ERROR_NO_MORE_CALLBACKS);
 	}
 	private boolean moveRequested;
 
@@ -125,13 +128,17 @@ public class DragSource extends Widget {
  * @exception SWTException <ul>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
  *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
+ * </ul>
  * @exception SWTError <ul>
  *    <li>ERROR_CANNOT_INIT_DRAG - unable to initiate drag source; this will occur if more than one
  *        drag source is created for a control or if the operating system will not allow the creation
  *        of the drag source</li>
  * </ul>
- *
- * @see DragSource#dispose
+ * 
+ * <p>NOTE: ERROR_CANNOT_INIT_DRAG should be an SWTException, since it is a
+ * recoverable error, but can not be changed due to backward compatability.</p>
+ * 
+ * @see Widget#dispose
  * @see DragSource#checkSubclass
  * @see DND#DROP_NONE
  * @see DND#DROP_COPY
@@ -285,13 +292,7 @@ private int convertProcCallback(int widget, int pSelection, int pTarget, int pTy
 	event.widget = control;
 	//event.time = ??;
 	event.dataType = transferData;
-	try {
-		notifyListeners(DND.DragSetData,event);
-	} catch (Throwable err) {
-		return 0;
-	}
-	
-	if (event.data == null) return 0;
+	notifyListeners(DND.DragSetData,event);
 
 	Transfer transferAgent = null;
 	for (int i = 0; i < transferAgents.length; i++){
@@ -301,7 +302,7 @@ private int convertProcCallback(int widget, int pSelection, int pTarget, int pTy
 		}
 	}
 	if (transferAgent == null) return 0;
-	
+
 	transferAgent.javaToNative(event.data, transferData);
 	if (transferData.result == 1){
 		OS.memmove(ppValue_return, new int[]{transferData.pValue}, 4);
@@ -317,7 +318,7 @@ private int convertProcCallback(int widget, int pSelection, int pTarget, int pTy
 	}
 }
 private void drag() {
-
+	moveRequested = false;
 	// Current event must be a Button Press event
 	Display display = control.getDisplay ();
 	XButtonEvent xEvent = new XButtonEvent();
@@ -328,13 +329,7 @@ private void drag() {
 	event.widget = this;	
 	event.time = xEvent.time;
 	event.doit = true;
-	
-	try {
-		notifyListeners(DND.DragStart, event);
-	} catch (Throwable e) {
-		event.doit = false;
-	}
-
+	notifyListeners(DND.DragStart, event);
 	if (!event.doit || transferAgents == null || transferAgents.length == 0) { 
 		int time = xEvent.time;
 		int dc = OS.XmGetDragContext(control.handle, time);
@@ -425,13 +420,9 @@ private int dropFinishCallback(int widget, int client_data, int call_data) {
 		event.time = data.timeStamp;
 		event.detail = DND.DROP_NONE;
 		event.doit = false;
-		try {
-			notifyListeners(DND.DragEnd,event);
-		} catch (Throwable err) {
-		}
+		notifyListeners(DND.DragEnd,event);
 		return 0;
 	} 
-	
 	DNDEvent event = new DNDEvent();
 	event.widget = this.control;
 	event.time = data.timeStamp;
@@ -443,17 +434,10 @@ private int dropFinishCallback(int widget, int client_data, int call_data) {
 		} else {
 			event.detail = osOpToOp(data.operation);
 		}
-		
 	}
 	event.doit = (data.completionStatus != 0);
-
-	try {
-		notifyListeners(DND.DragEnd,event);
-	} catch (Throwable err) {
-	}
-	
+	notifyListeners(DND.DragEnd,event);
 	moveRequested = false;
-	
 	return 0;
 }
 /**

@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2003 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials 
- * are made available under the terms of the Common Public License v1.0
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -168,6 +168,12 @@ public int getColumn () {
 public TableItem getItem () {
 	return item;
 }
+
+/**
+* Sets the zero based index of the column of the cell being tracked by this editor.
+* 
+* @param column the zero based index of the column of the cell being tracked by this editor 
+*/
 public void setColumn(int column) {
 	int columnCount = table.getColumnCount();
 	// Separately handle the case where the table has no TableColumns.

@@ -1,19 +1,17 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 package org.eclipse.swt.widgets;
 
- 
 import org.eclipse.swt.*;
 import org.eclipse.swt.graphics.*;
-import java.util.Vector;
 
 /**
  * Instances of this class represent a selectable user interface object
@@ -28,32 +26,25 @@ import java.util.Vector;
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
  */
-public class TableItem extends SelectableItem {
-	private static final int FIRST_COLUMN_IMAGE_INDENT = 2;	// Space in front of image - first column only
-	private static final int FIRST_COLUMN_TEXT_INDENT = 4;	// Space in front of text - first column only	
-	private static final int TEXT_INDENT_NO_IMAGE = 2;		// Space in front of item text when no item in the column has an image - first column only
-	private static final int TEXT_INDENT = 6;				// Space in front of item text - all other columns
-	private static final int SELECTION_PADDING = 6;			// Space behind text in a selected item
+public class TableItem extends Item {
+	Table parent;
+	int index = -1;
+	boolean checked, grayed, cached;
 
-	private Vector dataLabels = new Vector();				// Original text set by the user. Items that don't 
-															// have a label are represented by a null slot
-	private String[] trimmedLabels;							// Text that is actually displayed, may be trimmed 
-															// to fit the column
-	private Vector images = new Vector();					// Item images. Items that don't have an image 
-															// are represented by a null slot
-	private Point selectionExtent;							// Size of the rectangle drawn to indicate a 
-															// selected item.
-	private int imageIndent = 0;							// the factor by which the item image and check box, if any, 
-															// are indented. The multiplier is the image width.
-	private int index;										// index of the item in the parent widget
-
-	Color background = null;
-	Color foreground = null;
-	Font font = null;
-	Color [] cellBackground, cellForeground;
-	Font[] cellFont;
-	boolean cached;
+	String[] texts;
+	int[] textWidths = new int [1];		/* cached string measurements */
+	int fontHeight;						/* cached item font height */
+	int[] fontHeights;
+	int imageIndent;
+	Image[] images;
+	Color foreground, background;
+	String[] displayTexts;
+	Color[] cellForegrounds, cellBackgrounds;
+	Font font;
+	Font[] cellFonts;
 	
+	static final int MARGIN_TEXT = 3;			/* the left and right margins within the text's space */
+
 /**
  * Constructs a new instance of this class given its parent
  * (which must be a <code>Table</code>) and a style value
@@ -84,10 +75,9 @@ public class TableItem extends SelectableItem {
  * @see Widget#checkSubclass
  * @see Widget#getStyle
  */
-public TableItem(Table parent, int style) {
-	this(parent, style, checkNull(parent).getItemCount());
+public TableItem (Table parent, int style) {
+	this (parent, style, checkNull (parent).itemsCount);
 }
-
 /**
  * Constructs a new instance of this class given its parent
  * (which must be a <code>Table</code>), a style value
@@ -119,180 +109,253 @@ public TableItem(Table parent, int style) {
  * @see Widget#checkSubclass
  * @see Widget#getStyle
  */
-public TableItem(Table parent, int style, int index) {
-	super(parent, style);
-	trimmedLabels = new String[parent.internalGetColumnCount()];
-	parent.addItem(this, index);
+public TableItem (Table parent, int style, int index) {
+	this (parent, style, index, true);
 }
-
-/**
- * Calculate the size of the rectangle drawn to indicate a selected 
- * item. This is also used to draw the selection focus rectangle. 
- * The selection extent is calculated for the first column only (the 
- * only column the selection is drawn in).
- */
-void calculateSelectionExtent() {
-	Table parent = getParent();
-	TableColumn column = parent.internalGetColumn(TableColumn.FIRST);
-	GC gc = new GC(parent);
-	gc.setFont(getFont());
-	String trimmedText = getText(gc, column);
-	int gridLineWidth = parent.getGridLineWidth();
-	
-	if (trimmedText != null) {
-		selectionExtent = new Point(gc.stringExtent(trimmedText).x, parent.getItemHeight());
-		selectionExtent.x += getTextIndent(TableColumn.FIRST) + SELECTION_PADDING;
-		selectionExtent.x = Math.min(
-			selectionExtent.x, column.getWidth() - getImageStopX(column.getIndex()) - gridLineWidth);
-		if (parent.getLinesVisible() == true) {
-			selectionExtent.y -= gridLineWidth;
+TableItem (Table parent, int style, int index, boolean notifyParent) {
+	super (parent, style);
+	int validItemIndex = parent.itemsCount;
+	if (!(0 <= index && index <= validItemIndex)) error (SWT.ERROR_INVALID_RANGE);
+	this.parent = parent;
+	this.index = index;
+	int columnCount = parent.columns.length;
+	if (columnCount > 0) {
+		displayTexts = new String [columnCount];
+		if (columnCount > 1) {
+			texts = new String [columnCount];
+			textWidths = new int [columnCount];
+			images = new Image [columnCount];
 		}
 	}
-	gc.dispose();
+	if (notifyParent) parent.createItem (this);
 }
-/**
- * Throw an SWT.ERROR_NULL_ARGUMENT exception if 'table' is null.
- * Otherwise return 'table'
+/*
+ * Updates internal structures in the receiver and its child items to handle the creation of a new column.
  */
-static Table checkNull(Table table) {
-	if (table == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
+void addColumn (TableColumn column) {
+	int index = column.getIndex ();
+	int columnCount = parent.columns.length;
+
+	if (columnCount > 1) {
+		if (columnCount == 2) {
+			texts = new String [2];
+		} else {
+			String[] newTexts = new String [columnCount];
+			System.arraycopy (texts, 0, newTexts, 0, index);
+			System.arraycopy (texts, index, newTexts, index + 1, columnCount - index - 1);
+			texts = newTexts;
+		}
+		if (index == 0) {
+			texts [1] = text;
+			text = "";	//$NON-NLS-1$
+		}
+
+		if (columnCount == 2) {
+			images = new Image [2];
+		} else {
+			Image[] newImages = new Image [columnCount];
+			System.arraycopy (images, 0, newImages, 0, index);
+			System.arraycopy (images, index, newImages, index + 1, columnCount - index - 1);
+			images = newImages;
+		}
+		if (index == 0) {
+			images [1] = image;
+			image = null;
+		}
+		
+		int[] newTextWidths = new int [columnCount];
+		System.arraycopy (textWidths, 0, newTextWidths, 0, index);
+		System.arraycopy (textWidths, index, newTextWidths, index + 1, columnCount - index - 1);
+		textWidths = newTextWidths;
+	}
+
+	/*
+	 * The length of displayTexts always matches the parent's column count, unless this
+	 * count is zero, in which case displayTexts is null.  
+	 */
+	String[] newDisplayTexts = new String [columnCount];
+	if (columnCount > 1) {
+		System.arraycopy (displayTexts, 0, newDisplayTexts, 0, index);
+		System.arraycopy (displayTexts, index, newDisplayTexts, index + 1, columnCount - index - 1);
+	}
+	displayTexts = newDisplayTexts;
+
+	if (cellBackgrounds != null) {
+		Color[] newCellBackgrounds = new Color [columnCount];
+		System.arraycopy (cellBackgrounds, 0, newCellBackgrounds, 0, index);
+		System.arraycopy (cellBackgrounds, index, newCellBackgrounds, index + 1, columnCount - index - 1);
+		cellBackgrounds = newCellBackgrounds;
+	}
+	if (cellForegrounds != null) {
+		Color[] newCellForegrounds = new Color [columnCount];
+		System.arraycopy (cellForegrounds, 0, newCellForegrounds, 0, index);
+		System.arraycopy (cellForegrounds, index, newCellForegrounds, index + 1, columnCount - index - 1);
+		cellForegrounds = newCellForegrounds;
+	}
+	if (cellFonts != null) {
+		Font[] newCellFonts = new Font [columnCount];
+		System.arraycopy (cellFonts, 0, newCellFonts, 0, index);
+		System.arraycopy (cellFonts, index, newCellFonts, index + 1, columnCount - index - 1);
+		cellFonts = newCellFonts;
+
+		int[] newFontHeights = new int [columnCount];
+		System.arraycopy (fontHeights, 0, newFontHeights, 0, index);
+		System.arraycopy (fontHeights, index, newFontHeights, index + 1, columnCount - index - 1);
+		fontHeights = newFontHeights;
+	}
+
+	if (index == 0 && columnCount > 1) {
+		/* 
+		 * The new second column may have more width available to it than it did when it was
+		 * the first column if checkboxes are being shown, so recompute its displayText if needed. 
+		 */
+		if ((parent.style & SWT.CHECK) != 0) {
+			GC gc = new GC (parent);
+			gc.setFont (getFont (1));
+			computeDisplayText (1, gc);
+			gc.dispose ();
+		}
+	}
+}
+static Table checkNull (Table table) {
+	if (table == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
 	return table;
 }
-protected void checkSubclass () {
-	if (!isValidSubclass ()) error (SWT.ERROR_INVALID_SUBCLASS);
-}
-void clear() {
-	super.clear();
-	dataLabels = new Vector();
-	trimmedLabels = new String[getParent().internalGetColumnCount()];
-	images = new Vector();
-	selectionExtent = null;
-	background = foreground = null;
-	font = null;
-	cellBackground = cellForeground = null;
-	cellFont = null;
-	cached = false;
-}
-public void dispose() {
-	if (isDisposed()) return;
-	Table parent = getParent();
-	parent.removeItem(this);
-	super.dispose();
-}
-void doDispose() {
-	dataLabels = null;
-	trimmedLabels = null;
+void clear () {
+	checked = grayed = false;
+	texts = null;
+	textWidths = new int [1];
+	fontHeight = 0;
+	fontHeights = null;
 	images = null;
-	selectionExtent = null;
 	foreground = background = null;
+	displayTexts = null;
+	cellForegrounds = cellBackgrounds = null;
 	font = null;
-	cellForeground = cellBackground = null;
-	cellFont = null;
-	super.doDispose();
-}
+	cellFonts = null;
+	cached = false;
+	text = "";
+	image = null;
 
-/**
- * Draw the image of the receiver for column 'index' at
- * 'destinationPosition' using 'gc'.
- * Stretch/shrink the image to the fixed image size of the receiver's 
- * parent.
- * @param gc - GC to draw on. 
- * @param destinationPosition - position on the GC to draw at.
- * @param index - index of the image to draw
- * @return Answer the position where drawing stopped.
- */
-Point drawImage(GC gc, Point destinationPosition, int index) {
-	Table parent = getParent();
-	Image image = getImage(index);
-	Rectangle sourceImageBounds;
-	Point destinationImageExtent = parent.getImageExtent();
-	int imageOffset;
-	int itemHeight = parent.getItemHeight();
-	
-	if (image != null) {
-		sourceImageBounds = image.getBounds();
-		if (index == TableColumn.FIRST){
-			gc.setBackground(getBackground(index));
-			gc.fillRectangle(
-				destinationPosition.x, destinationPosition.y,			
-				destinationImageExtent.x, itemHeight);
-		} else {
-			// full row select would obscure transparent images in all but the first column
-			// so always clear the image area in this case. Fixes 1FYNITC
-			if ((parent.getStyle() & SWT.FULL_SELECTION) != 0) {
-				gc.fillRectangle(
-					destinationPosition.x, destinationPosition.y,			
-					destinationImageExtent.x, destinationImageExtent.y);
+	int columnCount = parent.columns.length;
+	if (columnCount > 0) {
+		displayTexts = new String [columnCount];
+		if (columnCount > 1) {
+			texts = new String [columnCount];
+			textWidths = new int [columnCount];
+			images = new Image [columnCount];
+		}
+	}
+}
+void computeDisplayText (int columnIndex, GC gc) {
+	int columnCount = parent.columns.length;
+	if (columnCount == 0) {
+		String text = getText (0);
+		textWidths [columnIndex] = gc.stringExtent (text).x;
+		return;
+	}
+
+	TableColumn column = parent.columns [columnIndex];
+	int availableWidth = column.width - 2 * parent.getCellPadding () - 2 * MARGIN_TEXT;
+	if (columnIndex == 0) {
+		availableWidth -= parent.col0ImageWidth;
+		if (parent.col0ImageWidth > 0) availableWidth -= Table.MARGIN_IMAGE;
+		if ((parent.style & SWT.CHECK) != 0) {
+			availableWidth -= parent.checkboxBounds.width;
+			availableWidth -= Table.MARGIN_IMAGE;
+		}
+	} else {
+		Image image = getImage (columnIndex);
+		if (image != null) {
+			availableWidth -= image.getBounds ().width;
+			availableWidth -= Table.MARGIN_IMAGE;
+		}
+	}
+
+	String text = getText (columnIndex);
+	int textWidth = gc.stringExtent (text).x;
+	if (textWidth <= availableWidth) {
+		displayTexts [columnIndex] = text;
+		textWidths [columnIndex] = textWidth;
+		return;
+	}
+
+	/* Ellipsis will be needed, so subtract their width from the available text width */
+	int ellipsisWidth = gc.stringExtent (Table.ELLIPSIS).x;
+	availableWidth -= ellipsisWidth;
+	if (availableWidth <= 0) {
+		displayTexts [columnIndex] = Table.ELLIPSIS;
+		textWidths [columnIndex] = ellipsisWidth;
+		return;
+	}
+
+	/* Make initial guess. */
+	int index = Math.min (availableWidth / gc.getFontMetrics ().getAverageCharWidth (), text.length ());
+	textWidth = gc.stringExtent (text.substring (0, index)).x;
+
+	/* Initial guess is correct. */
+	if (availableWidth == textWidth) {
+		displayTexts [columnIndex] = text.substring (0, index) + Table.ELLIPSIS;
+		textWidths [columnIndex] = textWidth + ellipsisWidth;
+		return;
+	}
+
+	/* Initial guess is too high, so reduce until fit is found. */
+	if (availableWidth < textWidth) {
+		do {
+			index--;
+			if (index < 0) {
+				displayTexts [columnIndex] = Table.ELLIPSIS;
+				textWidths [columnIndex] = ellipsisWidth;
+				return;
 			}
-		}
-		imageOffset = (itemHeight - destinationImageExtent.y) / 2;
-		gc.drawImage(
-			image, 0, 0, 													// source x, y
-			sourceImageBounds.width, sourceImageBounds.height, 				// source width, height
-			destinationPosition.x, destinationPosition.y + imageOffset,										// destination x, y
-			destinationImageExtent.x, destinationImageExtent.y);			// destination width, height
+			text = text.substring (0, index);
+			textWidth = gc.stringExtent (text).x;
+		} while (availableWidth < textWidth);
+		displayTexts [columnIndex] = text + Table.ELLIPSIS;
+		textWidths [columnIndex] = textWidth + ellipsisWidth;
+		return;
 	}
-	if (((index == TableColumn.FIRST &&										// always add the image width for the first column 
- 	 	  parent.hasFirstColumnImage() == true) ||							// if any item in the first column has an image
-		 (index != TableColumn.FIRST && 									// add the image width if it's not the first column
-		  image != null)) &&										 		// only when the item actually has an image
-		destinationImageExtent != null) {									
-		destinationPosition.x += destinationImageExtent.x;
+	
+	/* Initial guess is too low, so increase until overrun is found. */
+	int previousWidth = 0;
+	while (textWidth < availableWidth) {
+		index++;
+		previousWidth = textWidth;
+		textWidth = gc.stringExtent (text.substring (0, index)).x;
 	}
-	return destinationPosition;
+	displayTexts [columnIndex] = text.substring (0, index - 1) + Table.ELLIPSIS;
+	textWidths [columnIndex] = previousWidth + ellipsisWidth;
 }
-/**
- * Draw the label of the receiver for column 'index' at 'position'
- * using 'gc'. 
- * The background color is set to the selection background color if 
- * the item is selected and the text is drawn for the first column.
- * @param gc - GC to draw on. 
- * @param position - position on the GC to draw at.
- * @param index - specifies which subitem text to draw
- */
-void drawText(String label, GC gc, Point position, int index) {
-	Table parent = getParent();
-	int textOffset, alignmentOffset;
+void computeDisplayTexts (GC gc) {
+	int columnCount = parent.columns.length;
+	if (columnCount == 0) return;
 
-	if (label != null) {
-		gc.setFont(getFont(index));
-		boolean drawSelection = (index == TableColumn.FIRST || (parent.getStyle() & SWT.FULL_SELECTION) != 0) &&
-			((parent.style & SWT.HIDE_SELECTION) == 0 || parent.isFocusControl());
-		if (isSelected() == true && drawSelection == true) {
-			gc.setForeground(getSelectionForegroundColor());
-		} else {
-			gc.setForeground(getForeground(index));
-		}
-		alignmentOffset = getAlignmentOffset (index, getBounds(index).width, gc);
-		textOffset = (parent.getItemHeight() - parent.getFontHeight()) / 2;			// vertically center the text
-		gc.drawString(label, position.x + alignmentOffset, position.y + textOffset, true);
+	for (int i = 0; i < columnCount; i++) {
+		gc.setFont (getFont (i));
+		computeDisplayText (i, gc);
 	}
 }
-int getAlignmentOffset(int columnIndex, int columnWidth, GC gc) {
-	Table parent = getParent();
-	TableColumn column = parent.internalGetColumn (columnIndex);
-	Image image = getImage(columnIndex);	
-	int alignmentOffset = 0;
-	int alignment = column.getAlignment();
-	String label  = getText(gc, column);
-	int imageWidth = 0;
-	int textWidth = gc.stringExtent (label).x;
-	Point imageExtent = parent.getImageExtent();
-	if (((columnIndex == TableColumn.FIRST &&								// always add the image width for the first column 
- 	 	  parent.hasFirstColumnImage() == true) ||							// if any item in the first column has an image
-		 (columnIndex != TableColumn.FIRST && 								// add the image width if it's not the first column
-		  image != null)) &&										 		// only when the item actually has an image
-		imageExtent != null) {									
-		textWidth += imageExtent.x;
-	}
-	if ((alignment & SWT.RIGHT) != 0) {
-		alignmentOffset = columnWidth - textWidth - imageWidth - TEXT_INDENT - TEXT_INDENT;
-	}
-	if ((alignment & SWT.CENTER) != 0) {
-		alignmentOffset = ((columnWidth - textWidth) / 2) - imageWidth - TEXT_INDENT;
-	}
-	if (alignmentOffset < 0) alignmentOffset = 0;
-	return alignmentOffset;
+public void dispose () {
+	if (isDisposed ()) return;
+	Table parent = this.parent;
+	int startIndex = index;
+	int endIndex = parent.itemsCount - 1;
+	dispose (true);
+	parent.redrawItems (startIndex, endIndex, false);
+}
+void dispose (boolean notifyParent) {
+	if (isDisposed ()) return;
+	if (notifyParent) parent.destroyItem (this);
+	super.dispose ();	/* super is intentional here */
+	background = foreground = null;
+	cellBackgrounds = cellForegrounds = null;
+	font = null;
+	cellFonts = null;
+	images = null;
+	texts = displayTexts = null;
+	textWidths = fontHeights = null;
+	parent = null;
 }
 /**
  * Returns the receiver's background color.
@@ -305,12 +368,11 @@ int getAlignmentOffset(int columnIndex, int columnWidth, GC gc) {
  * </ul>
  * 
  * @since 2.0
- * 
  */
-public Color getBackground(){
+public Color getBackground () {
 	checkWidget ();
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
 	if (background != null) return background;
-	Table parent = getParent ();
 	return parent.getBackground ();
 }
 /**
@@ -326,13 +388,18 @@ public Color getBackground(){
  * 
  * @since 3.0
  */
-public Color getBackground (int index) {
+public Color getBackground (int columnIndex) {
 	checkWidget ();
-	Table parent = getParent ();
-	int count = Math.max (1, parent.getColumnCount ());
-	if (0 > index || index > count - 1) return getBackground ();
-	if (cellBackground == null || cellBackground [index] == null) return getBackground ();
-	return cellBackground [index];
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return getBackground ();
+	if (cellBackgrounds == null || cellBackgrounds [columnIndex] == null) return getBackground ();
+	return cellBackgrounds [columnIndex];
+}
+/*public*/ Rectangle getBounds () {
+	checkWidget ();
+	int textPaintWidth = textWidths [0] + 2 * MARGIN_TEXT;
+	return new Rectangle (getTextX (0), parent.getItemY (this), textPaintWidth, parent.itemHeight - 1);
 }
 /**
  * Returns a rectangle describing the receiver's size and location
@@ -346,44 +413,71 @@ public Color getBackground (int index) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public Rectangle getBounds(int index) {
-	checkWidget();
-	Rectangle itemBounds;
-	Rectangle columnBounds;
-	Rectangle checkboxBounds;
-	Table parent = getParent();
-	TableColumn column;
-	int itemIndex = parent.indexOf(this);
-	int itemHeight = parent.getItemHeight();
-	int gridLineWidth = parent.getLinesVisible() ? parent.getGridLineWidth() : 0;
-	int itemYPos;
+public Rectangle getBounds (int columnIndex) {
+	checkWidget ();
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
+	TableColumn[] columns = parent.columns;
+	int columnCount = columns.length;
+	int validColumnCount = Math.max (1, columnCount);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) {
+		return new Rectangle (0, 0, 0, 0);
+	}
+	/*
+	 * If there are no columns then this is the bounds of the receiver's content.
+	 */
+	if (columnCount == 0) {
+		int width = getContentWidth (0);
+		return new Rectangle (
+			getContentX (0),
+			parent.getItemY (this),
+			width,
+			parent.itemHeight - 1);
+	}
 	
-	if (itemIndex == -1 || index < 0 || index >= parent.internalGetColumnCount()) {
-		itemBounds = new Rectangle(0, 0, 0, 0);
+	TableColumn column = columns [columnIndex];
+	if (columnIndex == 0) {
+		/* 
+		 * For column 0 this is bounds from the beginning of the content to the
+		 * end of the column.
+		 */
+		int x = getContentX (0);
+		int offset = x - column.getX ();
+		int width = Math.max (0, column.width - offset);		/* max is for columns with small widths */
+		return new Rectangle (x, parent.getItemY (this), width, parent.itemHeight - 1);
 	}
-	else {
-		column = parent.internalGetColumn(index);
-		columnBounds = column.getBounds();
-		itemYPos = columnBounds.y + itemHeight * itemIndex;
-		itemBounds = new Rectangle(
-			columnBounds.x, itemYPos, 
-			columnBounds.width - gridLineWidth, itemHeight - gridLineWidth);
-		if (index == TableColumn.FIRST) {
-			if (isCheckable() == true) {
-				checkboxBounds = getCheckboxBounds();
-				itemBounds.x = checkboxBounds.x + checkboxBounds.width + CHECKBOX_PADDING;	// add checkbox start, width and space behind checkbox
-				itemBounds.width -= itemBounds.x;
-			}
-			else {
-				int imageIndent = getImageIndentPixel();
-				itemBounds.x += imageIndent;
-				itemBounds.width -= imageIndent;
-			}
-		}
-	}
-	return itemBounds;
+	/*
+	 * For columns > 0 this is the bounds of the table cell.
+	 */
+	return new Rectangle (column.getX (), parent.getItemY (this), column.width, parent.itemHeight - 1);
 }
-
+/*
+ * Returns the full bounds of a cell in a table, regardless of its content.
+ */
+Rectangle getCellBounds (int columnIndex) {
+	int y = parent.getItemY (this);
+	if (parent.columns.length == 0) {
+		int textPaintWidth = textWidths [0] + 2 * MARGIN_TEXT;
+		int width = getTextX (0) + textPaintWidth + parent.horizontalOffset;
+		return new Rectangle (-parent.horizontalOffset, y, width, parent.itemHeight);
+	}
+	TableColumn column = parent.columns [columnIndex];
+	return new Rectangle (column.getX (), y, column.width, parent.itemHeight);
+}
+/*
+ * Returns the bounds of the receiver's checkbox, or null if the parent's style does not
+ * include SWT.CHECK.
+ */
+Rectangle getCheckboxBounds () {
+	if ((parent.getStyle () & SWT.CHECK) == 0) return null;
+	Rectangle result = parent.checkboxBounds;
+	if (parent.columns.length == 0) {
+		result.x = parent.getCellPadding () - parent.horizontalOffset;
+	} else {
+		result.x = parent.columns [0].getX () + parent.getCellPadding ();
+	}
+	result.y = parent.getItemY (this) + (parent.itemHeight - result.height) / 2;
+	return result;
+}
 /**
  * Returns <code>true</code> if the receiver is checked,
  * and false otherwise.  When the parent does not have
@@ -396,63 +490,100 @@ public Rectangle getBounds(int index) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public boolean getChecked() {
-	checkWidget();
-	return super.getChecked();
+public boolean getChecked () {
+	checkWidget ();
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
+	return checked;
 }
-/**
- * Answer the x position of the item check box
- */
-int getCheckboxXPosition() {
-	return getImageIndentPixel();
-}
-/**
- * Answer the item labels set by the user.
- * These may not be the same as those drawn on the screen. The latter 
- * may be trimmed to fit the column. Items that don't have a label are 
- * represented by a null slot in the vector.
- * @return Vector - the item labels set by the user.
- */
-Vector getDataLabels() {
-	return dataLabels;
-}
-/**
- * Return the position at which the string starts that is used 
- * to indicate a truncated item text.
- * @param columnIndex - index of the column for which the position of 
- *	the truncation replacement should be calculated
- * @param columnWidth - width of the column for which the position of 
- *	the truncation replacement should be calculated
- * @return -1 when the item text is not truncated
- */
-int getDotStartX(int columnIndex, int columnWidth) {
-	GC gc;
-	Table parent = getParent();
-	String label = getText(columnIndex);
-	int alignment = parent.internalGetColumn (columnIndex).getAlignment();
-	int dotStartX = -1;
-	int maxWidth;
-
-	if (label != null) {
-		gc = new GC(parent);
-		gc.setFont (getFont());
-		dotStartX = getAlignmentOffset(columnIndex, columnWidth, gc);
-		if ((alignment & SWT.LEFT) != 0) {
-			maxWidth = getMaxTextWidth(columnIndex, columnWidth);
-			label = parent.trimItemText(label, maxWidth, gc);
-			if (label.endsWith(Table.DOT_STRING)) {
-				int dotsWidth = gc.stringExtent(Table.DOT_STRING).x;
-				dotStartX = gc.stringExtent(label).x - dotsWidth;
-				// add indents, margins and image width
-				dotStartX += getImageStopX(columnIndex);
-				dotStartX += getTextIndent(columnIndex);
-			}
+int getContentWidth (int columnIndex) {
+	int width = textWidths [columnIndex] + 2 * MARGIN_TEXT;
+	if (columnIndex == 0) {
+		width += parent.col0ImageWidth;
+		if (parent.col0ImageWidth > 0) width += Table.MARGIN_IMAGE;
+	} else {
+		Image image = getImage (columnIndex);
+		if (image != null) {
+			width += image.getBounds ().width + Table.MARGIN_IMAGE;
 		}
-		gc.dispose();		
 	}
-	return dotStartX;
+	return width;
 }
+/*
+ * Returns the x value where the receiver's content (ie.- its image or text) begins
+ * for the specified column.
+ */
+int getContentX (int columnIndex) {
+	int minX = parent.getCellPadding ();
+	if (columnIndex == 0) {
+		Rectangle checkboxBounds = getCheckboxBounds ();
+		if (checkboxBounds != null) {
+			minX += checkboxBounds.width + Table.MARGIN_IMAGE;
+		}
+	}
 
+	if (parent.columns.length == 0) return minX - parent.horizontalOffset;	/* free first column */
+	
+	TableColumn column = parent.columns [columnIndex];
+	int columnX = column.getX ();
+	if ((column.style & SWT.LEFT) != 0) return columnX + minX;
+	
+	/* column is not left-aligned */
+	int contentWidth = getContentWidth (columnIndex);
+	int contentX = 0;
+	if ((column.style & SWT.RIGHT) != 0) {
+		contentX = column.width - parent.getCellPadding () - contentWidth;	
+	} else {	/* SWT.CENTER */
+		contentX = (column.width - contentWidth) / 2;
+	}
+	return Math.max (columnX + minX, columnX + contentX);
+}
+String getDisplayText (int columnIndex) {
+	if (parent.columns.length == 0) return getText (0);
+	String result = displayTexts [columnIndex];
+	return result != null ? result : "";	//$NON-NLS-1$
+}
+/*
+ * Returns the bounds that should be used for drawing a focus rectangle on the receiver
+ */
+Rectangle getFocusBounds () {
+	int x = 0;
+	TableColumn[] columns = parent.columns;
+	int[] columnOrder = parent.getColumnOrder ();
+	if ((parent.style & SWT.FULL_SELECTION) != 0) {
+		int col0index = columnOrder.length == 0 ? 0 : columnOrder [0];
+		if (col0index == 0) {
+			x = getTextX (0);
+		} else {
+			x = -parent.horizontalOffset;
+		}
+	} else {
+		x = getTextX (0);
+	}
+
+	if (columns.length > 0) {
+		/* ensure that the focus x does not start beyond the right bound of column 0 */
+		int rightX = columns [0].getX () + columns [0].width;
+		x = Math.min (x, rightX - 1);
+	}
+
+	int width;
+	if (columns.length == 0) {
+		width = textWidths [0] + 2 * MARGIN_TEXT;
+	} else {
+		TableColumn column;
+		if ((parent.style & SWT.FULL_SELECTION) != 0) {
+			column = columns [columnOrder [columnOrder.length - 1]];
+		} else {
+			column = columns [0];
+		}
+		width = column.getX () + column.width - x - 1;
+	}
+	return new Rectangle (
+		x,
+		parent.getItemY (this) + (parent.linesVisible ? 1 : 0),
+		width,
+		parent.itemHeight - (parent.linesVisible ? 1 : 0));
+}
 /**
  * Returns the font that the receiver will use to paint textual information for this item.
  *
@@ -467,11 +598,10 @@ int getDotStartX(int columnIndex, int columnWidth) {
  */
 public Font getFont () {
 	checkWidget ();
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
 	if (font != null) return font;
-	Table parent = getParent ();
 	return parent.getFont ();
 }
-
 /**
  * Returns the font that the receiver will use to paint textual information
  * for the specified cell in this item.
@@ -486,15 +616,22 @@ public Font getFont () {
  *
  * @since 3.0
  */
-public Font getFont (int index) {
+public Font getFont (int columnIndex) {
 	checkWidget ();
-	Table parent = getParent ();
-	int count = Math.max (1, parent.getColumnCount ());
-	if (0 > index || index > count - 1) return getFont ();
-	if (cellFont == null || cellFont [index] == null) return getFont ();
-	return cellFont [index];
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return getFont ();
+	if (cellFonts == null || cellFonts [columnIndex] == null) return getFont ();
+	return cellFonts [columnIndex];
 }
-
+int getFontHeight () {
+	if (fontHeight != 0) return fontHeight;
+	return parent.fontHeight;
+}
+int getFontHeight (int columnIndex) {
+	if (fontHeights == null || fontHeights [columnIndex] == 0) return getFontHeight ();
+	return fontHeights [columnIndex];
+}
 /**
  * Returns the foreground color that the receiver will use to draw.
  *
@@ -506,12 +643,11 @@ public Font getFont (int index) {
  * </ul>
  * 
  * @since 2.0
- * 
  */
-public Color getForeground(){
+public Color getForeground () {
 	checkWidget ();
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
 	if (foreground != null) return foreground;
-	Table parent = getParent ();
 	return parent.getForeground ();
 }
 /**
@@ -528,13 +664,13 @@ public Color getForeground(){
  * 
  * @since 3.0
  */
-public Color getForeground (int index) {
+public Color getForeground (int columnIndex) {
 	checkWidget ();
-	Table parent = getParent ();
-	int count = Math.max (1, parent.getColumnCount ());
-	if (0 > index || index > count - 1) return getForeground ();
-	if (cellForeground == null || cellForeground [index] == null) return getForeground ();
-	return cellForeground [index];
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return getForeground ();
+	if (cellForegrounds == null || cellForegrounds [columnIndex] == null) return getForeground ();
+	return cellForegrounds [columnIndex];
 }
 /**
  * Returns <code>true</code> if the receiver is grayed,
@@ -548,13 +684,51 @@ public Color getForeground (int index) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public boolean getGrayed() {
-	checkWidget();
-	return super.getGrayed();
+public boolean getGrayed () {
+	checkWidget ();
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
+	return grayed;
 }
-public Image getImage() {
-	checkWidget();
-	return getImage(0);
+/*
+ * Returns the bounds representing the clickable region that should select the receiver.
+ */
+Rectangle getHitBounds () {
+	int[] columnOrder = parent.getColumnOrder ();
+	int contentX = 0;
+	if ((parent.style & SWT.FULL_SELECTION) != 0) {
+		int col0index = columnOrder.length == 0 ? 0 : columnOrder [0];
+		if (col0index == 0) {
+			contentX = getContentX (0);
+		} else {
+			contentX = 0;
+		}
+	} else {
+		contentX = getContentX (0);
+	}
+	
+	int width = 0;
+	TableColumn[] columns = parent.columns;
+	if (columns.length == 0) {
+		width = getContentWidth (0); 
+	} else {
+		/* 
+		 * If there are columns then this spans from the beginning of the receiver's column 0
+		 * image or text to the end of either column 0 or the last column (FULL_SELECTION).
+		 */
+		TableColumn column;
+		if ((parent.style & SWT.FULL_SELECTION) != 0) {
+			column = columns [columnOrder [columnOrder.length - 1]];
+		} else {
+			column = columns [0];
+		}
+		width = column.getX () + column.width - contentX;
+	}
+	return new Rectangle (contentX, parent.getItemY (this), width, parent.itemHeight);
+}
+public Image getImage () {
+	checkWidget ();
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
+	return super.getImage ();
 }
 /**
  * Returns the image stored at the given column index in the receiver,
@@ -568,21 +742,19 @@ public Image getImage() {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public Image getImage(int columnIndex) {
-	checkWidget();
-	Image image = null;
-	Vector images = getImages();
-	int itemIndex = getParent().indexOf(this);
-	
-	if (itemIndex != -1 && columnIndex >= 0 && columnIndex < images.size()) {
-		image = (Image) images.elementAt(columnIndex);
-	}
-	return image;
+public Image getImage (int columnIndex) {
+	checkWidget ();
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return null;
+	if (columnIndex == 0) return getImage ();
+	return images [columnIndex];
 }
 /**
  * Returns a rectangle describing the size and location
  * relative to its parent of an image at a column in the
- * table.
+ * table.  An empty rectangle is returned if index exceeds
+ * the index of the table's last column.
  *
  * @param index the index that specifies the column
  * @return the receiver's bounding image rectangle
@@ -592,25 +764,39 @@ public Image getImage(int columnIndex) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public Rectangle getImageBounds(int index) {
-	checkWidget();
-	Table parent = getParent();
-	int itemIndex = parent.indexOf (this);
-	int imageWidth = 0;
-	Point imageExtent = parent.getImageExtent();
-	Rectangle imageBounds = getBounds(index);
+public Rectangle getImageBounds (int columnIndex) {
+	checkWidget ();
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return new Rectangle (0,0,0,0);
+
+	int padding = parent.getCellPadding ();
+	int startX = getContentX (columnIndex);
+	int itemHeight = parent.itemHeight;
+	int imageSpaceY = itemHeight - 2 * padding;
+	int y = parent.getItemY (this);
+	Image image = getImage (columnIndex); 
+	if (image == null) {
+		return new Rectangle (startX, y + padding, 0, imageSpaceY);
+	}
 	
-	if (itemIndex == -1) {
-		imageBounds = new Rectangle(0, 0, 0, 0);
+	Rectangle imageBounds = image.getBounds ();
+	/* 
+	 * For column 0 all images have the same width, which may be larger or smaller
+	 * than the image to be drawn here.  Therefore the image bounds to draw must be
+	 * specified.
+	 */
+	int drawWidth;
+	if (columnIndex == 0) {
+		int imageSpaceX = parent.col0ImageWidth;
+		drawWidth = Math.min (imageSpaceX, imageBounds.width);
+	} else {
+		drawWidth = imageBounds.width;
 	}
-	else
-	if (imageExtent != null) {
-		if (index == TableColumn.FIRST || getImage(index) != null) {
-			imageWidth = imageExtent.x;
-		}
-	}
-	imageBounds.width = imageWidth;
-	return imageBounds;
+	int drawHeight = Math.min (imageSpaceY, imageBounds.height);
+	return new Rectangle (
+		startX, y + (itemHeight - drawHeight) / 2,
+		drawWidth, drawHeight);
 }
 /**
  * Gets the image indent.
@@ -622,103 +808,16 @@ public Rectangle getImageBounds(int index) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public int getImageIndent() {
+public int getImageIndent () {
 	checkWidget();
-	int index = getParent().indexOf(this);
-	
-	if (index == -1) {
-		return 0;
-	}
-	return imageIndent;
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
+	return imageIndent;	// TODO
 }
-/**
- * Answer the number of pixels the image in the first column is 
- * indented. Calculation starts at the column start and counts 
- * all pixels except the check box.
- */
-int getImageIndentPixel() {
-	int indentPixel = FIRST_COLUMN_IMAGE_INDENT;
-	Point imageExtent = getParent().getImageExtent();
-	
-	if (imageExtent != null) {
-		indentPixel += imageExtent.x * getImageIndent();
+String getNameText () {
+	if ((parent.style & SWT.VIRTUAL) != 0) {
+		if (!cached) return "*virtual*"; //$NON-NLS-1$
 	}
-	return indentPixel;
-}
-/**
- * Answer the item images set by the user. Items that don't have an 
- * image are represented by a null slot in the vector.
- */
-Vector getImages() {
-	return images;
-}
-/**
- * Calculate the x coordinate where the item image of column 
- * 'columnIndex' stops.
- * @param columnIndex - the column for which the stop position of the 
- *	image should be calculated.
- */
-int getImageStopX(int columnIndex) {
-	int imageStopX = 0;
-	Table parent = getParent();
-	Rectangle checkboxBounds;
-
-	if (columnIndex == TableColumn.FIRST) {
-		if (isCheckable() == true) {
-			checkboxBounds = getCheckboxBounds();
-			imageStopX += checkboxBounds.x + checkboxBounds.width + CHECKBOX_PADDING;
-		}
-		else {
-			imageStopX = getImageIndentPixel();
-		}
-	}
-	if (((columnIndex == TableColumn.FIRST &&				// always add the image width for the first column 
- 	 	  parent.hasFirstColumnImage() == true) ||			// if any item in the first column has an image
-		 (columnIndex != TableColumn.FIRST && 				// add the image width if it's not the first column
-		  getImage(columnIndex) != null)) &&		 		// only when the item actually has an image
-		parent.getImageExtent() != null) {									
-		imageStopX += parent.getImageExtent().x;
-	}
-	return imageStopX;
-}
-/**
- * Return the index of the item in its parent widget.
- */
-int getIndex() {
-	return index;
-}
-/**
- * Return the item extent in the specified column
- * The extent includes the actual width of the item including checkbox, 
- * image and text.
- */
-Point getItemExtent(TableColumn column) {
-	Table parent = getParent();
-	int columnIndex = column.getIndex();
-	Point extent = new Point(getImageStopX(columnIndex), parent.getItemHeight() - parent.getGridLineWidth());
-	GC gc = new GC(parent);
-	gc.setFont(getFont());
-	String trimmedText = getText(gc, column);
-
-	if (trimmedText != null && trimmedText.length() > 0) {
-		extent.x += gc.stringExtent(trimmedText).x + getTextIndent(columnIndex);
-	}
-	if (columnIndex == TableColumn.FIRST) {
-		extent.x += SELECTION_PADDING;
-	}
-	gc.dispose();		
-	return extent;
-}
-/**
- * Answer the maximum width in pixel of the text that fits in the 
- * column identified by 'columnIndex' without trimming the text.
- * @param columnIndex - the column for which the maximum text width
- *	should be calculated.
- * @param columnWidth - width of the column 'columnIndex'
- */
-int getMaxTextWidth(int columnIndex, int columnWidth) {
-	int itemWidth = getImageStopX(columnIndex) + getTextIndent(columnIndex) * 2;
-	return columnWidth - itemWidth;
+	return super.getNameText ();
 }
 /**
  * Returns the receiver's parent, which must be a <code>Table</code>.
@@ -730,52 +829,41 @@ int getMaxTextWidth(int columnIndex, int columnWidth) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public Table getParent() {
-	checkWidget();
-	return (Table) super.getSelectableParent();
+public Table getParent () {
+	checkWidget ();
+	return parent;
 }
-/**
- * Answer the width of the item required to display the complete contents.
+/*
+ * Returns the receiver's ideal width for the specified columnIndex.
  */
-int getPreferredWidth(int index) {
-	int size = getImageStopX(index);
-	String text = getText(index);
-	if (text != null) {
-		size += getTextWidth(text) + getTextIndent(index) * 2 + 1;
+int getPreferredWidth (int columnIndex) {
+	int width = 2 * parent.getCellPadding ();
+	if (columnIndex == 0 && (parent.style & SWT.CHECK) != 0) {
+		width += parent.checkboxBounds.width;
+		width += Table.MARGIN_IMAGE;
 	}
-	return size;
-}
-/**
- * Return the size of the rectangle drawn to indicate a selected item.
- * This is also used to draw the selection focus rectangle and drop 
- * insert marker. 
- * Implements SelectableItem#getSelectionExtent
- */
-Point getSelectionExtent() {
-	Table parent = getParent();
-	Point extent;
-	
-	if ((parent.getStyle() & SWT.FULL_SELECTION) == 0) {			// regular, first column, selection?
-		if (selectionExtent == null) {
-			calculateSelectionExtent();
+	GC gc = new GC (parent);
+	gc.setFont (getFont (columnIndex));
+	width += gc.stringExtent (getText (columnIndex)).x + 2 * MARGIN_TEXT;
+	gc.dispose ();
+	if (columnIndex == 0) {
+		if (parent.col0ImageWidth > 0) {
+			width += parent.col0ImageWidth;
+			width += Table.MARGIN_IMAGE;
 		}
-		extent = selectionExtent;
+	} else {
+		Image image = getImage (columnIndex);
+		if (image != null) {
+			width += image.getBounds ().width;
+			width += Table.MARGIN_IMAGE;
+		}
 	}
-	else {
-		extent = parent.getFullSelectionExtent(this);
-	}
-	return extent;
+	return width;
 }
-/**
- * Return the x position of the selection rectangle
- * Implements SelectableItem#getSelectionX
- */
-int getSelectionX() {
-	return getImageStopX(TableColumn.FIRST) + getParent().getHorizontalOffset();
-}
-public String getText() {
-	checkWidget();
-	return getText(0);
+public String getText () {
+	checkWidget ();
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
+	return super.getText ();
 }
 /**
  * Returns the text stored at the given column index in the receiver,
@@ -788,396 +876,303 @@ public String getText() {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_CANNOT_GET_TEXT - if the column at index does not exist</li>
- * </ul>
  */
-public String getText(int columnIndex) {
-	checkWidget();
-	int itemIndex = getParent().indexOf(this);
-	Vector labels = getDataLabels();
-	String label = null;
-	
-	if (itemIndex == -1) {
-		error(SWT.ERROR_CANNOT_GET_TEXT);
-	}	
-	if (columnIndex >= 0 && columnIndex < labels.size()) {
-		label = (String) labels.elementAt(columnIndex);
-	}
-	if (label == null) {
-		label = "";			// label vector is initialized with null instead of empty Strings
-	}
-	return label;
+public String getText (int columnIndex) {
+	checkWidget ();
+	if (!parent.checkData (this, true)) error (SWT.ERROR_WIDGET_DISPOSED);
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return "";	//$NON-NLS-1$
+	if (columnIndex == 0) return getText ();
+	if (texts [columnIndex] == null) return "";	//$NON-NLS-1$
+	return texts [columnIndex];
 }
-/**
- * Answer the text that is going to be drawn in 'column'. This 
- * text may be a trimmed copy of the original text set by the 
- * user if it doesn't fit into the column. In that case the last 
- * characters are replaced with Table.DOT_STRING.
- * A cached copy of the trimmed text is returned if available.
- * @param gc - GC to use for measuring the text extent
- * @param column - TableColumn for which the text should be returned
+/*
+ * Returns the x value where the receiver's text begins.
  */
-String getText(GC gc, TableColumn column) {
-	int columnIndex = column.getIndex();
-	String label = getTrimmedText(columnIndex);
-	int maxWidth;
-
-	if (label == null) {
-		gc.setFont(getFont());
-		maxWidth = getMaxTextWidth(columnIndex, column.getWidth());
-		label = getParent().trimItemText(getText(columnIndex), maxWidth, gc);
-	}
-	return label;
-}
-/**
- * Answer the indent of the text in column 'columnIndex' in pixel.
- * This indent is used in front of and behind the item text.
- * @param columnIndex - specifies the column for which the indent 
- *	should be calculated.
- */
-int getTextIndent(int columnIndex) {
-	int textIndent;
-
-	if (columnIndex == TableColumn.FIRST) {
-		if (getParent().hasFirstColumnImage() == false) {
-			textIndent = TEXT_INDENT_NO_IMAGE;
-		}
-		else {
-			textIndent = FIRST_COLUMN_TEXT_INDENT;
-		}
-	}
-	else {
-		textIndent = TEXT_INDENT;
-	}
-	return textIndent;
-}
-/**
- * Answer the cached trimmed text for column 'columnIndex'. 
- * Answer null if it hasn't been calculated yet.
- * @param columnIndex - specifies the column for which the 
- *	trimmed text should be answered.
- */
-String getTrimmedText(int columnIndex) {
-	String label = null;
-	String labels[] = getTrimmedTexts();
-
-	if (columnIndex < labels.length) {
-		label = labels[columnIndex];
-	}
-	return label;
-}
-/**
- * Answer an array of cached trimmed labels.
- */
-String [] getTrimmedTexts() {
-	return trimmedLabels;
-}
-/**
- * Answer the width of 'text' in pixel.
- * Answer 0 if 'text' is null.
- */
-int getTextWidth(String text) {
-	int textWidth = 0;
-	if (text != null) {
-		GC gc = new GC(getParent());
-		gc.setFont(getFont());
-		textWidth = gc.stringExtent(text).x;
-		gc.dispose();
-	}
-	return textWidth;
-}
-/**
- * Ensure that the image and label vectors have at least 
- * 'newSize' number of elements.
- */
-void growVectors(int newSize) {
-	Vector images = getImages();
-	Vector labels = getDataLabels();
-
-	if (newSize > images.size()){
-		images.setSize(newSize);
-	}
-	if (newSize > labels.size()){
-		labels.setSize(newSize);
-	}
-}
-/**
- * Insert 'column' into the receiver.
- */
-void insertColumn(TableColumn column) {	
-	Vector data = getDataLabels();
-	Vector images = getImages();
-	String stringData[];
-	Image imageData[];
-	int index = column.getIndex();
-
-	if (index < data.size()) {
-		data.insertElementAt(null, index);
-	}
-	else {
-		data.addElement(null);
-	}
-	stringData = new String[data.size()];
-	data.copyInto(stringData);
-	setText(stringData);
-
-	if (index < images.size()) {	
-		images.insertElementAt(null, index);
-	}
-	else {
-		images.addElement(null);
-	}
-	imageData = new Image[images.size()];
-	images.copyInto(imageData);
-	setImage(imageData);
-	
-	String[] tempTrimmed = new String[trimmedLabels.length + 1];
-	System.arraycopy(trimmedLabels, 0, tempTrimmed, 0, index);
-	System.arraycopy(trimmedLabels, index, tempTrimmed, index + 1, trimmedLabels.length - index);
-	trimmedLabels = tempTrimmed; 
-	
-}
-/**
- * Sets the image at an index.
- *
- * @param image the new image (or null)
- *
- * @exception SWTError(ERROR_THREAD_INVALID_ACCESS)
- *	when called from the wrong thread
- * @exception SWTError(ERROR_WIDGET_DISPOSED)
- *	when the widget has been disposed
- */
-void internalSetImage(int columnIndex, Image image) {
-	Vector images = getImages();
-	boolean imageWasNull = false;
-	Table parent = getParent();		
-	
-	if (columnIndex >= 0 && 
-		columnIndex < parent.internalGetColumnCount()) {
-		if (columnIndex >= images.size()) {
-			growVectors(columnIndex + 1);
-		}
-		Image oldImage = (Image) images.elementAt(columnIndex);
-		if (oldImage == null && image != null) {
-			imageWasNull = true;
-		}
-		if (image != null && image.isDisposed()) error(SWT.ERROR_INVALID_ARGUMENT);
-		if (image != null && image.type == SWT.ICON && image.equals (oldImage)) return;
-		images.setElementAt(image, columnIndex);
-		reset(columnIndex);						// new image may cause text to no longer fit in the column
-		notifyImageChanged(columnIndex, imageWasNull);
-	}
-}
-/**
- * Sets the widget text.
- *
- * The widget text for an item is the label of the
- * item or the label of the text specified by a column
- * number.
- *
- * @param index the column number
- * @param text the new text
- *
- */
-void internalSetText(int columnIndex, String string) {
-	Vector labels = getDataLabels();
-	Table parent = getParent();
-	String oldText;
-	
-	if (columnIndex >= 0 &&
-		columnIndex < parent.internalGetColumnCount()) {
-		if (columnIndex >= labels.size()) {
-			growVectors(columnIndex + 1);
-		}
-		oldText = (String) labels.elementAt(columnIndex);
-		if (string.equals(oldText) == false) {
-			labels.setElementAt(string, columnIndex);
-			reset(columnIndex);
-			notifyTextChanged(columnIndex, oldText == null);
-		}
-	}
-}
-/**
- * Answer whether the click at 'xPosition' on the receiver is a 
- * selection click.
- * A selection click occurred when the click was behind the image
- * and before the end of the item text.
- * @return 
- *	true - 'xPosition' is a selection click.
- *	false - otherwise
- */
-boolean isSelectionHit(int xPosition) {
-	int itemStopX = getImageStopX(TableColumn.FIRST);
-	Point selectionExtent = getSelectionExtent();
-
-	if (selectionExtent != null) {
-		itemStopX += selectionExtent.x;
-	}
-	return (xPosition > getCheckboxBounds().x + getCheckboxBounds().width) && (xPosition <= itemStopX);
-}
-/** 
- * The image for the column identified by 'columnIndex' has changed.
- * Notify the parent widget and supply redraw coordinates, if possible.
- * @param columnIndex - index of the column that has a new image.
- */
-void notifyImageChanged(int columnIndex, boolean imageWasNull) {	
-	Table parent = getParent();
-	Rectangle changedColumnBounds;
-	Image currentImage;
-	int redrawStartX = 0;
-	int redrawWidth = 0;
-	int columnCount = parent.internalGetColumnCount();	
-
-	if (columnIndex >= 0 && columnIndex < columnCount && parent.getVisibleRedrawY(this) != -1) {
-		changedColumnBounds = parent.internalGetColumn(columnIndex).getBounds();
-		currentImage = getImage(columnIndex);		
-		redrawStartX = Math.max(0, getImageBounds(columnIndex).x);
-		if (parent.getImageExtent() != null && imageWasNull == false && currentImage != null) {
-			redrawWidth = getImageStopX(columnIndex);
-		}
-		else {
-			redrawWidth = changedColumnBounds.width;
-		}
-		redrawWidth += changedColumnBounds.x - redrawStartX;
-	}
-	cached = true;
-	parent.itemChanged(this, redrawStartX, redrawWidth);
-}
-
-/**
- * The label for the column identified by 'columnIndex' has changed.
- * Notify the parent widget and supply redraw coordinates, if possible.
- * @param columnIndex - index of the column that has a new label.
- */
-void notifyTextChanged(int columnIndex, boolean textWasNull) {	
-	Table parent = getParent();
-	String text;
-	Rectangle columnBounds;
-	int redrawStartX = 0;
-	int redrawWidth = 0;
-	int columnCount = parent.internalGetColumnCount();
-
-	if (columnIndex >= 0 && columnIndex < columnCount && parent.getVisibleRedrawY(this) != -1) {
-		text = (String) getDataLabels().elementAt(columnIndex);
-		columnBounds = parent.internalGetColumn(columnIndex).getBounds();
-		redrawStartX = columnBounds.x;
-		if (getImage(columnIndex) != null) {
-			redrawStartX += getImageStopX(columnIndex);
-		}
-		redrawStartX = Math.max(0, redrawStartX);
-		// don't redraw if text changed from null to empty string
-		if (textWasNull == false || text.length() > 0) {
-			redrawWidth = columnBounds.x + columnBounds.width - redrawStartX;
-		}
-	}
-	cached = true;
-	parent.itemChanged(this, redrawStartX, redrawWidth);
-}
-/**
- * Draw the receiver at 'paintPosition' in the column identified by 
- * 'columnIndex' using 'gc'.
- * @param gc - GC to use for drawing
- * @param paintPosition - position where the receiver should be drawing.
- * @param column - the column to draw in
- */
-void paint(GC gc, Point paintPosition, TableColumn column) {
-	int columnIndex = column.getIndex();
-	String label = getText(gc, column);
-	String oldLabel = getTrimmedText(columnIndex);
-	Table parent = getParent ();
-	int itemHeight = parent.getItemHeight ();
-	
-	if (label != null && label.equals(oldLabel) == false) {
-		setTrimmedText(label, columnIndex);
-		selectionExtent = null;		// force a recalculation next time the selection extent is needed
-	}
-	Color background = gc.getBackground();
-	if (!isSelected() || ((parent.getStyle() & SWT.HIDE_SELECTION) != 0 && !parent.isFocusControl())) {
-		int width = column.getBounds().width;
-		int height = itemHeight;
-		gc.setBackground(getBackground(columnIndex));
-		gc.fillRectangle(paintPosition.x, paintPosition.y, width, height);
+int getTextX (int columnIndex) {
+	int textX = getContentX (columnIndex);
+	if (columnIndex == 0) {
+		textX += parent.col0ImageWidth;
+		if (parent.col0ImageWidth > 0) textX += Table.MARGIN_IMAGE;
 	} else {
-		if (columnIndex == TableColumn.FIRST) {
-			int width = getImageIndentPixel();
-			int height = itemHeight;
-			gc.setBackground(getBackground (columnIndex));
-			gc.fillRectangle(paintPosition.x, paintPosition.y, width, height);
+		Image image = getImage (columnIndex);
+		if (image != null) {
+			textX += image.getBounds ().width + Table.MARGIN_IMAGE;	
+		}
+	}
+	return textX;
+}
+boolean isSelected () {
+	return parent.getSelectionIndex (this) != -1;
+}
+/*
+ * The paintCellContent argument indicates whether the item should paint
+ * its cell contents (ie.- its text, image and check) in addition
+ * to its item-level attributes (ie.- background color and selection).
+ */
+void paint (GC gc, TableColumn column, boolean paintCellContent) {
+	if (!parent.checkData (this, true)) return;
+	int columnIndex = 0, x = 0;
+	if (column != null) {
+		columnIndex = column.getIndex ();
+		x = column.getX ();
+	}
+	/* if this cell is completely to the right of the client area then there's no need to paint it */
+	Rectangle clientArea = parent.getClientArea ();
+	if (clientArea.x + clientArea.width < x) return;
+
+	Rectangle cellBounds = getCellBounds (columnIndex);
+	if (parent.linesVisible) {
+		cellBounds.y++;
+		cellBounds.height--;
+	}
+	int cellRightX = 0;
+	if (column != null) {
+		cellRightX = column.getX () + column.width;
+	} else {
+		cellRightX = cellBounds.x + cellBounds.width;
+	}
+
+	/* restrict the clipping region to the cell */
+	gc.setClipping (x, cellBounds.y, clientArea.width - x, cellBounds.height);
+	
+	int y = parent.getItemY (this);
+	int itemHeight = parent.itemHeight;
+
+	/* draw the background color of this cell */
+	Color background = getBackground (columnIndex);
+	TableColumn[] orderedColumns = parent.orderedColumns;
+	if (columnIndex == 0 && (column == null || column.getOrderIndex () == 0)) {
+		Rectangle focusBounds = getFocusBounds ();		
+		gc.setBackground (parent.getBackground ());
+		if (focusBounds.x > 0) {
+			/* fill space to left of selection rect */
+			gc.fillRectangle (0, y, focusBounds.x, itemHeight);
+		}
+		if (column == null) {
+			/* fill space to right of selection rect */
+			int rightX = focusBounds.x + focusBounds.width;
+			int width = clientArea.width - rightX;
+			if (width > 0) {
+				gc.fillRectangle (rightX, y, width, itemHeight);
+			}
+		}
+		
+		int fillWidth = 0;
+		if (column == null) {
+			fillWidth = focusBounds.width;
 		} else {
-			if ((parent.getStyle() & SWT.FULL_SELECTION) == 0) {
-				int width = column.getBounds ().width;
-				int height = itemHeight;
-				gc.setBackground(getBackground (columnIndex));
-				gc.fillRectangle(paintPosition.x, paintPosition.y, width, height);
+			fillWidth = column.width - focusBounds.x;
+			if (parent.linesVisible) fillWidth--;
+		}
+		gc.setBackground (background);
+		gc.fillRectangle (focusBounds.x, focusBounds.y, fillWidth, focusBounds.height);
+	} else {
+		int fillWidth = cellBounds.width;
+		if (parent.linesVisible) fillWidth--;
+		gc.setBackground (background);
+		gc.fillRectangle (cellBounds.x, cellBounds.y, fillWidth, cellBounds.height);
+	}
+
+	/* draw the selection bar if the receiver is selected */
+	if (isSelected () && (columnIndex == 0 || (parent.style & SWT.FULL_SELECTION) != 0)) {
+		if (parent.hasFocus () || (parent.style & SWT.HIDE_SELECTION) == 0) {
+			gc.setBackground (display.getSystemColor (SWT.COLOR_LIST_SELECTION));
+			if (columnIndex == 0) {
+				Rectangle focusBounds = getFocusBounds ();
+				int startX, fillWidth;
+				if (column == null || column.getOrderIndex () == 0 || (parent.style & SWT.FULL_SELECTION) == 0) {
+					startX = focusBounds.x + 1;		/* space for left bound of focus rect */
+				} else {
+					startX = column.getX ();
+				}
+				if (column == null) {
+					fillWidth = focusBounds.width - 2;
+				} else {
+					fillWidth = column.getX () + column.width - startX;
+					if (column.getOrderIndex () == parent.columns.length - 1 || (parent.style & SWT.FULL_SELECTION) == 0) {
+						fillWidth -= 2;	/* space for right bound of focus rect */
+					}
+				}
+				if (fillWidth > 0) {
+					gc.fillRectangle (startX, focusBounds.y + 1, fillWidth, focusBounds.height - 2);
+				}
+			} else {
+				int startX = column.getX ();
+				int fillWidth = column.width;
+				if (column.getOrderIndex () == 0) {
+					startX += 1;	/* space for left bound of focus rect */
+					fillWidth -= 1;
+				}
+				if (column.getOrderIndex () == parent.columns.length - 1) {
+					fillWidth -= 2;		/* space for right bound of focus rect */
+				}
+				if (fillWidth > 0) {
+					gc.fillRectangle (
+						column.getX (),
+						cellBounds.y + 1,
+						fillWidth,
+						cellBounds.height - 2);
+				}
 			}
 		}
 	}
-	if (columnIndex == TableColumn.FIRST) {
-		paintPosition.x += getImageIndentPixel();
-		if (isCheckable() == true) {
-			paintPosition = drawCheckbox(gc, paintPosition);
-		}		
-	}
-	paintPosition = drawImage(gc, paintPosition, columnIndex);
-	paintPosition.x += getTextIndent(columnIndex);
-	drawText(label, gc, paintPosition, columnIndex);
-	gc.setBackground(background);
-}
-/**
- * Remove 'column' from the receiver.
- */
-void removeColumn(TableColumn column) {
-	Vector data = getDataLabels();
-	Vector images = getImages();
-	String stringData[];
-	Image imageData[];
-	int index = column.getIndex();
 
-	if (index < data.size()) {
-		data.removeElementAt(index);
-		stringData = new String[data.size()];
-		data.copyInto(stringData);
-		setText(stringData);
+	if (!paintCellContent) return;
+
+	/* Draw checkbox if drawing column 0 and parent has style SWT.CHECK */
+	if (columnIndex == 0 && (parent.style & SWT.CHECK) != 0) {
+		Image baseImage = grayed ? parent.getGrayUncheckedImage () : parent.getUncheckedImage ();
+		Rectangle checkboxBounds = getCheckboxBounds ();
+		gc.drawImage (baseImage, checkboxBounds.x, checkboxBounds.y);
+		/* Draw checkmark if item is checked */
+		if (checked) {
+			Image checkmarkImage = parent.getCheckmarkImage ();
+			Rectangle checkmarkBounds = checkmarkImage.getBounds ();
+			int xInset = (checkboxBounds.width - checkmarkBounds.width) / 2;
+			int yInset = (checkboxBounds.height - checkmarkBounds.height) / 2;
+			gc.drawImage (checkmarkImage, checkboxBounds.x + xInset, checkboxBounds.y + yInset);
+		}
 	}
-	if (index < images.size()) {
-		images.removeElementAt(index);
-		imageData = new Image[images.size()];
-		images.copyInto(imageData);
-		setImage(imageData);
+
+	Image image = getImage (columnIndex);
+	String text = getDisplayText (columnIndex);
+	Rectangle imageArea = getImageBounds (columnIndex);
+	int startX = imageArea.x;
+	
+	/* while painting the cell's content restrict the clipping region */
+	int padding = parent.getCellPadding ();
+	gc.setClipping (
+		startX,
+		cellBounds.y + padding - (parent.linesVisible ? 1 : 0),
+		cellRightX - startX - padding,
+		cellBounds.height - 2 * (padding - (parent.linesVisible ? 1 : 0)));
+
+	/* draw the image */
+	if (image != null) {
+		Rectangle imageBounds = image.getBounds ();
+		gc.drawImage (
+			image,
+			0, 0,									/* source x, y */
+			imageBounds.width, imageBounds.height,	/* source width, height */
+			imageArea.x, imageArea.y,				/* dest x, y */
+			imageArea.width, imageArea.height);		/* dest width, height */
 	}
 	
-	if (trimmedLabels.length == 1) {
-		trimmedLabels = new String[0];
-	} else {
-		String[] tempTrimmed = new String[trimmedLabels.length - 1];
-		System.arraycopy(trimmedLabels, 0, tempTrimmed, 0, index);	
-		System.arraycopy(trimmedLabels, index +1, tempTrimmed, index, trimmedLabels.length - index -1);
-		trimmedLabels = tempTrimmed; 
+	/* draw the text */
+	if (text.length () > 0) {
+		gc.setFont (getFont (columnIndex));
+		int fontHeight = getFontHeight (columnIndex);
+		if (isSelected () && (columnIndex == 0 || (parent.style & SWT.FULL_SELECTION) != 0)) {
+			if (parent.hasFocus () || (parent.style & SWT.HIDE_SELECTION) == 0) {
+				gc.setForeground (display.getSystemColor (SWT.COLOR_LIST_SELECTION_TEXT));
+			}
+		} else {
+			gc.setForeground (getForeground (columnIndex));
+		}
+		x = getTextX (columnIndex) + MARGIN_TEXT;
+		gc.drawString (text, x, y + (itemHeight - fontHeight) / 2, true);
 	}
-
 }
-/**
- * Reset the cached trimmed label for the sub item identified by 
- * 'index'.
- * @param index - index of the label that should be reset.
+/*
+ * Recomputes the cached text widths.
  */
-void reset(int index) {
-	String trimmedLabels[] = getTrimmedTexts();
-
-	if (index >= 0 && index < trimmedLabels.length) {
-		trimmedLabels[index] = null;
-	}
-	if (index == TableColumn.FIRST) {
-		selectionExtent = null;
+void recomputeTextWidths (GC gc) {
+	int validColumnCount = Math.max (1, parent.columns.length);
+	textWidths = new int [validColumnCount];
+	for (int i = 0; i < textWidths.length; i++) {
+		String value = getDisplayText (i);
+		if (value != null) {
+			gc.setFont (getFont (i));
+			textWidths [i] = gc.stringExtent (value).x;
+		}
 	}
 }
+void redrawItem () {
+	parent.redraw (0, parent.getItemY (this), parent.getClientArea ().width, parent.itemHeight, false);
+}
+/*
+ * Updates internal structures in the receiver and its child items to handle the removal of a column.
+ */
+void removeColumn (TableColumn column, int index) {
+	int columnCount = parent.columns.length;
 
-void redraw(){
-	cached = true;
-	Table parent = getParent();
-	int y = parent.getRedrawY(this);
-	parent.redraw(0, y, parent.getClientArea().width, parent.getItemHeight(), false);
+	if (columnCount == 0) {
+		/* reverts to normal table when last column disposed */
+		cellBackgrounds = cellForegrounds = null;
+		displayTexts = null;
+		cellFonts = null;
+		fontHeights = null;
+		GC gc = new GC (parent);
+		recomputeTextWidths (gc);
+		gc.dispose ();
+		return;
+	}
+
+	String[] newTexts = new String [columnCount];
+	System.arraycopy (texts, 0, newTexts, 0, index);
+	System.arraycopy (texts, index + 1, newTexts, index, columnCount - index);
+	texts = newTexts;
+	
+	Image[] newImages = new Image [columnCount];
+	System.arraycopy (images, 0, newImages, 0, index);
+	System.arraycopy (images, index + 1, newImages, index, columnCount - index);
+	images = newImages;
+
+	int[] newTextWidths = new int [columnCount];
+	System.arraycopy (textWidths, 0, newTextWidths, 0, index);
+	System.arraycopy (textWidths, index + 1, newTextWidths, index, columnCount - index);
+	textWidths = newTextWidths;
+
+	String[] newDisplayTexts = new String [columnCount];
+	System.arraycopy (displayTexts, 0, newDisplayTexts, 0, index);
+	System.arraycopy (displayTexts, index + 1, newDisplayTexts, index, columnCount - index);
+	displayTexts = newDisplayTexts;
+
+	if (cellBackgrounds != null) {
+		Color[] newCellBackgrounds = new Color [columnCount];
+		System.arraycopy (cellBackgrounds, 0, newCellBackgrounds, 0, index);
+		System.arraycopy (cellBackgrounds, index + 1, newCellBackgrounds, index, columnCount - index);
+		cellBackgrounds = newCellBackgrounds;
+	}
+	if (cellForegrounds != null) {
+		Color[] newCellForegrounds = new Color [columnCount];
+		System.arraycopy (cellForegrounds, 0, newCellForegrounds, 0, index);
+		System.arraycopy (cellForegrounds, index + 1, newCellForegrounds, index, columnCount - index);
+		cellForegrounds = newCellForegrounds;
+	}
+	if (cellFonts != null) {
+		Font[] newCellFonts = new Font [columnCount];
+		System.arraycopy (cellFonts, 0, newCellFonts, 0, index);
+		System.arraycopy (cellFonts, index + 1, newCellFonts, index, columnCount - index);
+		cellFonts = newCellFonts;
+
+		int[] newFontHeights = new int [columnCount];
+		System.arraycopy (fontHeights, 0, newFontHeights, 0, index);
+		System.arraycopy (fontHeights, index + 1, newFontHeights, index, columnCount - index);
+		fontHeights = newFontHeights;
+	}
+
+	if (index == 0) {
+		text = texts [0] != null ? texts [0] : "";	//$NON-NLS-1$
+		texts [0] = null;
+		image = images [0];
+		images [0] = null;
+		/* 
+		 * The new first column may not have as much width available to it as it did when it was
+		 * the second column if checkboxes are being shown, so recompute its displayText if needed. 
+		 */
+		if ((parent.style & SWT.CHECK) != 0) {
+			GC gc = new GC (parent);
+			gc.setFont (getFont (0));
+			computeDisplayText (0, gc);
+			gc.dispose ();
+		}
+	}
+	if (columnCount < 2) {
+		texts = null;
+		images = null;
+	}
 }
 /**
  * Sets the receiver's background color to the color specified
@@ -1195,17 +1190,16 @@ void redraw(){
  * </ul>
  * 
  * @since 2.0
- * 
  */
-public void setBackground (Color color) {
+public void setBackground (Color value) {
 	checkWidget ();
-	if (color != null && color.isDisposed ()) {
+	if (value != null && value.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
-	if (background == color) return;
-	if (background != null && background.equals (color)) return;
-	background = color;
-	redraw();
+	if (background == value) return;
+	if (background != null && background.equals (value)) return;
+	background = value;
+	redrawItem ();
 }
 /**
  * Sets the background color at the given column index in the receiver 
@@ -1224,25 +1218,44 @@ public void setBackground (Color color) {
  * </ul>
  * 
  * @since 3.0
- * 
  */
-public void setBackground (int index, Color color) {
+public void setBackground (int columnIndex, Color value) {
 	checkWidget ();
-	if (color != null && color.isDisposed ()) {
+	if (value != null && value.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
-	Table parent = getParent ();
-	int count = Math.max (1, parent.getColumnCount ());
-	if (0 > index || index > count - 1) return;
-	if (cellBackground == null) {
-		cellBackground = new Color [count];
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return;
+	if (cellBackgrounds == null) {
+		cellBackgrounds = new Color [validColumnCount];
 	}
-	if (cellBackground [index] == color) return;
-	if (cellBackground [index] != null && cellBackground [index].equals (color)) return;
-	cellBackground [index] = color;
-	redraw ();
-}
+	if (cellBackgrounds [columnIndex] == value) return;
+	if (cellBackgrounds [columnIndex] != null && cellBackgrounds [columnIndex].equals (value)) return;
+	cellBackgrounds [columnIndex] = value;
 
+	Rectangle bounds = getCellBounds (columnIndex);
+	parent.redraw (bounds.x, bounds.y, bounds.width, bounds.height, false);
+}
+/**
+ * Sets the checked state of the checkbox for this item.  This state change 
+ * only applies if the Table was created with the SWT.CHECK style.
+ *
+ * @param checked the new checked state of the checkbox
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
+public void setChecked (boolean value) {
+	checkWidget ();
+	if ((parent.getStyle () & SWT.CHECK) == 0) return;
+	if (checked == value) return;
+	checked = value;
+
+	Rectangle bounds = getCheckboxBounds ();
+	parent.redraw (bounds.x, bounds.y, bounds.width, bounds.height, false);
+}
 /**
  * Sets the font that the receiver will use to paint textual information
  * for this item to the font specified by the argument, or to the default font
@@ -1260,17 +1273,34 @@ public void setBackground (int index, Color color) {
  * 
  * @since 3.0
  */
-public void setFont (Font font){
+public void setFont (Font value) {
 	checkWidget ();
-	if (font != null && font.isDisposed ()) {
+	if (value != null && value.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
-	if (this.font == font) return;
-	if (this.font != null && this.font.equals (font)) return;
-	this.font = font;
-	redraw ();
+	if (font == value) return;
+	if (value != null && value.equals (font)) return;
+	
+	Rectangle bounds = getBounds ();
+	int oldRightX = bounds.x + bounds.width;
+	font = value;
+	
+	/* recompute cached values for string measurements */
+	GC gc = new GC (parent);
+	gc.setFont (getFont ());
+	fontHeight = gc.getFontMetrics ().getHeight ();
+	computeDisplayTexts (gc);
+	recomputeTextWidths (gc);
+	gc.dispose ();
+	
+	/* horizontal bar could be affected if table has no columns */
+	if (parent.columns.length == 0) {
+		bounds = getBounds ();
+		int newRightX = bounds.x + bounds.width;
+		parent.updateHorizontalBar (newRightX, newRightX - oldRightX);
+	}
+	redrawItem ();
 }
-
 /**
  * Sets the font that the receiver will use to paint textual information
  * for the specified cell in this item to the font specified by the 
@@ -1290,23 +1320,30 @@ public void setFont (Font font){
  * 
  * @since 3.0
  */
-public void setFont (int index, Font font) {
+public void setFont (int columnIndex, Font value) {
 	checkWidget ();
-	if (font != null && font.isDisposed ()) {
+	if (value != null && value.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
-	Table parent = getParent ();
-	int count = Math.max (1, parent.getColumnCount ());
-	if (0 > index || index > count - 1) return;
-	if (cellFont == null) {
-		cellFont = new Font [count];
-	}
-	if (cellFont [index] == font) return;
-	if (cellFont [index] != null && cellFont [index].equals (font)) return;
-	cellFont [index] = font;
-	redraw ();
-}
 
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return;
+	if (cellFonts == null) cellFonts = new Font [validColumnCount];
+	if (cellFonts [columnIndex] == value) return;
+	if (cellFonts [columnIndex] != null && cellFonts [columnIndex].equals (value)) return;
+	cellFonts [columnIndex] = value;
+	
+	/* recompute cached values for string measurements */
+	GC gc = new GC (parent);
+	gc.setFont (getFont (columnIndex));
+	if (fontHeights == null) fontHeights = new int [validColumnCount];
+	fontHeights [columnIndex] = gc.getFontMetrics ().getHeight ();
+	computeDisplayText (columnIndex, gc);
+	gc.dispose ();
+
+	Rectangle bounds = getCellBounds (columnIndex);
+	parent.redraw (bounds.x, bounds.y, bounds.width, bounds.height, false);
+}
 /**
  * Sets the receiver's foreground color to the color specified
  * by the argument, or to the default system color for the item
@@ -1323,17 +1360,16 @@ public void setFont (int index, Font font) {
  * </ul>
  * 
  * @since 2.0
- * 
  */
-public void setForeground (Color color){
+public void setForeground (Color value) {
 	checkWidget ();
-	if (color != null && color.isDisposed ()) {
+	if (value != null && value.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
-	if (foreground == color) return;
-	if (foreground != null && foreground.equals (color)) return;
-	foreground = color;
-	redraw(); 
+	if (foreground == value) return;
+	if (foreground != null && foreground.equals (value)) return;
+	foreground = value;
+	redrawItem ();
 }
 /**
  * Sets the foreground color at the given column index in the receiver 
@@ -1352,26 +1388,54 @@ public void setForeground (Color color){
  * </ul>
  * 
  * @since 3.0
- * 
  */
-public void setForeground (int index, Color color){
+public void setForeground (int columnIndex, Color value) {
 	checkWidget ();
-	if (color != null && color.isDisposed ()) {
+	if (value != null && value.isDisposed ()) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
-	Table parent = getParent ();
-	int count = Math.max (1, parent.getColumnCount ());
-	if (0 > index || index > count -1) return;
-	if (cellForeground == null) {
-		cellForeground = new Color [count];
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return;
+	if (cellForegrounds == null) {
+		cellForegrounds = new Color [validColumnCount];
 	}
-	if (cellForeground [index] == color) return;
-	if (cellForeground [index] != null && cellForeground [index].equals (color)) return;
-	cellForeground [index] = color;
-	redraw ();
+	if (cellForegrounds [columnIndex] == value) return;
+	if (cellForegrounds [columnIndex] != null && cellForegrounds [columnIndex].equals (value)) return;
+	cellForegrounds [columnIndex] = value;
+
+	parent.redraw (
+		getTextX (columnIndex),
+		parent.getItemY (this),
+		textWidths [columnIndex] + 2 * MARGIN_TEXT,
+		parent.itemHeight,
+		false);
 }
 /**
- * Sets the image for multiple columns in the Table. 
+ * Sets the grayed state of the checkbox for this item.  This state change 
+ * only applies if the Table was created with the SWT.CHECK style.
+ *
+ * @param grayed the new grayed state of the checkbox; 
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
+public void setGrayed (boolean value) {
+	checkWidget ();
+	if ((parent.getStyle () & SWT.CHECK) == 0) return;
+	if (grayed == value) return;
+	grayed = value;
+
+	Rectangle bounds = getCheckboxBounds ();
+	parent.redraw (bounds.x, bounds.y, bounds.width, bounds.height, false);
+}
+public void setImage (Image value) {
+	checkWidget ();
+	setImage (0, value);
+}
+/**
+ * Sets the image for multiple columns in the table. 
  * 
  * @param images the array of new images
  *
@@ -1384,16 +1448,13 @@ public void setForeground (int index, Color color){
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public void setImage(Image [] images) {
-	checkWidget();
-	if (images == null) {
-		error(SWT.ERROR_NULL_ARGUMENT);
-	}
-	if (getParent().indexOf(this) == -1) {	
-		return;
-	}	
-	for (int i = 0; i < images.length; i++) {
-		internalSetImage(i, images[i]);
+public void setImage (Image[] value) {
+	checkWidget ();
+	if (value == null) error (SWT.ERROR_NULL_ARGUMENT);
+	
+	// TODO make a smarter implementation of this
+	for (int i = 0; i < value.length; i++) {
+		if (value [i] != null) setImage (i, value [i]);
 	}
 }
 /**
@@ -1410,15 +1471,95 @@ public void setImage(Image [] images) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public void setImage(int index, Image image) {
-	checkWidget();	
-	if (getParent().indexOf(this) != -1) {
-		internalSetImage(index, image);
+public void setImage (int columnIndex, Image value) {
+	checkWidget ();
+	if (value != null && value.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
+
+	TableColumn[] columns = parent.columns;
+	int validColumnCount = Math.max (1, columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return;
+	Image image = getImage (columnIndex);
+	if (value == image) return;
+	if (value != null && value.equals (image)) return;
+	if (columnIndex == 0) {
+		super.setImage (value);
+	} else {
+		images [columnIndex] = value;
 	}
-}
-public void setImage(Image image) {
-	checkWidget();
-	setImage(0, image);
+	
+	/* 
+	 * An image width change may affect the space available for the item text, so
+	 * recompute the displayText if there are columns.
+	 */
+	if (columns.length > 0) {
+		GC gc = new GC (parent);
+		gc.setFont (getFont (columnIndex));
+		computeDisplayText (columnIndex, gc);
+		gc.dispose ();
+	}
+	
+	if (value == null) {
+		redrawItem ();
+		return;
+	}
+
+	/*
+	 * If this is the first image being put into the table then its item height
+	 * may be adjusted, in which case a full redraw is needed.
+	 */
+	if (parent.imageHeight == 0) {
+		int oldItemHeight = parent.itemHeight;
+		parent.setImageHeight (value.getBounds ().height);
+		if (oldItemHeight != parent.itemHeight) {
+			if (columnIndex == 0) {
+				parent.col0ImageWidth = value.getBounds ().width;
+				if (columns.length > 0) {
+					/* 
+					 * All column 0 cells will now have less room available for their texts,
+					 * so all items must now recompute their column 0 displayTexts.
+					 */
+					GC gc = new GC (parent);
+					TableItem[] rootItems = parent.items;
+					for (int i = 0; i < parent.itemsCount; i++) {
+						rootItems [i].updateColumnWidth (columns [0], gc);
+					}
+					gc.dispose ();
+				}
+			}
+			parent.redraw ();
+			return;
+		}
+	}
+
+	/* 
+	 * If this is the first image being put into column 0 then all cells
+	 * in the column should also indent accordingly. 
+	 */
+	if (columnIndex == 0 && parent.col0ImageWidth == 0) {
+		parent.col0ImageWidth = value.getBounds ().width;
+		/* redraw the column */
+		if (columns.length == 0) {
+			parent.redraw ();
+		} else {
+			/* 
+			 * All column 0 cells will now have less room available for their texts,
+			 * so all items must now recompute their column 0 displayTexts.
+			 */
+			GC gc = new GC (parent);
+			TableItem[] rootItems = parent.items;
+			for (int i = 0; i < parent.itemsCount; i++) {
+				rootItems [i].updateColumnWidth (columns [0], gc);
+			}
+			gc.dispose ();
+			parent.redraw (
+				columns [0].getX (), 0,
+				columns [0].width,
+				parent.getClientArea ().height,
+				true);
+		}
+		return;
+	}
+	redrawItem ();
 }
 /**
  * Sets the indent of the first column's image, expressed in terms of the image's width.
@@ -1430,49 +1571,14 @@ public void setImage(Image image) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
- */
-public void setImageIndent(int indent) {
-	checkWidget();
-	Table parent = getParent();
-	TableColumn column;
-	int index = parent.indexOf(this);
-
-	if (index != -1 && indent >= 0 && indent != imageIndent) {
-		imageIndent = indent;
-		column = parent.internalGetColumn(TableColumn.FIRST);
-		parent.redraw(
-			0, parent.getRedrawY(this), 
-			column.getWidth(), parent.getItemHeight(), false);
-		cached = true;
-	}
-}
-/**
- * Sets the text for multiple columns in the table. 
  * 
- * @param strings the array of new strings
- *
- * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the text is null</li>
- * </ul>
- * @exception SWTException <ul>
- *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
+ * @deprecated this functionality is not supported on most platforms
  */
-public void setText(String [] strings) {
+public void setImageIndent (int indent) {
 	checkWidget();
-	if (strings == null) {
-		error(SWT.ERROR_NULL_ARGUMENT);
-	}
-	if (getParent().indexOf(this) == -1) {	
-		return;
-	}
-	for (int i = 0; i < strings.length; i++) {
-		String string = strings[i];
-		if (string != null) {
-			internalSetText(i, string);
-		}
-	}
+	if (indent < 0) return;
+	if (imageIndent == indent) return;
+	imageIndent = indent;
 }
 /**
  * Sets the receiver's text at a column
@@ -1488,75 +1594,90 @@ public void setText(String [] strings) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public void setText (int index, String string) {
-	checkWidget();
-	if (string == null) {
-		error(SWT.ERROR_NULL_ARGUMENT);
+public void setText (int columnIndex, String value) {
+	checkWidget ();
+	if (value == null) error (SWT.ERROR_NULL_ARGUMENT);
+	int validColumnCount = Math.max (1, parent.columns.length);
+	if (!(0 <= columnIndex && columnIndex < validColumnCount)) return;
+	if (value.equals (getText (columnIndex))) return;
+	if (columnIndex == 0) {
+		super.setText (value);
+	} else {
+		texts [columnIndex] = value;		
 	}
-	if (getParent().indexOf(this) != -1) {
-		internalSetText(index, string);
-	}
-}
-public void setText(String text) {
-	checkWidget();
-	if (text == null) {
-		error(SWT.ERROR_NULL_ARGUMENT);
-	}
-	setText(0, text);
-}
-/**
- * Set the trimmed text of column 'columnIndex' to label. The trimmed 
- * text is the one that is displayed in a column. It may be shorter than
- * the text originally set by the user via setText(...) to fit the 
- * column.
- * @param label - the text label of column 'columnIndex'. May be trimmed
- *	to fit the column.
- * @param columnIndex - specifies the column whose text label should be 
- *	set.
- */
-void setTrimmedText(String label, int columnIndex) {
-	String labels[] = getTrimmedTexts();
+	
+	int oldWidth = textWidths [columnIndex];
+	GC gc = new GC (parent);
+	gc.setFont (getFont (columnIndex));
+	computeDisplayText (columnIndex, gc);
+	gc.dispose ();
 
-	if (columnIndex < labels.length) {
-		labels[columnIndex] = label;
+	if (parent.columns.length == 0) {
+		Rectangle bounds = getBounds ();
+		int rightX = bounds.x + bounds.width;
+		parent.updateHorizontalBar (rightX, textWidths [columnIndex] - oldWidth);
+	}
+	parent.redraw (
+		getTextX (columnIndex),
+		parent.getItemY (this),
+		Math.max (oldWidth, textWidths [columnIndex]) + 2 * MARGIN_TEXT,
+		parent.itemHeight,
+		false);
+}
+public void setText (String value) {
+	checkWidget ();
+	Rectangle bounds = getBounds ();
+	int oldRightX = bounds.x + bounds.width;
+	setText (0, value);
+	/* horizontal bar could be affected if table has no columns */
+	if (parent.columns.length == 0) {
+		bounds = getBounds ();
+		int newRightX = bounds.x + bounds.width;
+		parent.updateHorizontalBar (newRightX, newRightX - oldRightX);
 	}
 }
 /**
- * Sets the checked state of the checkbox for this item.  This state change 
- * only applies if the Table was created with the SWT.CHECK style.
+ * Sets the text for multiple columns in the table. 
+ * 
+ * @param strings the array of new strings
  *
- * @param checked the new checked state of the checkbox
- *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the text is null</li>
+ * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  */
-public void setChecked(boolean checked) {
-	checkWidget();
-	super.setChecked(checked);
+public void setText (String[] value) {
+	checkWidget ();
+	if (value == null) error (SWT.ERROR_NULL_ARGUMENT);
+	Rectangle bounds = getBounds ();
+	int oldRightX = bounds.x + bounds.width;
+	// TODO make a smarter implementation of this
+	for (int i = 0; i < value.length; i++) {
+		if (value [i] != null) setText (i, value [i]);
+	}
+	/* horizontal bar could be affected if table has no columns */
+	if (parent.columns.length == 0) {
+		bounds = getBounds ();
+		int newRightX = bounds.x + bounds.width;
+		parent.updateHorizontalBar (newRightX, newRightX - oldRightX);
+	}
 }
-/**
- * Sets the grayed state of the checkbox for this item.  This state change 
- * only applies if the Table was created with the SWT.CHECK style.
- *
- * @param grayed the new grayed state of the checkbox; 
- *
- * @exception SWTException <ul>
- *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
- *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
+void updateColumnWidth (TableColumn column, GC gc) {
+	int columnIndex = column.getIndex ();
+	gc.setFont (getFont (columnIndex));
+	computeDisplayText (columnIndex, gc);
+}
+/*
+ * The parent's font has changed, so if this font was being used by the receiver then
+ * recompute its cached text sizes using the gc argument.
  */
-public void setGrayed (boolean grayed) {
-	checkWidget();
-	super.setGrayed(grayed);
+void updateFont (GC gc) {
+	if (font == null) {		/* receiver is using the Table's font */
+		computeDisplayTexts (gc);
+		recomputeTextWidths (gc);
+	}
 }
-/**
- * Set the index of this item in its parent widget to 'newIndex'.
- */
-void setIndex(int newIndex) {
-	index = newIndex;
 }
-
-}
-

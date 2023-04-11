@@ -1,10 +1,10 @@
 /*******************************************************************************
  * Copyright (c) 2000, 2004 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -28,7 +28,7 @@ public class Callback {
 	Object object;
 	String method, signature;
 	int argCount;
-	int /*long*/ address;
+	int /*long*/ address, errorResult;
 	boolean isStatic, isArrayBased;
 
 	/* Load the SWT library */
@@ -75,13 +75,34 @@ public Callback (Object object, String method, int argCount) {
  * @param isArrayBased <code>true</code> if the arguments should be passed in an array and false otherwise
  */
 public Callback (Object object, String method, int argCount, boolean isArrayBased) {
+	this (object, method, argCount, isArrayBased, 0);
+}
+
+/**
+ * Constructs a new instance of this class given an object
+ * to send the message to, a string naming the method to
+ * invoke, an argument count, a flag indicating whether
+ * or not the arguments will be passed in an array and a value
+ * to return when an exception happens. Note that, if
+ * the object is an instance of <code>Class</code>
+ * it is assumed that the method is a static method on that
+ * class.
+ *
+ * @param object the object to send the message to
+ * @param method the name of the method to invoke
+ * @param argCount the number of arguments that the method takes
+ * @param isArrayBased <code>true</code> if the arguments should be passed in an array and false otherwise
+ * @param errorResult the return value if the java code throws an exception
+ */
+public Callback (Object object, String method, int argCount, boolean isArrayBased, int /*long*/ errorResult) {
 
 	/* Set the callback fields */
 	this.object = object;
 	this.method = method;
 	this.argCount = argCount;
-	isStatic = object instanceof Class;
+	this.isStatic = object instanceof Class;
 	this.isArrayBased = isArrayBased;
+	this.errorResult = errorResult;
 	
 	/* Inline the common cases */
 	if (isArrayBased) {
@@ -99,7 +120,7 @@ public Callback (Object object, String method, int argCount, boolean isArrayBase
 	}
 	
 	/* Bind the address */
-	address = bind (this);
+	address = bind (this, object, method, signature, argCount, isStatic, isArrayBased, errorResult);
 }
 
 static final native int PTR_sizeof ();
@@ -110,8 +131,15 @@ static final native int PTR_sizeof ();
  * constructor for the argument.
  *
  * @param callback the callback to bind
+ * @param object the callback's object
+ * @param method the callback's method
+ * @param signature the callback's method signature
+ * @param argCount the callback's method argument count
+ * @param isStatic whether the callback's method is static
+ * @param isArrayBased whether the callback's method is array based
+ * @param errorResult the callback's error result
  */
-static native synchronized int /*long*/ bind (Callback callback);
+static native synchronized int /*long*/ bind (Callback callback, Object object, String method, String signature, int argCount, boolean isStatic, boolean isArrayBased, int /*long*/ errorResult);
 
 /**
  * Releases the native level resources associated with the callback,

@@ -1,10 +1,10 @@
 /*******************************************************************************
  * Copyright (c) 2000, 2004 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -94,7 +94,7 @@ public TabFolder(Composite parent, int style) {
 	addListener (SWT.MouseUp, listener);	
 	addListener (SWT.MouseHover, listener);
 	addListener (SWT.Paint, listener);
-	addListener (SWT.Resize, listener);
+//	addListener (SWT.Resize, listener);
 	addListener (SWT.Traverse, listener);
 	addListener (SWT.KeyDown, listener);
 	addListener (SWT.FocusIn, listener);
@@ -146,29 +146,14 @@ protected void checkSubclass () {
 	if (!isValidSubclass ()) error (SWT.ERROR_INVALID_SUBCLASS);
 }
 public Point computeSize (int wHint, int hHint, boolean changed) {
-	checkWidget();
-	int width = CLIENT_MARGIN_WIDTH * 2 + TabItem.SHADOW_WIDTH * 2;
-	int height = 0;
-
+	Point size = super.computeSize (wHint, hHint, changed);
 	if (items.length > 0) {
 		TabItem lastItem = items[items.length-1];
-		width = Math.max (width, lastItem.x + lastItem.width);
+		int border = getBorderWidth ();
+		int width = lastItem.x + lastItem.width + border * 2 + CLIENT_MARGIN_WIDTH * 2 + TabItem.SHADOW_WIDTH * 2;
+		size.x = Math.max (width, size.x);
 	}
-	Point size;
-	Layout layout = getLayout();
-	if (layout != null) {
-		size = layout.computeSize (this, wHint, hHint, changed);
-	} else {
-		size = minimumSize (wHint, hHint, changed);
-	}
-	if (size.x == 0) size.x = DEFAULT_WIDTH;
-	if (size.y == 0) size.y = DEFAULT_HEIGHT;
-	if (wHint != SWT.DEFAULT) size.x = wHint;
-	if (hHint != SWT.DEFAULT) size.y = hHint;
-	width = Math.max (width, size.x);
-	height = Math.max (height, size.y);
-	Rectangle trim = computeTrim (0, 0, width, height);
-	return new Point (trim.width, trim.height);
+	return size;
 }
 public Rectangle computeTrim (int x, int y, int width, int height) {
 	checkWidget();
@@ -547,6 +532,17 @@ public TabItem [] getItems() {
 	System.arraycopy(items, 0, tabItems, 0, items.length);
 	return tabItems;
 }
+char getMnemonic (String string) {
+	int index = 0;
+	int length = string.length ();
+	do {
+		while ((index < length) && (string.charAt (index) != '&')) index++;
+		if (++index >= length) return '\0';
+		if (string.charAt (index) != '&') return string.charAt (index);
+		index++;
+	} while (index < length);
+ 	return '\0';
+}
 /** 
  * Returns the area where the two scroll buttons are drawn.
  */
@@ -606,9 +602,9 @@ void handleEvents (Event event){
 		case SWT.Paint:
 			paint(event);
 			break;
-		case SWT.Resize:
-			resize();
-			break;
+//		case SWT.Resize:
+//			resize();
+//			break;
 		case SWT.MouseDown:
 			mouseDown(event);
 			break;
@@ -626,7 +622,8 @@ void handleEvents (Event event){
 			focus(event);
 			break;
 		case SWT.KeyDown:
-			//do nothing - this callback exists so that widget is included in tab order
+			// this callback is always needed so that widget is included in tab order
+			keyDown(event);
 			break;
 		default:
 			break;
@@ -715,7 +712,36 @@ void itemChanged(TabItem item) {
 		redrawScrollButtons();
 	}	
 }
-
+/** 
+ * A key was pressed.  If one of the tab-selection keys that is not a traversal
+ * was pressed then change tabs accordingly.
+ */
+void keyDown(Event event) {
+	int count = items.length;
+	if (count <= 1) return;
+	switch (event.keyCode) {
+		case SWT.ARROW_RIGHT:
+			if (selectedIndex < items.length - 1) {
+				setSelection(selectedIndex + 1, true);
+			}
+			break;
+		case SWT.ARROW_LEFT:
+			if (selectedIndex > 0) {
+				setSelection(selectedIndex - 1, true);
+			}
+			break;
+		case SWT.HOME:
+			if (selectedIndex > 0) {
+				setSelection(0, true);
+			}
+			break;
+		case SWT.END:
+			if (selectedIndex < count - 1) {
+				setSelection(count - 1, true);
+			}
+			break;
+	}
+}
 /**
  * Layout the items and store the client area size.
  */
@@ -772,6 +798,20 @@ Point minimumSize (int wHint, int hHint, boolean flushCache) {
 		}
 	}
 	return new Point (width, height);
+}
+boolean mnemonicHit (char key) {
+	for (int i = 0; i < items.length; i++) {
+		if (i != selectedIndex) {
+			char mnemonic = getMnemonic (items[i].getText ());
+			if (mnemonic != '\0') {
+				if (Character.toUpperCase (key) == Character.toUpperCase (mnemonic)) {
+					setSelection(i, true);
+					return true;
+				}
+			}
+		}
+	}
+	return false;
 }
 /** 
  * A mouse button was pressed down. 
@@ -933,6 +973,13 @@ void redrawSelectionChange(int oldSelection, int newSelection) {
 void redrawTabs() {
 	redraw(0, 0, super.getClientArea().width, getClientArea().y);
 }
+void removeControl (Control control) {
+	super.removeControl (control);
+	for (int i=0; i<items.length; i++) {
+		TabItem item = items [i];
+		if (item.control == control) item.setControl (null);
+	}
+}
 /**
  * Removes the listener from the collection of listeners who will
  * be notified when the receiver's selection changes.
@@ -995,6 +1042,11 @@ void scrollRight() {
 		}
 	}	
 }
+boolean setBounds (int x, int y, int width, int height, boolean move, boolean resize) {
+	boolean changed = super.setBounds (x, y, width, height, move, resize);
+	if (changed && resize) resize ();
+	return changed;
+}
 public void setFont(Font font) {
 	checkWidget();
 	if (font != null && font.equals(getFont())) return;
@@ -1027,6 +1079,9 @@ public void setSelection(int index) {
  *
  * @param items the array of items
  *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the items array is null</li>
+ * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -1089,72 +1144,26 @@ void traversal(Event event) {
 		case SWT.TRAVERSE_RETURN:
 		case SWT.TRAVERSE_TAB_NEXT:
 		case SWT.TRAVERSE_TAB_PREVIOUS:
-			event.doit = true;
-			break;
 		case SWT.TRAVERSE_MNEMONIC:
-			event.doit = mnemonicTraversal(event);
-			if (event.doit) event.detail = SWT.TRAVERSE_NONE;
-			break;
 		case SWT.TRAVERSE_PAGE_NEXT:
 		case SWT.TRAVERSE_PAGE_PREVIOUS:
-			event.doit = pageTraversal(event);
-			if (event.doit) event.detail = SWT.TRAVERSE_NONE;
-			break;
-		case SWT.TRAVERSE_ARROW_NEXT:
-			if (selectedIndex < items.length - 1) {
-				setSelection(selectedIndex + 1, true);
-			}
 			event.doit = true;
-			event.detail = SWT.TRAVERSE_NONE;
-			break;
-		case SWT.TRAVERSE_ARROW_PREVIOUS: 
-			if (selectedIndex > 0) {
-				setSelection(selectedIndex - 1, true);
-			}
-			event.doit = true;
-			event.detail = SWT.TRAVERSE_NONE;
-			break;
 	}
 }
-
-boolean pageTraversal(Event event) {
-	int count = getItemCount ();
+boolean traverseItem (boolean next) {
+	return false;
+}
+boolean traversePage (boolean next) {
+	int count = items.length;
 	if (count == 0) return false;
-	int index = getSelectionIndex ();
+	int index = selectedIndex;
 	if (index == -1) {
 		index = 0;
 	} else {
-		int offset = (event.detail == SWT.TRAVERSE_PAGE_NEXT) ? 1 : -1;
+		int offset = next ? 1 : -1;
 		index = (index + offset + count) % count;
 	}
 	setSelection (index, true);
 	return true;
-}
-
-boolean mnemonicTraversal (Event event) {
-	char key = event.character;
-	for (int i = 0; i < items.length; i++) {
-		if (items[i] != null) {
-			char mnemonic = getMnemonic (items[i].getText ());
-			if (mnemonic != '\0') {
-				if (Character.toUpperCase (key) == Character.toUpperCase (mnemonic)) {
-					setSelection(i, true);
-					return true;
-				}
-			}
-		}
-	}
-	return false;
-}
-char getMnemonic (String string) {
-	int index = 0;
-	int length = string.length ();
-	do {
-		while ((index < length) && (string.charAt (index) != '&')) index++;
-		if (++index >= length) return '\0';
-		if (string.charAt (index) != '&') return string.charAt (index);
-		index++;
-	} while (index < length);
- 	return '\0';
 }
 }

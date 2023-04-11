@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -67,7 +67,7 @@ import org.eclipse.swt.events.*;
  * it would be upgraded to <code>APPLICATION_MODAL</code>.
  * <dl>
  * <dt><b>Styles:</b></dt>
- * <dd>BORDER, CLOSE, MIN, MAX, NO_TRIM, RESIZE, TITLE</dd>
+ * <dd>BORDER, CLOSE, MIN, MAX, NO_TRIM, RESIZE, TITLE, ON_TOP, TOOL</dd>
  * <dd>APPLICATION_MODAL, MODELESS, PRIMARY_MODAL, SYSTEM_MODAL</dd>
  * <dt><b>Events:</b></dt>
  * <dd>Activate, Close, Deactivate, Deiconify, Iconify</dd>
@@ -101,11 +101,12 @@ import org.eclipse.swt.events.*;
  */
 public class Shell extends Decorations {
 	int shellHandle, focusProxy;
-	boolean reparented, realized, configured;
+	boolean reparented, realized, moved, resized, opened;
 	int oldX, oldY, oldWidth, oldHeight;
 	Control lastActive;
 	Region region;
 
+	static final  int MAXIMUM_TRIM = 128;
 	static final  byte [] WM_DELETE_WINDOW = Converter.wcsToMbcs(null, "WM_DELETE_WINDOW\0");
 	static final  byte [] _NET_WM_STATE = Converter.wcsToMbcs(null, "_NET_WM_STATE\0");
 	static final  byte [] _NET_WM_STATE_MAXIMIZED_VERT = Converter.wcsToMbcs(null, "_NET_WM_STATE_MAXIMIZED_VERT\0");
@@ -236,6 +237,9 @@ Shell (Display display, Shell parent, int style, int handle) {
 	if (!display.isValidThread ()) {
 		error (SWT.ERROR_THREAD_INVALID_ACCESS);
 	}
+	if (parent != null && parent.isDisposed ()) {
+		error (SWT.ERROR_INVALID_ARGUMENT);	
+	}
 	this.style = checkStyle (style);
 	this.parent = parent;
 	this.display = display;
@@ -257,7 +261,7 @@ Shell (Display display, Shell parent, int style, int handle) {
  * @param parent a shell which will be the parent of the new instance
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the parent is disposed</li> 
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
@@ -290,6 +294,9 @@ public Shell (Shell parent) {
  * @param parent a shell which will be the parent of the new instance
  * @param style the style of control to construct
  *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the parent is disposed</li> 
+ * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
  *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
@@ -304,6 +311,8 @@ public Shell (Shell parent) {
  * @see SWT#NO_TRIM
  * @see SWT#SHELL_TRIM
  * @see SWT#DIALOG_TRIM
+ * @see SWT#ON_TOP
+ * @see SWT#TOOL
  * @see SWT#MODELESS
  * @see SWT#PRIMARY_MODAL
  * @see SWT#APPLICATION_MODAL
@@ -358,6 +367,7 @@ public void addShellListener(ShellListener listener) {
 	addListener(SWT.Deiconify,typedListener);
 }
 void adjustTrim () {
+	if (display.ignoreTrim) return;
 	if (OS.XtIsSubclass (shellHandle, OS.overrideShellWidgetClass ())) {
 		return;
 	}
@@ -416,6 +426,17 @@ void adjustTrim () {
 	int height = (trimHeight [0] + (trimBorder [0] * 2)) - (shellHeight [0] + (shellBorder [0] * 2));
 	int leftInset = inner_x [0] - trimX [0];
 	int topInset = inner_y [0] - trimY [0];
+
+	/*
+	* Depending on the window manager, the algorithm to compute the window
+	* trim sometimes chooses the wrong X window, causing a large incorrect
+	* value to be calculated.  The fix is to ignore the trim values if they
+	* are too large.
+	*/
+	if (width > MAXIMUM_TRIM || height > MAXIMUM_TRIM) {
+		display.ignoreTrim = true;
+		return;
+	}
 	
 	/* Update the trim guesses to match the query */
 	boolean hasTitle = false, hasResize = false, hasBorder = false;
@@ -483,7 +504,12 @@ void bringToTop (boolean force) {
 		int handle = OS.XtWindowToWidget (xDisplay, buffer1 [0]);
 		if (handle == 0) return;
 	}
+	int shellWindow = OS.XtWindow (shellHandle);
+	if (shellWindow != 0) OS.XRaiseWindow (xDisplay, shellWindow);
 	OS.XSetInputFocus (xDisplay, xWindow, OS.RevertToParent, OS.CurrentTime);
+}
+void checkOpen () {
+	if (!opened) resized = false;
 }
 /**
  * Requests that the window manager close the receiver in
@@ -505,21 +531,6 @@ public void close () {
 	closeWidget ();
 }
 void closeWidget () {
-	if (!isEnabled ()) return;
-	Control widget = parent;
-	while (widget != null && !(widget.getShell ().isModal ())) {
-		widget = widget.parent;
-	}
-	if (widget == null) {
-		Shell [] shells = getShells ();
-		for (int i=0; i<shells.length; i++) {
-			Shell shell = shells [i];
-			if (shell != this && shell.isModal () && shell.isVisible ()) {
-				shell.bringToTop (false);
-				return;
-			}
-		}
-	}
 	Event event = new Event ();
 	sendEvent (SWT.Close, event);
 	if (event.doit && !isDisposed ()) dispose ();
@@ -540,8 +551,8 @@ public Rectangle computeTrim (int x, int y, int width, int height) {
 		OS.XtGetValues (handle, argList, argList.length / 2);
 		border = argList [1];
 	}
-	trim.x -= trimLeft ();
-	trim.y -= trimTop ();
+	trim.x -= trimLeft () + border;
+	trim.y -= trimTop () + border;
 	trim.width += trimWidth () + (border * 2);
 	trim.height += trimHeight () + imeHeight () + (border * 2);
 	return trim;
@@ -623,7 +634,7 @@ void createHandle (int index) {
 	byte [] appClass = display.appClass;
 	if (parent == null && (style & SWT.ON_TOP) == 0 && inputMode != OS.MWM_INPUT_FULL_APPLICATION_MODAL) {
 		int xDisplay = display.xDisplay;
-		int widgetClass = OS.topLevelShellWidgetClass ();
+		int widgetClass = OS.applicationShellWidgetClass ();
 		shellHandle = OS.XtAppCreateShell (display.appName, appClass, widgetClass, xDisplay, argList1, argList1.length / 2);
 	} else {
 		int widgetClass = OS.transientShellWidgetClass ();
@@ -747,11 +758,11 @@ void enableWidget (boolean enabled) {
 	enableHandle (enabled, shellHandle);
 }
 /**
- * Moves the receiver to the top of the drawing order for
- * the display on which it was created (so that all other
- * shells on that display, which are not the receiver's
- * children will be drawn behind it) and forces the window
- * manager to make the shell active.
+ * If the receiver is visible, moves it to the top of the 
+ * drawing order for the display on which it was created 
+ * (so that all other shells on that display, which are not 
+ * the receiver's children will be drawn behind it) and forces 
+ * the window manager to make the shell active.
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -779,19 +790,62 @@ public int getBorderWidth () {
 }
 public Rectangle getBounds () {
 	checkWidget();
-	short [] root_x = new short [1], root_y = new short [1];
-	OS.XtTranslateCoords (shellHandle, (short) 0, (short) 0, root_x, root_y);
-	if (reparented) {
-		root_x [0] -= trimLeft ();
-		root_y [0] -= trimTop ();
+	Rectangle bounds = new Rectangle (0, 0, 0, 0);
+	getBounds (null, null, bounds);
+	return bounds;
+}
+void getBounds(Point location, Point size, Rectangle bounds) {
+	int x = 0, y = 0;
+	if (location != null || bounds != null) {
+		/*
+		* Bug in Motif.  For some reason, XtTranslateCoords() returns different
+		* values depending on whether XtMoveWidget() or XtConfigureWidget() has
+		* been called.  This only happens after the shell has been realized.
+		* The fix is to use XTranslateCoordinates() instead.
+		*/
+		if (OS.XtIsRealized (shellHandle)) {
+			int xDisplay = OS.XtDisplay (shellHandle);
+			int xWindow = OS.XtWindow (shellHandle);
+			int[] root_x = new int[1], root_y = new int[1], child = new int[1];
+			/* Flush outstanding move and resize requests */
+			OS.XSync (xDisplay, false);
+			OS.XTranslateCoordinates (xDisplay, xWindow, OS.XDefaultRootWindow (xDisplay), 0, 0, root_x, root_y, child);
+			x = root_x [0];
+			y = root_y [0];
+		} else {
+			short [] root_x = new short [1], root_y = new short [1];
+			OS.XtTranslateCoords (shellHandle, (short) 0, (short) 0, root_x, root_y);
+			x = root_x [0];
+			y = root_y [0];
+		}
+		if (reparented) {
+			x -= trimLeft ();
+			y -= trimTop ();
+		}
 	}
-	int [] argList = {OS.XmNwidth, 0, OS.XmNheight, 0, OS.XmNborderWidth, 0};
-	OS.XtGetValues (shellHandle, argList, argList.length / 2);
-	int border = argList [5];
-	int trimWidth = trimWidth (), trimHeight = trimHeight ();
-	int width = argList [1] + trimWidth + (border * 2);
-	int height = argList [3] + trimHeight + (border * 2);
-	return new Rectangle (root_x [0], root_y [0], width, height);
+	int width = 0, height = 0;
+	if (size != null || bounds != null) {
+		int [] argList = {OS.XmNwidth, 0, OS.XmNheight, 0, OS.XmNborderWidth, 0};
+		OS.XtGetValues (shellHandle, argList, argList.length / 2);
+		int border = argList [5];
+		int trimWidth = trimWidth (), trimHeight = trimHeight ();
+		width = argList [1] + trimWidth + (border * 2);		
+		height = argList [3] + trimHeight + (border * 2);
+	}
+	if (location != null) {
+		location.x = x;
+		location.y = y;
+	}
+	if (size != null) {
+		size.x = width;
+		size.y = height;
+	}
+	if (bounds != null) {
+		bounds.x = x;
+		bounds.y = y;
+		bounds.width = width;
+		bounds.height = height;
+	}
 }
 
 /**
@@ -817,13 +871,9 @@ public int getImeInputMode () {
 }
 public Point getLocation () {
 	checkWidget();
-	short [] root_x = new short [1], root_y = new short [1];
-	OS.XtTranslateCoords (shellHandle, (short) 0, (short) 0, root_x, root_y);
-	if (reparented) {
-		root_x [0] -= trimLeft ();
-		root_y [0] -= trimTop ();
-	}
-	return new Point (root_x [0], root_y [0]);
+	Point location = new Point (0, 0);
+	getBounds (location, null, null);
+	return location;
 }
 public boolean getMaximized () {
 	checkWidget();
@@ -831,25 +881,52 @@ public boolean getMaximized () {
 	int xWindow = OS.XtWindow (shellHandle);
 	if (xWindow != 0) {
 		int property = OS.XInternAtom (xDisplay, _NET_WM_STATE, true);
-		int[] type = new int[1], format = new int[1], nitems = new int[1], bytes_after = new int[1], atoms = new int[1];
-		OS.XGetWindowProperty (xDisplay, xWindow, property, 0, Integer.MAX_VALUE, false, OS.XA_ATOM, type, format, nitems, bytes_after, atoms);
-		boolean result = false;
-		if (type [0] != OS.None) {
-			int maximizedHorz = OS.XInternAtom (xDisplay, _NET_WM_STATE_MAXIMIZED_HORZ, true);
-			int maximizedVert = OS.XInternAtom (xDisplay, _NET_WM_STATE_MAXIMIZED_VERT, true);
-			int[] atom = new int[1];
-			for (int i=0; i<nitems [0]; i++) {
-				OS.memmove(atom, atoms [0] + i * 4, 4);
-				if (atom [0] == maximizedHorz || atom [0] == maximizedVert) {
-					result = true;
-					break;
+		if (property != 0) { 
+			int[] type = new int[1], format = new int[1], nitems = new int[1], bytes_after = new int[1], atoms = new int[1];
+			OS.XGetWindowProperty (xDisplay, xWindow, property, 0, Integer.MAX_VALUE, false, OS.XA_ATOM, type, format, nitems, bytes_after, atoms);
+			boolean result = false;
+			if (type [0] != OS.None) {
+				int maximizedHorz = OS.XInternAtom (xDisplay, _NET_WM_STATE_MAXIMIZED_HORZ, true);
+				int maximizedVert = OS.XInternAtom (xDisplay, _NET_WM_STATE_MAXIMIZED_VERT, true);
+				if (maximizedHorz != 0 && maximizedVert != 0) {
+					int[] atom = new int[1];
+					for (int i=0; i<nitems [0]; i++) {
+						OS.memmove(atom, atoms [0] + i * 4, 4);
+						if (atom [0] == maximizedHorz || atom [0] == maximizedVert) {
+							result = true;
+							break;
+						}
+					}
 				}
 			}
+			if (atoms [0] != 0) OS.XFree (atoms [0]);
+			return result;
 		}
-		if (atoms [0] != 0) OS.XFree (atoms [0]);
-		return result;
 	}
 	return super.getMaximized ();
+}
+/**
+ * Returns a point describing the minimum receiver's size. The
+ * x coordinate of the result is the minimum width of the receiver.
+ * The y coordinate of the result is the minimum height of the
+ * receiver.
+ *
+ * @return the receiver's size
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public Point getMinimumSize () {
+	checkWidget ();
+	int [] argList = {OS.XmNminWidth, 0, OS.XmNminHeight, 0};
+	OS.XtGetValues (shellHandle, argList, argList.length / 2);
+	int width = Math.max (1, Math.max (0, argList [1]) + trimWidth ());
+	int height = Math.max (1, Math.max (0, argList [3]) + trimHeight ());
+	return new Point (width, height);
 }
 /** 
  * Returns the region that defines the shape of the shell,
@@ -910,13 +987,9 @@ public Shell [] getShells () {
 }
 public Point getSize () {
 	checkWidget();
-	int [] argList = {OS.XmNwidth, 0, OS.XmNheight, 0, OS.XmNborderWidth, 0};
-	OS.XtGetValues (shellHandle, argList, argList.length / 2);
-	int border = argList [5];
-	int trimWidth = trimWidth (), trimHeight = trimHeight ();
-	int width = argList [1] + trimWidth + (border * 2);
-	int height = argList [3] + trimHeight + (border * 2);
-	return new Point (width, height);
+	Point size = new Point (0, 0);
+	getBounds (null, size, null);
+	return size;
 }
 public boolean getVisible () {
 	checkWidget();
@@ -967,6 +1040,10 @@ boolean isModal () {
 	OS.XtGetValues (shellHandle, argList, argList.length / 2);
 	return (argList [1] != -1 && argList [1] != OS.MWM_INPUT_MODELESS);
 }
+public boolean isLayoutDeferred () {
+	checkWidget ();
+	return layoutCount > 0;
+}
 public boolean isVisible () {
 	checkWidget();
 	return getVisible ();
@@ -1011,8 +1088,10 @@ void manageChildren () {
  */
 public void open () {
 	checkWidget();
+	bringToTop (false);
 	setVisible (true);
-	if (!restoreFocus ()) traverseGroup (true);
+	if (isDisposed ()) return;
+	if (!restoreFocus () && !traverseGroup (true)) setFocus ();
 }
 void propagateWidget (boolean enabled) {
 	super.propagateWidget (enabled);
@@ -1029,6 +1108,9 @@ void realizeWidget () {
 void register () {
 	super.register ();
 	display.addWidget (shellHandle, this);
+}
+void releaseChild () {
+	/* Do nothing */
 }
 void releaseHandle () {
 	super.releaseHandle ();
@@ -1074,23 +1156,13 @@ public void removeShellListener(ShellListener listener) {
 	eventTable.unhook(SWT.Iconify,listener);
 	eventTable.unhook(SWT.Deiconify,listener);
 }
-void saveBounds () {
-	short [] root_x = new short [1], root_y = new short [1];
-	OS.XtTranslateCoords (shellHandle, (short) 0, (short) 0, root_x, root_y);
-	int [] argList = {OS.XmNwidth, 0, OS.XmNheight, 0};
-	OS.XtGetValues (shellHandle, argList, argList.length / 2);
-	oldX = root_x [0];
-	oldY = root_y [0];
-	oldWidth = argList [1];
-	oldHeight = argList [3];
-}
 
 /**
- * Moves the receiver to the top of the drawing order for
- * the display on which it was created (so that all other
- * shells on that display, which are not the receiver's
- * children will be drawn behind it) and asks the window
- * manager to make the shell active.
+ * If the receiver is visible, moves it to the top of the 
+ * drawing order for the display on which it was created 
+ * (so that all other shells on that display, which are not 
+ * the receiver's children will be drawn behind it) and asks 
+ * the window manager to make the shell active 
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1171,31 +1243,33 @@ public void setImeInputMode (int mode) {
 	checkWidget();
 }
 boolean setBounds (int x, int y, int width, int height, boolean move, boolean resize) {
+	/*
+	* Bug in Motif.  When a shell that is maximized is resized to
+	* the same size, when the shell is unmaximized, the origin of
+	* the shell is moved to (0, 0).  The fix is to detect this case
+	* and avoid resizing the shell.
+	* 
+	* NOTE: When only the size is changed, the shell moves to (0, 0).
+	* When only the location is changed, the shell is not moved.  There
+	* is no fix for these problems at this time.
+	*/
+	if (getMaximized ()) {
+		Rectangle rect = getBounds ();
+		boolean sameOrigin = !move || (rect.x == x && rect.y == y);
+		boolean sameExtent = !resize || (rect.width == width && rect.height == height);
+		if (sameOrigin && sameExtent) return false;
+	}
 	if (resize) {
+		int [] argList = {OS.XmNminWidth, 0, OS.XmNminHeight, 0};
+		OS.XtGetValues (shellHandle, argList, argList.length / 2);
 		/*
 		* Feature in Motif.  Motif will not allow a window
 		* to have a zero width or zero height.  The fix is
 		* to ensure these values are never zero.
 		*/
-		width = Math.max (width - trimWidth (), 1);
-		height = Math.max (height - trimHeight (), 1);
-	}
-	if (!reparented || !OS.XtIsRealized (shellHandle)) {
-		return super.setBounds (x, y, width, height, move, resize);
-	}
-	if (move) {
-		x += trimLeft ();
-		y += trimTop ();
-	}		
-	if (!configured) saveBounds ();
-	configured = true;
-	boolean isFocus = caret != null && caret.isFocusCaret ();
-	if (isFocus) caret.killFocus ();
-	if (resize) {
-		if (redrawWindow != 0) {
-			int xDisplay = OS.XtDisplay (handle);
-			OS.XResizeWindow (xDisplay, redrawWindow, width, height);
-		}
+		width = Math.max (1, Math.max (argList [1], width - trimWidth ()));
+		height = Math.max (1, Math.max (argList [3], height - trimHeight ()));
+		updateResizable (width, height);
 	}
 	if (move && resize) {
 		OS.XtConfigureWidget (shellHandle, x, y, width, height, 0);
@@ -1203,8 +1277,28 @@ boolean setBounds (int x, int y, int width, int height, boolean move, boolean re
 		if (move) OS.XtMoveWidget (shellHandle, x, y);
 		if (resize) OS.XtResizeWidget (shellHandle, width, height, 0);
 	}
-	if (resize && OS.IsLinux) updateResizable (width, height);
-	if (isFocus) caret.setFocus ();
+	if (redrawWindow != 0) {
+		int xDisplay = OS.XtDisplay (handle);
+		OS.XResizeWindow (xDisplay, redrawWindow, width, height);
+	}
+	if (move && (oldX != x || oldY != y)) {
+		moved = true;
+		oldX = x + trimLeft ();
+		oldY = y + trimTop ();
+		sendEvent (SWT.Move);
+		if (isDisposed ()) return false;
+	}
+	if (resize && (width != oldWidth || height != oldHeight)) {
+		resized = true;
+		oldWidth = width;
+		oldHeight = height;
+		sendEvent (SWT.Resize);
+		if (isDisposed ()) return false;
+		if (layout != null) {
+			markLayout (false, false);
+			updateLayout (false);
+		}
+	}
 	return move || resize;
 }
 public void setEnabled (boolean enabled) {
@@ -1218,16 +1312,55 @@ public void setEnabled (boolean enabled) {
 public void setMaximized (boolean maximized) {
 	checkWidget();
 	super.setMaximized (maximized);
-	if (!OS.XtIsRealized (handle)) realizeWidget();
+	if (!OS.XtIsRealized (handle)) realizeWidget ();
 	int xDisplay = OS.XtDisplay (shellHandle);
 	int xWindow = OS.XtWindow (shellHandle);
-	if (xWindow != 0) {
-		int property = OS.XInternAtom (xDisplay, _NET_WM_STATE, true);
-		int maximizedHorz = OS.XInternAtom (xDisplay, _NET_WM_STATE_MAXIMIZED_HORZ, true);
-		int maximizedVert = OS.XInternAtom (xDisplay, _NET_WM_STATE_MAXIMIZED_VERT, true);
-		int[] atoms = new int[]{maximizedHorz, maximizedVert};
-		OS.XChangeProperty (xDisplay, xWindow, property, OS.XA_ATOM, 32, OS.PropModeReplace, atoms, atoms.length);
+	if (xWindow == 0) return;
+	int property = OS.XInternAtom (xDisplay, _NET_WM_STATE, true);
+	if (property == 0) return;
+	int hMaxAtom = OS.XInternAtom (xDisplay, _NET_WM_STATE_MAXIMIZED_HORZ, true);
+	int vMaxAtom = OS.XInternAtom (xDisplay, _NET_WM_STATE_MAXIMIZED_VERT, true);
+	if (hMaxAtom == 0 || vMaxAtom == 0) return;
+	int[] type = new int[1], format = new int[1], nitems = new int[1], bytes_after = new int[1], atomsPtr = new int[1];
+	OS.XGetWindowProperty (xDisplay, xWindow, property, 0, Integer.MAX_VALUE, false, OS.XA_ATOM, type, format, nitems, bytes_after, atomsPtr);
+	if (type [0] == OS.None) return;
+	int[] atoms = new int [nitems [0]];
+	OS.memmove (atoms, atomsPtr [0], nitems [0] * 4);
+	
+	if (maximized) {
+		boolean hasHmax = false;
+		boolean hasVmax = false;
+		for (int i = 0; i < nitems [0]; i++) {
+			int atom = atoms [i];
+			if (atom == hMaxAtom) hasHmax = true;
+			if (atom == vMaxAtom) hasVmax = true;
+		}
+		if (!hasHmax) {
+			int[] temp = new int [atoms.length + 1];
+			System.arraycopy (atoms, 0, temp, 0, atoms.length);
+			temp [atoms.length] = hMaxAtom;
+			atoms = temp;
+		}
+		if (!hasVmax) {
+			int[] temp = new int [atoms.length + 1];
+			System.arraycopy (atoms, 0, temp, 0, atoms.length);
+			temp [atoms.length] = vMaxAtom;
+			atoms = temp;
+		}
+	} else {
+		int[] temp = new int [nitems [0]];
+		int index = 0;
+		for (int i = 0; i < nitems [0]; i++) {
+			int atom = atoms [i];
+			if (atom != hMaxAtom && atom != vMaxAtom) {
+				temp [index++] = atom;
+			}
+		}
+		atoms = new int [index];
+		System.arraycopy (temp, 0, atoms, 0, index);
 	}
+
+	OS.XChangeProperty (xDisplay, xWindow, property, OS.XA_ATOM, 32, OS.PropModeReplace, atoms, atoms.length);
 }
 public void setMinimized (boolean minimized) {
 	checkWidget();
@@ -1275,6 +1408,51 @@ public void setMinimized (boolean minimized) {
 			setActive ();
 		}
 	}
+}
+/**
+ * Sets the receiver's minimum size to the size specified by the arguments.
+ * If the new minimum size is larger than the current size of the receiver,
+ * the receiver is resized to the new minimum size.
+ *
+ * @param width the new minimum width for the receiver
+ * @param height the new minimum height for the receiver
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void setMinimumSize (int width, int height) {
+	checkWidget ();
+	int [] argList = {
+		OS.XmNminWidth, Math.max (width, trimWidth ()) - trimWidth (),
+		OS.XmNminHeight, Math.max (height, trimHeight ()) - trimHeight (),
+	};
+	OS.XtSetValues (shellHandle, argList, argList.length / 2);
+}
+/**
+ * Sets the receiver's minimum size to the size specified by the argument.
+ * If the new minimum size is larger than the current size of the receiver,
+ * the receiver is resized to the new minimum size.
+ *
+ * @param size the new minimum size for the receiver
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the point is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.1
+ */
+public void setMinimumSize (Point size) {
+	checkWidget ();
+	if (size == null) error (SWT.ERROR_NULL_ARGUMENT);
+	setMinimumSize (size.x, size.y);	
 }
 void setParentTraversal () {
 	/* Do nothing - Child shells do not affect the traversal of their parent shell */
@@ -1370,18 +1548,60 @@ public void setVisible (boolean visible) {
 		* Force the shell to be fully exposed before returning.
 		* This ensures that the shell coordinates are correct
 		* when queried directly after showing the shell.
+		* 
+		* Note that if the parent is minimized or withdrawn
+		* from the desktop, this should not be done since
+		* the shell will not be mapped until the parent is
+		* unminimized or shown on the desktop.
 		*/
+		boolean iconic = false;
+		Shell shell = parent != null ? parent.getShell() : null;
 		do {
 			display.update ();
 			if (isDisposed ()) return;
-		} while (!isVisible ());
-		adjustTrim ();
+			iconic = minimized || (shell != null && shell.minimized);
+		} while (!isVisible () && !iconic);
+		if (!iconic) adjustTrim ();
 		
 		int mask = SWT.PRIMARY_MODAL | SWT.APPLICATION_MODAL | SWT.APPLICATION_MODAL;
 		if ((style & mask) != 0) {
 			OS.XUngrabPointer (display.xDisplay, OS.CurrentTime);
 		}
+		opened = true;
+		if (!moved) {
+			moved = true;
+			Point location = getLocation ();
+			oldX = location.x + trimLeft ();
+			oldY = location.x + trimTop ();
+			sendEvent (SWT.Move);
+			if (isDisposed ()) return;
+		}
+		if (!resized) {
+			resized = true;
+			Point size = getSize ();
+			oldWidth = size.x - trimWidth ();
+			oldHeight = size.y - trimHeight ();
+			sendEvent (SWT.Resize);
+			if (isDisposed ()) return;
+			if (layout != null) {
+				markLayout (false, false);
+				updateLayout (false);
+			}
+		}
 	} else {
+		/*
+		* Feature in Motif.  When the active shell is disposed,
+		* some window managers place focus in a temporary window.
+		* The fix is to make the parent be the active top level
+		* shell when the child shell is hidden.
+		*/
+		if (parent != null) {
+			Shell activeShell = display.getActiveShell ();
+			if (activeShell == this) {
+				Shell shell = parent.getShell ();
+				shell.bringToTop (false);
+			}
+		}
 	
 		/* Hide the shell */
 		OS.XtSetMappedWhenManaged (shellHandle, false);
@@ -1490,16 +1710,30 @@ int trimWidth () {
 	return 0;
 }
 void updateResizable (int width, int height) {
+	if ((style & SWT.RESIZE) != 0) return;
 	if (!OS.XtIsRealized (shellHandle)) return;
-	if ((style & SWT.RESIZE) == 0) {
-		XSizeHints hints = new XSizeHints();
-		hints.flags = OS.PMinSize | OS.PMaxSize;
-		hints.min_width = hints.max_width = width;
-		hints.min_height = hints.max_height = height;
-		OS.XSetWMNormalHints (OS.XtDisplay (shellHandle), OS.XtWindow (shellHandle), hints);
-	}
+	XSizeHints hints = new XSizeHints ();
+	hints.flags = OS.PMinSize | OS.PMaxSize | OS.PPosition;
+	hints.min_width = hints.max_width = width;
+	hints.min_height = hints.max_height = height;
+	OS.XSetWMNormalHints (OS.XtDisplay (shellHandle), OS.XtWindow (shellHandle), hints);
 }
 int WM_DELETE_WINDOW (int w, int client_data, int call_data) {
+	if (!isEnabled ()) return 0;
+	Control widget = parent;
+	while (widget != null && !(widget.getShell ().isModal ())) {
+		widget = widget.parent;
+	}
+	if (widget == null) {
+		Shell [] shells = getShells ();
+		for (int i=0; i<shells.length; i++) {
+			Shell shell = shells [i];
+			if (shell != this && shell.isModal () && shell.isVisible ()) {
+				shell.bringToTop (false);
+				return 0;
+			}
+		}
+	}
 	closeWidget ();
 	return 0;
 }
@@ -1550,22 +1784,22 @@ int XStructureNotify (int w, int client_data, int call_data, int continue_to_dis
 	}
 	switch (xEvent.type) {
 		case OS.ReparentNotify: {
-			if (reparented) return 0;
 			reparented = true;
-			short [] root_x = new short [1], root_y = new short [1];
-			OS.XtTranslateCoords (shellHandle, (short) 0, (short) 0, root_x, root_y);
-			int [] argList = {OS.XmNwidth, 0, OS.XmNheight, 0};
-			OS.XtGetValues (shellHandle, argList, argList.length / 2);	
-			xEvent.x = root_x [0];  xEvent.y = root_y [0];
-			xEvent.width = argList [1];  xEvent.height = argList [3];
-			if (OS.IsLinux) updateResizable (xEvent.width, xEvent.height);
-			// FALL THROUGH
+			adjustTrim ();
+			break;
 		}
 		case OS.ConfigureNotify:
-			if (!reparented) return 0;
-			configured = false;
-			if (oldX != xEvent.x || oldY != xEvent.y) sendEvent (SWT.Move);
-			if (oldWidth != xEvent.width || oldHeight != xEvent.height) {
+			int [] root_x = new int [1], root_y = new int [1], child = new int [1];
+			OS.XTranslateCoordinates (xEvent.display, xEvent.window, OS.XDefaultRootWindow (xEvent.display), 0, 0, root_x, root_y, child);
+			if (!moved || oldX != root_x [0] || oldY != root_y [0]) {
+				moved = true;
+				oldX = root_x [0];
+				oldY = root_y [0];
+				sendEvent (SWT.Move);
+				if (isDisposed ()) return 0;
+			}
+			updateResizable (xEvent.width, xEvent.height);
+			if (!resized || oldWidth != xEvent.width || oldHeight != xEvent.height) {
 				int xEvent1 = OS.XtMalloc (XEvent.sizeof);
 				display.resizeWindow = xEvent.window;
 				display.resizeWidth = xEvent.width;
@@ -1573,16 +1807,19 @@ int XStructureNotify (int w, int client_data, int call_data, int continue_to_dis
 				display.resizeCount = 0;
 				int checkResizeProc = display.checkResizeProc;
 				OS.XCheckIfEvent (xEvent.display, xEvent1, checkResizeProc, 0);
-				if (display.resizeCount == 0) {
-					sendEvent (SWT.Resize);
-					if (layout != null) layout (false);
-				}
 				OS.XtFree (xEvent1);
+				if (display.resizeCount == 0) {
+					resized = true;
+					oldWidth = xEvent.width;
+					oldHeight = xEvent.height;
+					sendEvent (SWT.Resize);
+					if (isDisposed ()) return 0;
+					if (layout != null) {
+						markLayout (false, false);
+						updateLayout (false);
+					}
+				}
 			}
-			if (xEvent.x != 0) oldX = xEvent.x;
-			if (xEvent.y != 0) oldY = xEvent.y;
-			oldWidth = xEvent.width;
-			oldHeight = xEvent.height;
 			return 0;
 		case OS.UnmapNotify:
 			int [] argList = {OS.XmNmappedWhenManaged, 0};

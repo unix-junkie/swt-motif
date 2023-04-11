@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -37,6 +37,7 @@ public class ToolItem extends Item {
 	Image hotImage, disabledImage;
 	String toolTipText;
 	Control control;
+	int width = DEFAULT_SEPARATOR_WIDTH;
 	boolean set;
 	
 	static final int DEFAULT_WIDTH = 24;
@@ -81,7 +82,6 @@ public ToolItem (ToolBar parent, int style) {
 	super (parent, checkStyle (style));
 	this.parent = parent;
 	parent.createItem (this, parent.getItemCount ());
-	parent.relayout ();
 }
 
 /**
@@ -123,7 +123,6 @@ public ToolItem (ToolBar parent, int style, int index) {
 	super (parent, checkStyle (style));
 	this.parent = parent;
 	parent.createItem (this, index);
-	parent.relayout ();
 }
 
 /**
@@ -219,14 +218,19 @@ void click (boolean dropDown, int state) {
 	postEvent (SWT.Selection, event);
 }
 
-Point computeSize () {
+Point computeSize (GC gc) {
+	int width = 0, height = 0;
 	if ((style & SWT.SEPARATOR) != 0) {
-		int [] argList = {
-			OS.XmNwidth, 0,
-			OS.XmNheight, 0,
-		};
-		OS.XtGetValues (handle, argList, argList.length / 2);
-		int width = argList [1], height = argList [3];
+		if ((parent.style & SWT.HORIZONTAL) != 0) {
+			width = getWidth ();
+			height = DEFAULT_HEIGHT;
+		} else {
+			width = DEFAULT_WIDTH;
+			height = getWidth ();
+		}
+		if (control != null) {
+			height = Math.max (height, control.getMinimumHeight ());
+		}
 		return new Point(width, height);
 	}
 	int [] argList = {
@@ -240,33 +244,36 @@ Point computeSize () {
 	if ((parent.style & SWT.FLAT) != 0) {
 		shadowThickness = Math.min (2, display.buttonShadowThickness);
 	}
-	int textWidth = 0, textHeight = 0;
-	if (text.length () != 0) {
-		GC gc = new GC (parent);
-		int flags = SWT.DRAW_DELIMITER | SWT.DRAW_TAB | SWT.DRAW_MNEMONIC;
-		Point textExtent = gc.textExtent (text, flags);
-		textWidth = textExtent.x;
-		textHeight = textExtent.y;
-		gc.dispose ();
-	}
-	int imageWidth = 0, imageHeight = 0;
-	if (image != null) {
-		Rectangle rect = image.getBounds ();
-		imageWidth = rect.width;
-		imageHeight = rect.height;
-	}
-	int width = 0, height = 0;
-	if ((parent.style & SWT.RIGHT) != 0) {
-		width = imageWidth + textWidth;
-		height = Math.max (imageHeight, textHeight);
-		if (imageWidth != 0 && textWidth != 0) width += 2;
+	if (text.length() != 0 || image != null) {
+		int textWidth = 0, textHeight = 0;
+		if (text.length () != 0) {
+			int flags = SWT.DRAW_DELIMITER | SWT.DRAW_TAB | SWT.DRAW_MNEMONIC;
+			Point textExtent = gc.textExtent (text, flags);
+			textWidth = textExtent.x;
+			textHeight = textExtent.y;
+		}
+		int imageWidth = 0, imageHeight = 0;
+		if (image != null) {
+			Rectangle rect = image.getBounds ();
+			imageWidth = rect.width;
+			imageHeight = rect.height;
+		}
+		if ((parent.style & SWT.RIGHT) != 0) {
+			width = imageWidth + textWidth;
+			height = Math.max (imageHeight, textHeight);
+			if (imageWidth != 0 && textWidth != 0) width += 2;
+		} else {
+			height = imageHeight + textHeight;
+			if (imageHeight != 0 && textHeight != 0) height += 2;
+			width = Math.max (imageWidth, textWidth);
+		}
 	} else {
-		height = imageHeight + textHeight;
-		if (imageHeight != 0 && textHeight != 0) height += 2;
-		width = Math.max (imageWidth, textWidth);
+		width = DEFAULT_WIDTH;
+		height = DEFAULT_HEIGHT;
 	}
-	if ((style & SWT.DROP_DOWN) != 0) width += 12;
-	
+	if ((style & SWT.DROP_DOWN) != 0) {
+		width += 12;
+	}
 	if (width != 0) {
 		width += (marginWidth + shadowThickness) * 2 + 2;
 	} else {
@@ -278,10 +285,6 @@ Point computeSize () {
 		height = DEFAULT_HEIGHT;
 	}
 	return new Point (width, height);
-}
-void createWidget (int index) {
-	super.createWidget (index);
-	parent.relayout ();
 }
 public void dispose () {
 	if (isDisposed()) return;
@@ -440,9 +443,7 @@ public String getToolTipText () {
  */
 public int getWidth () {
 	checkWidget();
-	int [] argList = {OS.XmNwidth, 0};
-	OS.XtGetValues (handle, argList, argList.length / 2);
-	return argList [1];
+	return width;
 }
 boolean hasCursor () {
 	int [] unused = new int [1], buffer = new int [1];
@@ -524,7 +525,7 @@ void releaseWidget () {
  * Removes the listener from the collection of listeners who will
  * be notified when the control is selected.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -561,7 +562,6 @@ void setBackgroundPixel(int pixel) {
 	OS.XtSetValues (handle, argList, argList.length / 2);
 }
 void setBounds (int x, int y, int width, int height) {
-	if (control != null) control.setBounds(x, y, width, height);
 	/*
 	* Feature in Motif.  Motif will not allow a window
 	* to have a zero width or zero height.  The fix is
@@ -592,9 +592,13 @@ public void setControl (Control control) {
 		if (control.parent != parent) error (SWT.ERROR_INVALID_PARENT);
 	}
 	if ((style & SWT.SEPARATOR) == 0) return;
+	if (this.control == control) return;
 	this.control = control;
+	int [] argList = {
+		OS.XmNseparatorType, control == null ? ((parent.style & SWT.FLAT) != 0 ? OS.XmSHADOW_ETCHED_IN : OS.XmSHADOW_ETCHED_OUT) : OS.XmNO_LINE,
+	};
+	OS.XtSetValues (handle, argList, argList.length / 2);
 	if (control != null && !control.isDisposed ()) {
-		control.setBounds (getBounds ());
 		/*
 		 * It is possible that the control was created with a 
 		 * z-order below that of the current tool item. In this
@@ -623,6 +627,7 @@ public void setControl (Control control) {
 		int flags = OS.CWStackMode | OS.CWSibling;
 		OS.XReconfigureWMWindow (xDisplay, window1, screen, flags, struct);
 	}
+	parent.relayout ();
 }
 /**
  * Enables the receiver if the argument is <code>true</code>,
@@ -706,8 +711,7 @@ public void setImage (Image image) {
 	if (image != null && image.isDisposed()) error(SWT.ERROR_INVALID_ARGUMENT);
 	if ((style & SWT.SEPARATOR) != 0) return;
 	super.setImage (image);
-	Point size = computeSize ();
-	setSize (size.x, size.y, true);
+	parent.relayout();
 	redraw ();
 }
 boolean setRadioSelection (boolean value) {
@@ -740,15 +744,6 @@ public void setSelection (boolean selected) {
 	set = selected;
 	setDrawPressed (set);
 }
-
-void setSize (int width, int height, boolean layout) {
-	int [] argList = {OS.XmNwidth, 0, OS.XmNheight, 0};
-	OS.XtGetValues (handle, argList, argList.length / 2);
-	if (argList [1] != width || argList [3] != height) {
-		OS.XtResizeWidget (handle, width, height, 0);
-		if (layout) parent.relayout ();
-	}
-}
 /**
  * Sets the receiver's text. The string may include
  * the mnemonic character.
@@ -779,8 +774,7 @@ public void setText (String string) {
 	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
 	if ((style & SWT.SEPARATOR) != 0) return;
 	super.setText (string);
-	Point size = computeSize ();
-	setSize (size.x, size.y, true);
+	parent.relayout();
 	redraw ();
 }
 
@@ -799,8 +793,11 @@ public void setToolTipText (String string) {
 	checkWidget();
 	toolTipText = string;
 }
+void setVisible (boolean visible) {
+	OS.XtSetMappedWhenManaged (handle, visible);
+}
 /**
- * Sets the width of the receiver.
+ * Sets the width of the receiver, for <code>SEPARATOR</code> ToolItems.
  *
  * @param width the new width
  *
@@ -812,13 +809,9 @@ public void setToolTipText (String string) {
 public void setWidth (int width) {
 	checkWidget();
 	if ((style & SWT.SEPARATOR) == 0) return;
-	if (width < 0) return;
-	int [] argList = {OS.XmNheight, 0};
-	OS.XtGetValues (handle, argList, argList.length / 2);
-	setSize (width, argList [1], true);
-	if (control != null && !control.isDisposed ()) {
-		control.setBounds (getBounds ());
-	}
+	if (width < 0 || this.width == width) return;
+	this.width = width;
+	parent.relayout();
 }
 void setDrawPressed (boolean value) {
 	int shadowType = value ? OS.XmSHADOW_IN : OS.XmSHADOW_OUT;
@@ -1120,8 +1113,8 @@ int XPointerMotion (int w, int client_data, int call_data, int continue_to_dispa
 	* in X in the parent.  This is done to be
 	* compatible with Windows.
 	*/
-	XButtonEvent xEvent = new XButtonEvent ();
-	OS.memmove (xEvent, call_data, XButtonEvent.sizeof);
+	XMotionEvent xEvent = new XMotionEvent ();
+	OS.memmove (xEvent, call_data, XMotionEvent.sizeof);
 	int [] argList = {OS.XmNx, 0, OS.XmNy, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	xEvent.window = OS.XtWindow (parent.handle);

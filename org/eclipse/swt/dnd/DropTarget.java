@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -111,8 +111,11 @@ public class DropTarget extends Widget {
 	
 	static {
 		DropProc = new Callback(DropTarget.class, "DropProcCallback", 3); //$NON-NLS-1$
+		if (DropProc.getAddress() == 0) SWT.error(SWT.ERROR_NO_MORE_CALLBACKS);
 		DragProc = new Callback(DropTarget.class, "DragProcCallback", 3); //$NON-NLS-1$
+		if (DragProc.getAddress() == 0) SWT.error(SWT.ERROR_NO_MORE_CALLBACKS);
 		TransferProc = new Callback(DropTarget.class, "TransferProcCallback", 7); //$NON-NLS-1$
+		if (TransferProc.getAddress() == 0) SWT.error(SWT.ERROR_NO_MORE_CALLBACKS);
 	}
 	
 /**
@@ -129,13 +132,17 @@ public class DropTarget extends Widget {
  * @exception SWTException <ul>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
  *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
+ * </ul>
  * @exception SWTError <ul>
  *    <li>ERROR_CANNOT_INIT_DROP - unable to initiate drop target; this will occur if more than one
  *        drop target is created for a control or if the operating system will not allow the creation
  *        of the drop target</li>
  * </ul>
+ *
+ * <p>NOTE: ERROR_CANNOT_INIT_DROP should be an SWTException, since it is a
+ * recoverable error, but can not be changed due to backward compatability.</p>
  * 
- * @see DropTarget#dispose
+ * @see Widget#dispose
  * @see DropTarget#checkSubclass
  * @see DND#DROP_NONE
  * @see DND#DROP_COPY
@@ -210,7 +217,8 @@ public DropTarget(Control control, int style) {
 	
 	dragOverHeartbeat = new Runnable() {
 		public void run() {
-			if (DropTarget.this.control.isDisposed() || dragOverStart == 0) return;
+			Control control = DropTarget.this.control;
+			if (control == null || control.isDisposed() || dragOverStart == 0) return;
 			long time = System.currentTimeMillis();
 			int delay = DRAGOVER_HYSTERESIS;
 			if (time < dragOverStart) {
@@ -232,13 +240,7 @@ public DropTarget(Control control, int style) {
 				event.dataType = selectedDataType;
 				event.operations = dragOverEvent.operations;
 				event.detail  = selectedOperation;
-				
-				try {
-					notifyListeners(DND.DragOver, event);
-				} catch (Throwable e) {
-					event.dataType = null;
-					event.detail  = DND.DROP_NONE;
-				}
+				notifyListeners(DND.DragOver, event);
 				
 				effect.show(event.feedback, event.x, event.y);
 				
@@ -257,7 +259,9 @@ public DropTarget(Control control, int style) {
 					selectedOperation = event.detail;
 				}
 			}
-			DropTarget.this.control.getDisplay().timerExec(delay, dragOverHeartbeat);
+			control = DropTarget.this.control;
+			if (control == null || control.isDisposed ()) return;
+			control.getDisplay().timerExec(delay, dragOverHeartbeat);
 		}
 	};
 }
@@ -353,7 +357,7 @@ private void dragProcCallback(int widget, int client_data, int call_data) {
 	if (call_data == 0) return;
 	XmDragProcCallbackStruct callbackData = new XmDragProcCallbackStruct();
 	OS.memmove(callbackData, call_data, XmDragProcCallbackStruct.sizeof);
-	
+
 	if (callbackData.reason == OS.XmCR_DROP_SITE_LEAVE_MESSAGE) {
 		updateDragOverHover(0, null);
 		effect.show(DND.FEEDBACK_NONE, 0, 0);
@@ -366,9 +370,7 @@ private void dragProcCallback(int widget, int client_data, int call_data) {
 		event.widget = this;
 		event.time = callbackData.timeStamp;
 		event.detail = DND.DROP_NONE;
-		try {
-			notifyListeners(DND.DragLeave, event);
-		} catch (Throwable e) {}
+		notifyListeners(DND.DragLeave, event);
 		return;
 	}
 	
@@ -407,20 +409,10 @@ private void dragProcCallback(int widget, int client_data, int call_data) {
 	}
 	
 	updateDragOverHover(DRAGOVER_HYSTERESIS, event);
-	
-	try {
-		notifyListeners(event.type, event);
-	} catch (Throwable err) {
-		callbackData.dropSiteStatus = (byte)OS.XmDROP_SITE_INVALID;
-		callbackData.operation = opToOsOp(DND.DROP_NONE);
-		OS.memmove(call_data, callbackData, XmDragProcCallbackStruct.sizeof);
-		return;
-	}
-
+	notifyListeners(event.type, event);
 	if (event.detail == DND.DROP_DEFAULT) {
 		event.detail = (allowedOperations & DND.DROP_MOVE) != 0 ? DND.DROP_MOVE : DND.DROP_NONE;
 	}
-	
 	selectedDataType = null;
 	if (event.dataType != null) {
 		for (int i = 0; i < allowedDataTypes.length; i++) {
@@ -466,16 +458,9 @@ private void dropProcCallback(int widget, int client_data, int call_data) {
 	int allowedOperations = event.operations;
 	TransferData[] allowedDataTypes = new TransferData[event.dataTypes.length];
 	System.arraycopy(event.dataTypes, 0, allowedDataTypes, 0, allowedDataTypes.length);
-	
 	event.dataType = selectedDataType;
 	event.detail = selectedOperation;
-	try {
-		notifyListeners(DND.DropAccept,event);
-	} catch (Throwable err) {
-		event.detail = DND.DROP_NONE;
-		event.dataType = null;
-	}
-	
+	notifyListeners(DND.DropAccept,event);
 	selectedDataType = null;
 	if (event.dataType != null) {
 		for (int i = 0; i < allowedDataTypes.length; i++) {
@@ -617,7 +602,7 @@ private int osOpToOp(byte osOperation){
 	
 	return operation;
 }
-private void registerDropTarget() {	
+private void registerDropTarget() {
 	if (control == null || control.isDisposed() || registered) return;
 
 	int[] args = new int[]{
@@ -699,19 +684,22 @@ private boolean setEventData(byte ops, byte op, int dragContext, short x, short 
 	
 	//get current operation
 	int operation = osOpToOp(op);
-	if ((operation & operations) == 0) operation = DND.DROP_NONE;
-	if ((style & DND.DROP_DEFAULT) != 0) {
-		int xDisplay = getDisplay().xDisplay;
-		int xWindow = OS.XDefaultRootWindow (xDisplay);
-		int [] unused = new int [1];
-		int[] mask_return = new int[1];
-		OS.XQueryPointer (xDisplay, xWindow, unused, unused, unused, unused, unused, unused, mask_return);
-		int mask = mask_return[0];
-		if ((mask & OS.ShiftMask) == 0 && (mask & OS.ControlMask) == 0) {
-			operation = DND.DROP_DEFAULT;
-		}
+	int xDisplay = getDisplay().xDisplay;
+	int xWindow = OS.XDefaultRootWindow (xDisplay);
+	int [] unused = new int [1];
+	int[] mask_return = new int[1];
+	OS.XQueryPointer (xDisplay, xWindow, unused, unused, unused, unused, unused, unused, mask_return);
+	int mask = mask_return[0];
+	if ((mask & OS.ShiftMask) == 0 && (mask & OS.ControlMask) == 0) {
+		operation = DND.DROP_DEFAULT;
 	}
-	
+	if (operation == DND.DROP_DEFAULT) {
+		if ((style & DND.DROP_DEFAULT) == 0) {
+			operation = (operations & DND.DROP_MOVE) != 0 ? DND.DROP_MOVE : DND.DROP_NONE;
+		}
+	} else {
+		if ((operation & operations) == 0) operation = DND.DROP_NONE;
+	}	
 	//Get allowed transfer types
 	int ppExportTargets = OS.XtMalloc(4);
 	int pNumExportTargets = OS.XtMalloc(4);
@@ -854,15 +842,12 @@ private void transferProcCallback(int widget, int client_data, int pSelection, i
 	event.detail = selectedOperation;
 	event.dataType = transferData;
 	event.data = object;
-	try {
-		notifyListeners(DND.Drop, event);
-		selectedOperation = DND.DROP_NONE;
-		if ((allowedOperations & event.detail) == event.detail) {
-			selectedOperation = event.detail;
-		}
-	} catch (Throwable e) {
-		selectedOperation = DND.DROP_NONE;
+	notifyListeners(DND.Drop, event);
+	selectedOperation = DND.DROP_NONE;
+	if ((allowedOperations & event.detail) == event.detail) {
+		selectedOperation = event.detail;
 	}
+
 	//workaround - restore original timeout
 	int xtContext = OS.XtDisplayToApplicationContext (getDisplay().xDisplay);
 	OS.XtAppSetSelectionTimeout (xtContext, selectionTimeout);

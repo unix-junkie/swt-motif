@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -16,6 +16,7 @@ import java.lang.reflect.Method;
 /* SWT Imports */
 import org.eclipse.swt.*;
 import org.eclipse.swt.internal.Library;
+import org.eclipse.swt.graphics.Device;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Composite;
@@ -30,6 +31,7 @@ import java.awt.Canvas;
 import java.awt.Frame;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+
 
 /**
  * This class provides a bridge between SWT and AWT, so that it
@@ -47,12 +49,21 @@ public class SWT_AWT {
 
 static boolean loaded, swingInitialized;
 
-static native final int getAWTHandle (Canvas canvas);
+static native final int /*long*/ getAWTHandle (Canvas canvas);
+static native final void setDebug (Frame canvas, boolean debug);
 
 static synchronized void loadLibrary () {
 	if (loaded) return;
 	loaded = true;
-	System.loadLibrary("jawt");
+	/*
+	* Note that the jawt library is loaded explicitily
+	* because it cannot be found by the library loader.
+	* All exceptions are caught because the library may
+	* have been loaded already.
+	*/
+	try {
+		System.loadLibrary("jawt");
+	} catch (Throwable e) {}
 	Library.loadLibrary("swt-awt");
 }
 
@@ -97,7 +108,7 @@ public static Frame new_Frame (final Composite parent) {
 	if ((parent.getStyle () & SWT.EMBEDDED) == 0) {
 		SWT.error (SWT.ERROR_INVALID_ARGUMENT);
 	}
-	int handle = parent.embeddedHandle;
+	int /*long*/ handle = parent.embeddedHandle;
 	/*
 	 * Some JREs have implemented the embedded frame constructor to take an integer
 	 * and other JREs take a long.  To handle this binary incompatability, use
@@ -108,26 +119,27 @@ public static Frame new_Frame (final Composite parent) {
 		String className = embeddedFrameClass != null ? embeddedFrameClass : "sun.awt.X11.XEmbeddedFrame";
 		clazz = Class.forName(className);
 	} catch (Throwable e) {
-		SWT.error (SWT.ERROR_NOT_IMPLEMENTED, e);		
+		SWT.error (SWT.ERROR_NOT_IMPLEMENTED, e, " [need JDK 1.5 or greater]");		
 	}
+	initializeSwing ();
+	Object value = null;
 	Constructor constructor = null;
 	try {
 		constructor = clazz.getConstructor (new Class [] {int.class});
+		value = constructor.newInstance (new Object [] {new Integer ((int)/*64*/handle)});
 	} catch (Throwable e1) {
 		try {
 			constructor = clazz.getConstructor (new Class [] {long.class});
+			value = constructor.newInstance (new Object [] {new Long (handle)});
 		} catch (Throwable e2) {
 			SWT.error (SWT.ERROR_NOT_IMPLEMENTED, e2);
 		}
 	}
-	initializeSwing ();
-	Object value = null;
-	try {
-		value = constructor.newInstance (new Object [] {new Integer (handle)});
-	} catch (Throwable e) {
-		SWT.error (SWT.ERROR_NOT_IMPLEMENTED, e);
-	}
 	final Frame frame = (Frame) value;
+	if (Device.DEBUG) {
+		loadLibrary();
+		setDebug(frame, true);
+	}
 	try {
 		/* Call registerListeners() to make XEmbed focus traversal work */
 		Method method = clazz.getMethod("registerListeners", null);
@@ -169,6 +181,7 @@ public static Frame new_Frame (final Composite parent) {
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the display is null</li>
  *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the parent's peer is not created</li>
  * </ul>
  * 
  * @since 3.0
@@ -176,14 +189,14 @@ public static Frame new_Frame (final Composite parent) {
 public static Shell new_Shell (final Display display, final Canvas parent) {
 	if (display == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
 	if (parent == null) SWT.error (SWT.ERROR_NULL_ARGUMENT);
-	int handle = 0;
+	int /*long*/ handle = 0;
 	try {
 		loadLibrary ();
 		handle = getAWTHandle (parent);
 	} catch (Throwable e) {
 		SWT.error (SWT.ERROR_NOT_IMPLEMENTED, e);
 	}
-	if (handle == 0) SWT.error (SWT.ERROR_NOT_IMPLEMENTED);
+	if (handle == 0) SWT.error (SWT.ERROR_INVALID_ARGUMENT, null, " [peer not created]");
 
 	final Shell shell = Shell.motif_new (display, handle);
 	parent.addComponentListener(new ComponentAdapter () {

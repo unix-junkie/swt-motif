@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2004 IBM Corporation and others.
+ * Copyright (c) 2000, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -45,8 +45,7 @@ import org.eclipse.swt.events.*;
  * <dd>DefaultSelection, Modify, Selection</dd>
  * </dl>
  * <p>
- * Note: Only one of the styles DROP_DOWN and SIMPLE 
- * may be specified.
+ * Note: Only one of the styles DROP_DOWN and SIMPLE may be specified.
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
@@ -117,9 +116,6 @@ public Combo (Composite parent, int style) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_ITEM_NOT_ADDED - if the operation fails because of an operating system failure</li>
- * </ul>
  *
  * @see #add(String,int)
  */
@@ -152,9 +148,6 @@ public void add (String string) {
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_ITEM_NOT_ADDED - if the operation fails because of an operating system failure</li>
  * </ul>
  *
  * @see #add(String)
@@ -236,6 +229,33 @@ public void addSelectionListener(SelectionListener listener) {
 	TypedListener typedListener = new TypedListener (listener);
 	addListener (SWT.Selection,typedListener);
 	addListener (SWT.DefaultSelection,typedListener);
+}
+/**
+ * Adds the listener to the collection of listeners who will
+ * be notified when the receiver's text is verified, by sending
+ * it one of the messages defined in the <code>VerifyListener</code>
+ * interface.
+ *
+ * @param listener the listener which should be notified
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @see VerifyListener
+ * @see #removeVerifyListener
+ * 
+ * @since 3.1
+ */
+public void addVerifyListener (VerifyListener listener) {
+	checkWidget ();
+	if (listener == null) error (SWT.ERROR_NULL_ARGUMENT);
+	TypedListener typedListener = new TypedListener (listener);
+	addListener (SWT.Verify, typedListener);
 }
 static int checkStyle (int style) {
 	/*
@@ -380,6 +400,10 @@ void createHandle (int index) {
 	};
 	handle = OS.XmCreateComboBox (formHandle, null, argList2, argList2.length / 2);
 	if (handle == 0) error (SWT.ERROR_NO_HANDLES);
+	int [] argList3 = {OS.XmNtextField, 0};
+	OS.XtGetValues (handle, argList3, argList3.length / 2);
+	int [] argList4 = {OS.XmNverifyBell, 0};
+	OS.XtSetValues (argList3 [1], argList4, argList4.length / 2);
 }
 /**
  * Cuts the selected text.
@@ -453,8 +477,6 @@ public void deselectAll () {
 	display.setWarnings(warnings);	
 	OS.XmListDeselectAllItems (argList[3]);
 }
-
-
 /**
  * Returns the item at the given, zero-relative index in the
  * receiver's list. Throws an exception if the index is out
@@ -469,9 +491,6 @@ public void deselectAll () {
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_CANNOT_GET_ITEM - if the operation fails because of an operating system failure</li>
  * </ul>
  */
 public String getItem (int index) {
@@ -511,9 +530,6 @@ public String getItem (int index) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_CANNOT_GET_COUNT - if the operation fails because of an operating system failure</li>
- * </ul>
  */
 public int getItemCount () {
 	checkWidget();
@@ -531,9 +547,6 @@ public int getItemCount () {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_CANNOT_GET_ITEM_HEIGHT - if the operation fails because of an operating system failure</li>
- * </ul>
  */
 public int getItemHeight () {
 	checkWidget();
@@ -546,8 +559,8 @@ public int getItemHeight () {
 	return getFontHeight (fontList) + spacing + (2 * highlight);
 }
 /**
- * Returns an array of <code>String</code>s which are the items
- * in the receiver's list. 
+ * Returns a (possibly empty) array of <code>String</code>s which are
+ * the items in the receiver's list. 
  * <p>
  * Note: This is not the actual structure used by the receiver
  * to maintain its list of items, so modifying the array will
@@ -559,9 +572,6 @@ public int getItemHeight () {
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_CANNOT_GET_ITEM - if the operation fails because of an operating system failure</li>
  * </ul>
  */
 public String [] getItems () {
@@ -594,6 +604,9 @@ public String [] getItems () {
 	}
 	return result;
 }
+int getMinimumHeight () {
+	return getTextHeight ();
+}
 String getNameText () {
 	return getText ();
 }
@@ -614,11 +627,16 @@ public int getOrientation () {
 	return style & (SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT);
 }
 /**
- * Returns a <code>Point</code> whose x coordinate is the start
- * of the selection in the receiver's text field, and whose y
- * coordinate is the end of the selection. The returned values
- * are zero-relative. An "empty" selection as indicated by
- * the the x and y coordinates having the same value.
+ * Returns a <code>Point</code> whose x coordinate is the
+ * character position representing the start of the selection
+ * in the receiver's text field, and whose y coordinate is the
+ * character position representing the end of the selection.
+ * An "empty" selection is indicated by the x and y coordinates
+ * having the same value.
+ * <p>
+ * Indexing is zero based.  The range of a selection is from
+ * 0..N where N is the number of characters in the widget.
+ * </p>
  *
  * @return a point representing the selection start and end
  *
@@ -667,7 +685,8 @@ public int getSelectionIndex () {
 }
 /**
  * Returns a string containing a copy of the contents of the
- * receiver's text field.
+ * receiver's text field, or an empty string if there are no
+ * contents.
  *
  * @return the receiver's text
  *
@@ -697,9 +716,6 @@ public String getText () {
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_CANNOT_GET_ITEM_HEIGHT - if the operation fails because of an operating system failure</li>
  * </ul>
  */
 public int getTextHeight () {
@@ -747,6 +763,8 @@ public int getTextHeight () {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ *
+ * @see #LIMIT
  */
 public int getTextLimit () {
 	checkWidget();
@@ -757,6 +775,10 @@ public int getTextLimit () {
 /**
  * Gets the number of items that are visible in the drop
  * down portion of the receiver's list.
+ * <p>
+ * Note: This operation is a hint and is not supported on
+ * platforms that do not have this concept.
+ * </p>
  *
  * @return the number of items that are visible
  *
@@ -777,14 +799,23 @@ public int getVisibleItemCount () {
 void hookEvents () {
 	super.hookEvents ();
 	int windowProc = display.windowProc;
-	OS.XtAddCallback (handle, OS.XmNselectionCallback, windowProc, SELECTION_CALLBACK);
-	int [] argList = {OS.XmNtextField, 0};
+	int [] argList = {OS.XmNlist, 0, OS.XmNtextField, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
-	OS.XtAddCallback (argList[1], OS.XmNactivateCallback, windowProc, ACTIVATE_CALLBACK);
-	OS.XtAddCallback (argList[1], OS.XmNvalueChangedCallback, windowProc, VALUE_CHANGED_CALLBACK);
-	OS.XtAddEventHandler (argList[1], OS.KeyPressMask, false, windowProc, KEY_PRESS);
-	OS.XtAddEventHandler (argList[1], OS.KeyReleaseMask, false, windowProc, KEY_RELEASE);
-	OS.XtInsertEventHandler (argList[1], OS.FocusChangeMask, false, windowProc, FOCUS_CHANGE, OS.XtListTail);
+	int listHandle = argList [1];
+	int textHandle = argList [3];
+	OS.XtAddCallback (listHandle, OS.XmNbrowseSelectionCallback, windowProc, BROWSE_SELECTION_CALLBACK);
+	OS.XtAddEventHandler (listHandle, OS.KeyPressMask, false, windowProc, KEY_PRESS);
+	OS.XtAddEventHandler (listHandle, OS.KeyReleaseMask, false, windowProc, KEY_RELEASE);
+	OS.XtAddCallback (textHandle, OS.XmNactivateCallback, windowProc, ACTIVATE_CALLBACK);
+	OS.XtAddCallback (textHandle, OS.XmNvalueChangedCallback, windowProc, VALUE_CHANGED_CALLBACK);
+	OS.XtAddCallback (textHandle, OS.XmNmodifyVerifyCallback, windowProc, MODIFY_VERIFY_CALLBACK);
+	OS.XtAddEventHandler (textHandle, OS.ButtonPressMask, false, windowProc, BUTTON_PRESS);
+	OS.XtAddEventHandler (textHandle, OS.ButtonReleaseMask, false, windowProc, BUTTON_RELEASE);
+	OS.XtAddEventHandler (textHandle, OS.EnterWindowMask, false, windowProc, ENTER_WINDOW);
+	OS.XtAddEventHandler (textHandle, OS.LeaveWindowMask, false, windowProc, LEAVE_WINDOW);
+	OS.XtAddEventHandler (textHandle, OS.KeyPressMask, false, windowProc, KEY_PRESS);
+	OS.XtAddEventHandler (textHandle, OS.KeyReleaseMask, false, windowProc, KEY_RELEASE);
+	OS.XtInsertEventHandler (textHandle, OS.FocusChangeMask, false, windowProc, FOCUS_CHANGE, OS.XtListTail);
 }
 /**
  * Searches the receiver's list starting at the first item
@@ -895,15 +926,12 @@ public void paste () {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_ITEM_NOT_REMOVED - if the operation fails because of an operating system failure</li>
- * </ul>
  */
 public void remove (int index) {
 	checkWidget();
 	if (index == -1) error (SWT.ERROR_INVALID_RANGE);
 	/*
-	* Feature in Motif.  An index out of range handled
+	* Feature in Motif.  An index out of range is handled
 	* correctly by the list widget but causes an unwanted
 	* Xm Warning.  The fix is to check the range before
 	* deleting an item.
@@ -913,7 +941,11 @@ public void remove (int index) {
 	if (!(0 <= index && index < argList [1])) {
 		error (SWT.ERROR_INVALID_RANGE);
 	}
-	OS.XmComboBoxDeletePos (handle, index + 1);
+	if (argList [1] == 1) {
+		removeAll ();
+	} else {
+		OS.XmComboBoxDeletePos (handle, index + 1);
+	}
 }
 /**
  * Removes the items from the receiver's list which are
@@ -930,9 +962,6 @@ public void remove (int index) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_ITEM_NOT_REMOVED - if the operation fails because of an operating system failure</li>
- * </ul>
  */
 public void remove (int start, int end) {
 	checkWidget();
@@ -942,15 +971,37 @@ public void remove (int start, int end) {
 	if (!(0 <= start && start <= end && end < argList [1])) {
 		error (SWT.ERROR_INVALID_RANGE);
 	}
-	for (int i = start; i <= end; i++) {
-		OS.XmComboBoxDeletePos (handle, start + 1);	
+	if (argList [1] == (end - start + 1)) {
+		removeAll ();
+	} else {
+		for (int i = start; i <= end; i++) {
+			OS.XmComboBoxDeletePos (handle, start + 1);	
+		}
 	}
 }
 void register () {
 	super.register ();
-	int [] argList = {OS.XmNtextField, 0};
+	int [] argList = {OS.XmNlist, 0, OS.XmNtextField, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	display.addWidget (argList[1], this);
+	display.addWidget (argList[3], this);
+}
+void releaseWidget () {
+	/*
+	* Bug in Motif.  Disposing a Combo while its list is visible
+	* causes Motif to crash.  The fix is to hide the drop down
+	* list before disposing the Combo. 
+	*/
+	if ((style & SWT.DROP_DOWN) != 0) {
+		int[] argList = new int[] {OS.XmNlist, 0};
+		OS.XtGetValues (handle, argList, argList.length / 2);
+		int parent = OS.XtParent (argList [1]);
+		while (parent != 0 && !OS.XtIsSubclass (parent, OS.shellWidgetClass ())) {
+			parent = OS.XtParent (parent);
+		}
+		if (parent != 0) OS.XtPopdown (parent);
+	}
+	super.releaseWidget ();
 }
 /**
  * Searches the receiver's list starting at the first item
@@ -967,28 +1018,27 @@ void register () {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_ITEM_NOT_REMOVED - if the operation fails because of an operating system failure</li>
- * </ul>
  */
 public void remove (String string) {
 	checkWidget();
 	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
-
 	byte [] buffer = Converter.wcsToMbcs (getCodePage (), encodeString(string), true);
 	int xmString = OS.XmStringCreateLocalized (buffer);
 	if (xmString == 0) error (SWT.ERROR_ITEM_NOT_REMOVED);
-	
-	int [] argList = {OS.XmNlist, 0};
+	int [] argList = {OS.XmNlist, 0, OS.XmNitemCount, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	int index = OS.XmListItemPos (argList[1], xmString);
-	
 	OS.XmStringFree (xmString);	
 	if (index == 0) error (SWT.ERROR_INVALID_ARGUMENT);
-	OS.XmComboBoxDeletePos (handle, index);
+	if (argList [3] == 1) {
+		removeAll ();
+	} else {
+		OS.XmComboBoxDeletePos (handle, index);
+	}
 }
 /**
- * Removes all of the items from the receiver's list.
+ * Removes all of the items from the receiver's list and clear the
+ * contents of receiver's text field.
  * <p>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -999,13 +1049,11 @@ public void removeAll () {
 	checkWidget();
 	int [] argList = {OS.XmNtextField, 0, OS.XmNlist, 0, OS.XmNitemCount, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
-	
 	boolean warnings = display.getWarnings ();
 	display.setWarnings (false);
 	OS.XmTextSetString (argList[1], new byte[1]);
 	display.setWarnings(warnings);	
 	OS.XmListDeselectAllItems (argList[3]);
-	
 	for (int i = 0; i < argList[5]; i++) {
 		OS.XmComboBoxDeletePos(handle, 1);
 	}
@@ -1056,6 +1104,31 @@ public void removeSelectionListener (SelectionListener listener) {
 	if (eventTable == null) return;
 	eventTable.unhook (SWT.Selection, listener);
 	eventTable.unhook (SWT.DefaultSelection,listener);	
+}
+/**
+ * Removes the listener from the collection of listeners who will
+ * be notified when the control is verified.
+ *
+ * @param listener the listener which should no longer be notified
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @see VerifyListener
+ * @see #addVerifyListener
+ * 
+ * @since 3.1
+ */
+public void removeVerifyListener (VerifyListener listener) {
+	checkWidget ();
+	if (listener == null) error (SWT.ERROR_NULL_ARGUMENT);
+	if (eventTable == null) return;
+	eventTable.unhook (SWT.Verify, listener);	
 }
 /**
  * Selects the item at the given zero-relative index in the receiver's 
@@ -1140,7 +1213,7 @@ public void setFont (Font font) {
 	* the drop down arrow may be positioned in the middle of the text
 	* field or may be invisible, positioned outside the bounds of the
 	* widget.  The fix is to detect these cases and force the combo box
-	* to be layed out properly by temporarily growing and then shrinking
+	* to be laid out properly by temporarily growing and then shrinking
 	* the widget.
 	* 
 	* NOTE: This problem also occurs for simple combo boxes.
@@ -1163,8 +1236,8 @@ void setForegroundPixel (int pixel) {
 /**
  * Sets the text of the item in the receiver's list at the given
  * zero-relative index to the string argument. This is equivalent
- * to <code>remove</code>'ing the old item at the index, and then
- * <code>add</code>'ing the new item at that index.
+ * to removing the old item at the index, and then adding the new
+ * item at that index.
  *
  * @param index the index for the item
  * @param string the new text for the item
@@ -1176,10 +1249,6 @@ void setForegroundPixel (int pixel) {
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
- * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_ITEM_NOT_REMOVED - if the remove operation fails because of an operating system failure</li>
- *    <li>ERROR_ITEM_NOT_ADDED - if the add operation fails because of an operating system failure</li>
  * </ul>
  */
 public void setItem (int index, String string) {
@@ -1206,18 +1275,19 @@ public void setItem (int index, String string) {
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the items array is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if an item in the items array is null</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
- * @exception SWTError <ul>
- *    <li>ERROR_ITEM_NOT_ADDED - if the operation fails because of an operating system failure</li>
- * </ul>
  */
 public void setItems (String [] items) {
 	checkWidget();
 	if (items == null) error (SWT.ERROR_NULL_ARGUMENT);
+	for (int i=0; i<items.length; i++) {
+		if (items [i] == null) error (SWT.ERROR_INVALID_ARGUMENT);
+	}
 
 	if (items.length == 0) {
 		removeAll();
@@ -1229,7 +1299,6 @@ public void setItems (String [] items) {
 	String codePage = getCodePage ();
 	while (index < items.length) {
 		String string = items [index];
-		if (string == null) break; 
 		byte [] buffer = Converter.wcsToMbcs (codePage, encodeString(string), true);
 		int xmString = OS.XmStringCreateLocalized (buffer);
 		if (xmString == 0) break;
@@ -1379,7 +1448,11 @@ public void setText (String string) {
 /**
  * Sets the maximum number of characters that the receiver's
  * text field is capable of holding to be the argument.
- *
+ * <p>
+ * To reset this value to the default, use <code>setTextLimit(Combo.LIMIT)</code>.
+ * Specifying a limit value larger than <code>Combo.LIMIT</code> sets the
+ * receiver's limit to <code>Combo.LIMIT</code>.
+ * </p>
  * @param limit new text limit
  *
  * @exception IllegalArgumentException <ul>
@@ -1389,6 +1462,8 @@ public void setText (String string) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @see #LIMIT
  */
 public void setTextLimit (int limit) {
 	checkWidget();
@@ -1400,6 +1475,10 @@ public void setTextLimit (int limit) {
 /**
  * Sets the number of items that are visible in the drop
  * down portion of the receiver's list.
+ * <p>
+ * Note: This operation is a hint and is not supported on
+ * platforms that do not have this concept.
+ * </p>
  *
  * @param count the new number of items to be visible
  *
@@ -1429,9 +1508,10 @@ public void setVisibleItemCount (int count) {
 }
 void deregister () {
 	super.deregister ();
-	int [] argList = {OS.XmNtextField, 0};
+	int [] argList = {OS.XmNlist, 0, OS.XmNtextField, 0};
 	OS.XtGetValues (handle, argList, argList.length / 2);
 	display.removeWidget (argList[1]);
+	display.removeWidget (argList[3]);
 }
 void enableWidget (boolean enabled) {
 	super.enableWidget (enabled);
@@ -1487,7 +1567,7 @@ int XmNactivateCallback (int w, int client_data, int call_data) {
 	postEvent (SWT.DefaultSelection);
 	return 0;
 }
-int XmNselectionCallback (int w, int client_data, int call_data) {
+int XmNbrowseSelectionCallback (int w, int client_data, int call_data) {
 	/*
 	* Bug in MOTIF.  If items have been added and removed from a
 	* combo then users are able to select an empty drop-down item
@@ -1498,6 +1578,45 @@ int XmNselectionCallback (int w, int client_data, int call_data) {
 	if (ignoreSelect || getSelectionIndex() == -1) return 0;
 	postEvent (SWT.Selection);
 	return 0;
+}
+int XmNmodifyVerifyCallback (int w, int client_data, int call_data) {
+	int result = super.XmNmodifyVerifyCallback (w, client_data, call_data);
+	if (result != 0) return result;
+	if (!hooks (SWT.Verify) && !filters (SWT.Verify)) return result;
+	XmTextVerifyCallbackStruct textVerify = new XmTextVerifyCallbackStruct ();
+	OS.memmove (textVerify, call_data, XmTextVerifyCallbackStruct.sizeof);
+	XmTextBlockRec textBlock = new XmTextBlockRec ();
+	OS.memmove (textBlock, textVerify.text, XmTextBlockRec.sizeof);
+	byte [] buffer = new byte [textBlock.length];
+	OS.memmove (buffer, textBlock.ptr, textBlock.length);
+	String codePage = getCodePage ();
+	String text = new String (Converter.mbcsToWcs (codePage, buffer));
+	Event event = new Event ();
+	if (textVerify.event != 0) {
+		XKeyEvent xEvent = new XKeyEvent ();
+		OS.memmove (xEvent, textVerify.event, XKeyEvent.sizeof);
+		event.time = xEvent.time;
+		setKeyState (event, xEvent);
+	}
+	event.start = textVerify.startPos;
+	event.end = textVerify.endPos;
+	event.doit = textVerify.doit == 1;
+	event.text = text;
+	sendEvent (SWT.Verify, event);
+	String newText = event.text;
+	textVerify.doit = (byte) ((event.doit && newText != null) ? 1 : 0);
+	if (newText != null && newText != text) {
+		OS.XtFree(textBlock.ptr);
+		byte [] buffer2 = Converter.wcsToMbcs (codePage, newText, true);
+		int length = buffer2.length;
+		int ptr = OS.XtMalloc (length);
+		OS.memmove (ptr, buffer2, length);
+		textBlock.ptr = ptr;
+		textBlock.length = buffer2.length - 1;
+		OS.memmove (textVerify.text, textBlock, XmTextBlockRec.sizeof);
+	}
+	OS.memmove (call_data, textVerify, XmTextVerifyCallbackStruct.sizeof);
+	return result;
 }
 int XmNvalueChangedCallback (int w, int client_data, int call_data) {
 	sendEvent (SWT.Modify);

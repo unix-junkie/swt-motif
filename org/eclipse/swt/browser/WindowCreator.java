@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2003, 2004 IBM Corporation and others.
+ * Copyright (c) 2003, 2005 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Common Public License v1.0
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/cpl-v10.html
- * 
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
@@ -113,12 +113,7 @@ int CreateChromeWindow(int parent, int chromeFlags, int _retval) {
 	baseWindow.Release();
 
 	Display display = Display.getCurrent();
-	Shell[] shells = display.getShells();
-	Browser src = null;
-	for (int i = 0; i < shells.length; i++) {
-		src = Browser.findBrowser(shells[i], aParentNativeWindow[0]);
-		if (src != null) break;
-	}
+	Browser src = Browser.findBrowser(aParentNativeWindow[0]);
 	final Browser browser;
 	boolean doit = false;
 	if ((chromeFlags & nsIWebBrowserChrome.CHROME_MODAL) != 0) {
@@ -155,17 +150,24 @@ int CreateChromeWindow(int parent, int chromeFlags, int _retval) {
 		WindowEvent event = new WindowEvent(src);
 		event.display = display;
 		event.widget = src;
+		event.required = true;
 		for (int i = 0; i < src.openWindowListeners.length; i++)
 			src.openWindowListeners[i].open(event);
 		browser = event.browser;
 		doit = browser != null && !browser.isDisposed();
+		if (doit) {
+			browser.addressBar = (chromeFlags & nsIWebBrowserChrome.CHROME_LOCATIONBAR) != 0;
+			browser.menuBar = (chromeFlags & nsIWebBrowserChrome.CHROME_MENUBAR) != 0;
+			browser.statusBar = (chromeFlags & nsIWebBrowserChrome.CHROME_STATUSBAR) != 0;
+			browser.toolBar = (chromeFlags & nsIWebBrowserChrome.CHROME_TOOLBAR) != 0;
+		}
 	}
 	if (doit) {
 		int address = browser.webBrowserChrome.getAddress();
 		nsIWebBrowserChrome webBrowserChrome = new nsIWebBrowserChrome(address);
 		webBrowserChrome.AddRef();
 		XPCOM.memmove(_retval, new int[] {address}, 4);
-	}	
+	}
 	return doit ? XPCOM.NS_OK : XPCOM.NS_ERROR_NOT_IMPLEMENTED;
 }
 }
