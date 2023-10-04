@@ -50,30 +50,6 @@ case $OS in
 			if [ "${MOTIF_HOME}" = "" ]; then
 				echo "Please set MOTIF_HOME to point at a Motif dev path."
 			fi
-			if [ -z "${MOZILLA_INCLUDES}" -a -z "${MOZILLA_LIBS}" ]; then
-				if [ x`pkg-config --exists mozilla-xpcom && echo YES` = "xYES" ]; then
-					MOZILLA_INCLUDES=`pkg-config --cflags mozilla-xpcom`
-					MOZILLA_LIBS=`pkg-config --libs mozilla-xpcom`
-					export MOZILLA_INCLUDES
-					export MOZILLA_LIBS
-					MAKE_MOZILLA=make_mozilla
-				elif [ x`pkg-config --exists firefox-xpcom && echo YES` = "xYES" ]; then
-					MOZILLA_INCLUDES=`pkg-config --cflags firefox-xpcom`
-					MOZILLA_LIBS=`pkg-config --libs firefox-xpcom`
-					export MOZILLA_INCLUDES
-					export MOZILLA_LIBS
-					MAKE_MOZILLA=make_mozilla
-				elif [ x`pkg-config --exists libxul && echo YES` = "xYES" ]; then
-					XULRUNNER_INCLUDES=`pkg-config --cflags libxul`
-					XULRUNNER_LIBS=`pkg-config --libs libxul`
-					export XULRUNNER_INCLUDES
-					export XULRUNNER_LIBS
-					MAKE_MOZILLA=make_xulrunner
-				else
-					echo "None of the following libraries were found:  Mozilla/XPCOM, Firefox/XPCOM, or XULRunner/XPCOM"
-					echo "    *** Mozilla embedding support will not be compiled."
-				fi
-			fi
 			OUTPUT_DIR=../../../org.eclipse.swt.motif.linux.x86
 			makefile="make_linux.mak"
 			echo "Building Linux motif x86 version of SWT"
@@ -136,6 +112,6 @@ case $OS in
 		;;
 esac
 
-export JAVA_HOME MOTIF_HOME CDE_HOME MOZILLA_SDK MOZILLA_INCLUDES MOZILLA_LIBS XULRUNNER_SDK XULRUNNER_INCLUDES XULRUNNER_LIBS OUTPUT_DIR
+export JAVA_HOME MOTIF_HOME CDE_HOME OUTPUT_DIR
 
 make -f $makefile $1 $2 $3 $4 $5 $6 $7 $8 $9
