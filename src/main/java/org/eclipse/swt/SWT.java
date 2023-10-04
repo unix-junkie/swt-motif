@@ -3929,16 +3929,6 @@ public static String getMessage(String key) {
 }
 
 /**
- * Returns the SWT platform name.
- * Examples: "win32", "motif", "gtk", "photon", "carbon", "cocoa", "wpf"
- *
- * @return the SWT platform name
- */
-public static String getPlatform () {
-	return Platform.PLATFORM;
-}
-
-/**
  * Returns the SWT version number as an integer.
  * Example: "SWT051" == 51
  *
@@ -4120,17 +4110,9 @@ static {
 	* Therefore they are not initialized in the declaration
 	* to stop the compiler from inlining.
 	*/
-	String platform = getPlatform ();
-	if ("carbon".equals (platform) || "cocoa".equals (platform)) { //$NON-NLS-1$ //$NON-NLS-2$
-		MOD1 = COMMAND;
-		MOD2 = SHIFT;
-		MOD3 = ALT;
-		MOD4 = CONTROL;
-	} else {
-		MOD1 = CONTROL;
-		MOD2 = SHIFT;
-		MOD3 = ALT;
-		MOD4 = 0;
-	}
+	MOD1 = CONTROL;
+	MOD2 = SHIFT;
+	MOD3 = ALT;
+	MOD4 = 0;
 }
 }

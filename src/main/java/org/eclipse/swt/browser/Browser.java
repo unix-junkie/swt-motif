@@ -82,81 +82,16 @@ public Browser (Composite parent, int style) {
 	super (checkParent (parent), checkStyle (style));
 	userStyle = style;
 
-	String platform = SWT.getPlatform ();
-	Display display = parent.getDisplay ();
-	if ("gtk".equals (platform)) display.setData (NO_INPUT_METHOD, null); //$NON-NLS-1$
-	String classNames[] = null;
-	if ("win32".equals (platform) || "wpf".equals (platform)) { //$NON-NLS-1$ $NON-NLS-2$
-		classNames = new String[] {"org.eclipse.swt.browser.IE"}; //$NON-NLS-1$
-	} else if ("motif".equals (platform)) { //$NON-NLS-1$
-		classNames = new String[0];
-	} else if ("gtk".equals (platform)) { //$NON-NLS-1$
-		String property = System.getProperty (PROPERTY_USEWEBKITGTK);
-		if (property != null && property.equalsIgnoreCase ("true")) { //$NON-NLS-1$
-			classNames = new String[] {"org.eclipse.swt.browser.WebKit"}; //$NON-NLS-1$
-		} else {
-			classNames = new String[0];
-		}
-	} else if ("carbon".equals (platform) || "cocoa".equals (platform)) { //$NON-NLS-1$
-		classNames = new String[] {"org.eclipse.swt.browser.Safari"}; //$NON-NLS-1$
-	} else if ("photon".equals (platform)) { //$NON-NLS-1$
-		classNames = new String[] {"org.eclipse.swt.browser.Voyager"}; //$NON-NLS-1$
-	} else {
-		dispose ();
-		SWT.error (SWT.ERROR_NO_HANDLES);
-	}
-
-	for (int i = 0; i < classNames.length; i++) {
-		try {
-			Class clazz = Class.forName (classNames[i]);
-			webBrowser = (WebBrowser)clazz.newInstance ();
-			if (webBrowser != null) {
-				webBrowser.setBrowser (this);
-				if (webBrowser.create (parent, style)) return;
-			}
-		} catch (ClassNotFoundException e) {
-		} catch (IllegalAccessException e) {
-		} catch (InstantiationException e) {
-		}
-	}
 	dispose ();
 	SWT.error (SWT.ERROR_NO_HANDLES);
 }
 
 static Composite checkParent (Composite parent) {
-	String platform = SWT.getPlatform ();
-	if (!"gtk".equals (platform)) return parent; //$NON-NLS-1$
-
-	/*
-	* Note.  Mozilla provides all IM support needed for text input in web pages.
-	* If SWT creates another input method context for the widget it will cause
-	* indeterminate results to happen (hangs and crashes). The fix is to prevent
-	* SWT from creating an input method context for the  Browser widget.
-	*/
-	if (parent != null && !parent.isDisposed ()) {
-		Display display = parent.getDisplay ();
-		if (display != null) {
-			if (display.getThread () == Thread.currentThread ()) {
-				display.setData (NO_INPUT_METHOD, "true"); //$NON-NLS-1$
-			}
-		}
-	}
 	return parent;
 }
 
 static int checkStyle(int style) {
-	String platform = SWT.getPlatform ();
-
-	if ("win32".equals (platform)) { //$NON-NLS-1$
-		/*
-		* For IE on win32 the border is supplied by the embedded browser, so remove
-		* the style so that the parent Composite will not draw a second border.
-		*/
-		return style & ~SWT.BORDER;
-	} else if ("motif".equals (platform)) { //$NON-NLS-1$
-		return style | SWT.EMBEDDED;
-	}
-	return style;
+	return style | SWT.EMBEDDED;
 }
 
 protected void checkWidget () {
