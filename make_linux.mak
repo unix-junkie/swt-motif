@@ -34,13 +34,6 @@ SWT_LIBS = -L$(MOTIF_HOME)/lib -lXm -L/usr/lib -L/usr/X11R6/lib \
 CFLAGS = -O -Wall -DSWT_VERSION=$(SWT_VERSION) $(NATIVE_STATS) -DUSE_ASSEMBLER -DLINUX -DMOTIF -DNO_XPRINTING_EXTENSIONS -fpic \
 	-I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -I$(MOTIF_HOME)/include -I/usr/X11R6/include
 
-# Do not use pkg-config to get libs because it includes unnecessary dependencies (i.e. pangoxft-1.0)
-GNOME_PREFIX = swt-gnome
-GNOME_LIB = lib$(GNOME_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
-GNOME_OBJECTS = swt.o gnome.o gnome_structs.o gnome_stats.o
-GNOME_CFLAGS = -O -Wall -DSWT_VERSION=$(SWT_VERSION) $(NATIVE_STATS) -DLINUX -DGTK -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux `pkg-config --cflags gnome-vfs-module-2.0 libgnome-2.0 libgnomeui-2.0`
-GNOME_LIBS = -shared -fpic -fPIC `pkg-config --libs-only-L gnome-vfs-module-2.0 libgnome-2.0 libgnomeui-2.0` -lgnomevfs-2 -lgnome-2 -lgnomeui-2
-
 AWT_PREFIX = swt-awt
 AWT_LIB = lib$(AWT_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
 AWT_OBJS = swt_awt.o
@@ -107,7 +100,7 @@ ifndef NO_STRIP
 	MOZILLALIBS := $(MOZILLALIBS) -s
 endif
 
-all: make_swt make_awt make_gnome make_gtk make_glx
+all: make_swt make_awt make_gtk make_glx
 
 make_swt: $(SWT_LIB)
 
@@ -122,20 +115,6 @@ os_structs.o: os_structs.c os_structs.h os.h swt.h
 	$(CC) $(CFLAGS) -c os_structs.c 
 os_stats.o: os_stats.c os_structs.h os.h os_stats.h swt.h
 	$(CC) $(CFLAGS) -c os_stats.c
-
-make_gnome: $(GNOME_LIB)
-
-$(GNOME_LIB): $(GNOME_OBJECTS)
-	gcc -o $@ $(GNOME_OBJECTS) $(GNOME_LIBS)
-
-gnome.o: gnome.c
-	gcc $(GNOME_CFLAGS) -c -o gnome.o gnome.c
-
-gnome_structs.o: gnome_structs.c
-	gcc $(GNOME_CFLAGS) -c -o gnome_structs.o gnome_structs.c
-
-gnome_stats.o: gnome_stats.c
-	gcc $(GNOME_CFLAGS) -c -o gnome_stats.o gnome_stats.c
 
 make_awt: $(AWT_LIB)
 
