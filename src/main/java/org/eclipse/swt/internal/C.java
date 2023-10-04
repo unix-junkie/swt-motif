@@ -13,7 +13,7 @@ package org.eclipse.swt.internal;
 public class C extends Platform {
 
 	static {
-		if ("Linux".equals (System.getProperty ("os.name")) && "motif".equals (Platform.PLATFORM)) { //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+		if ("Linux".equals (System.getProperty ("os.name"))) { //$NON-NLS-1$ //$NON-NLS-2$
 			try {
 				Library.loadLibrary ("libXm.so.2", false); //$NON-NLS-1$
 			} catch (Throwable ex) {}

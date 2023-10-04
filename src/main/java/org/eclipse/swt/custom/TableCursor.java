@@ -20,15 +20,15 @@ import org.eclipse.swt.events.*;
  * A TableCursor provides a way for the user to navigate around a Table
  * using the keyboard.  It also provides a mechanism for selecting an
  * individual cell in a table.
- * 
+ *
  * <p> Here is an example of using a TableCursor to navigate to a cell and then edit it.
- * 
+ *
  * <code><pre>
  *  public static void main(String[] args) {
  *		Display display = new Display();
  *		Shell shell = new Shell(display);
  *		shell.setLayout(new GridLayout());
- *	
+ *
  *		// create a a table with 3 columns and fill with data
  *		final Table table = new Table(shell, SWT.BORDER | SWT.MULTI | SWT.FULL_SELECTION);
  *		table.setLayoutData(new GridData(GridData.FILL_BOTH));
@@ -42,22 +42,22 @@ import org.eclipse.swt.events.*;
  *		column1.pack();
  *		column2.pack();
  *		column3.pack();
- *	
+ *
  *		// create a TableCursor to navigate around the table
  *		final TableCursor cursor = new TableCursor(table, SWT.NONE);
- *		// create an editor to edit the cell when the user hits "ENTER" 
+ *		// create an editor to edit the cell when the user hits "ENTER"
  *		// while over a cell in the table
  *		final ControlEditor editor = new ControlEditor(cursor);
  *		editor.grabHorizontal = true;
  *		editor.grabVertical = true;
- *	
+ *
  *		cursor.addSelectionListener(new SelectionAdapter() {
- *			// when the TableEditor is over a cell, select the corresponding row in 
+ *			// when the TableEditor is over a cell, select the corresponding row in
  *			// the table
  *			public void widgetSelected(SelectionEvent e) {
  *				table.setSelection(new TableItem[] {cursor.getRow()});
  *			}
- *			// when the user hits "ENTER" in the TableCursor, pop up a text editor so that 
+ *			// when the user hits "ENTER" in the TableCursor, pop up a text editor so that
  *			// they can change the text of the cell
  *			public void widgetDefaultSelected(SelectionEvent e){
  *				final Text text = new Text(cursor, SWT.NONE);
@@ -66,7 +66,7 @@ import org.eclipse.swt.events.*;
  *				text.setText(row.getText(column));
  *				text.addKeyListener(new KeyAdapter() {
  *					public void keyPressed(KeyEvent e) {
- *						// close the text editor and copy the data over 
+ *						// close the text editor and copy the data over
  *						// when the user hits "ENTER"
  *						if (e.character == SWT.CR) {
  *							TableItem row = cursor.getRow();
@@ -88,9 +88,9 @@ import org.eclipse.swt.events.*;
  *		// This allows the user to select multiple items in the table.
  *		cursor.addKeyListener(new KeyAdapter() {
  *			public void keyPressed(KeyEvent e) {
- *				if (e.keyCode == SWT.MOD1 || 
- *				    e.keyCode == SWT.MOD2 || 
- *				    (e.stateMask & SWT.MOD1) != 0 || 
+ *				if (e.keyCode == SWT.MOD1 ||
+ *				    e.keyCode == SWT.MOD2 ||
+ *				    (e.stateMask & SWT.MOD1) != 0 ||
  *				    (e.stateMask & SWT.MOD2) != 0) {
  *					cursor.setVisible(false);
  *				}
@@ -104,7 +104,7 @@ import org.eclipse.swt.events.*;
  *				if (e.keyCode == SWT.MOD2 && (e.stateMask & SWT.MOD1) != 0) return;
  *				if (e.keyCode != SWT.MOD1 && (e.stateMask & SWT.MOD1) != 0) return;
  *				if (e.keyCode != SWT.MOD2 && (e.stateMask & SWT.MOD2) != 0) return;
- *			
+ *
  *				TableItem[] selection = table.getSelection();
  *				TableItem row = (selection.length == 0) ? table.getItem(table.getTopIndex()) : selection[0];
  *				table.showItem(row);
@@ -113,7 +113,7 @@ import org.eclipse.swt.events.*;
  *				cursor.setFocus();
  *			}
  *		});
- *	
+ *
  *		shell.open();
  *		while (!shell.isDisposed()) {
  *			if (!display.readAndDispatch())
@@ -122,18 +122,18 @@ import org.eclipse.swt.events.*;
  *		display.dispose();
  *	}
  * </pre></code>
- * 
+ *
  * <dl>
  * <dt><b>Styles:</b></dt>
  * <dd>BORDER</dd>
  * <dt><b>Events:</b></dt>
  * <dd>Selection, DefaultSelection</dd>
  * </dl>
- * 
+ *
  * @since 2.0
  *
  * @see <a href="http://www.eclipse.org/swt/snippets/#tablecursor">TableCursor snippets</a>
- * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a> 
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class TableCursor extends Canvas {
 	Table table;
@@ -154,7 +154,7 @@ public class TableCursor extends Canvas {
  * <p>
  * The style value is either one of the style constants defined in
  * class <code>SWT</code> which is applicable to instances of this
- * class, or must be built by <em>bitwise OR</em>'ing together 
+ * class, or must be built by <em>bitwise OR</em>'ing together
  * (that is, using the <code>int</code> "|" operator) two or more
  * of those <code>SWT</code> style constants. The class description
  * lists the style constants that are applicable to the class.
@@ -181,7 +181,7 @@ public TableCursor(Table parent, int style) {
 	table = parent;
 	setBackground(null);
 	setForeground(null);
-	
+
 	listener = new Listener() {
 		public void handleEvent(Event event) {
 			switch (event.type) {
@@ -301,7 +301,7 @@ public TableCursor(Table parent, int style) {
  * @see SelectionListener
  * @see SelectionEvent
  * @see #removeSelectionListener(SelectionListener)
- * 
+ *
  */
 public void addSelectionListener(SelectionListener listener) {
 	checkWidget();
@@ -348,7 +348,7 @@ void keyDown(Event event) {
 			break;
         case SWT.ARROW_LEFT :
         case SWT.ARROW_RIGHT :
-        	{	
+        	{
         		int columnCount = table.getColumnCount();
         		if (columnCount == 0) break;
         		int[] order = table.getColumnOrder();
@@ -432,40 +432,20 @@ void paint(Event event) {
 		Rectangle bounds = row.getBounds(columnIndex);
 		Point extent = gc.stringExtent(text);
 		// Temporary code - need a better way to determine table trim
-		String platform = SWT.getPlatform();
-		if ("win32".equals(platform)) { //$NON-NLS-1$
-			if (table.getColumnCount() == 0 || columnIndex == 0) {
-				x += 2; 
-			} else {
-				int alignmnent = column.getAlignment();
-				switch (alignmnent) {
-					case SWT.LEFT:
-						x += 6;
-						break;
-					case SWT.RIGHT:
-						x = bounds.width - extent.x - 6;
-						break;
-					case SWT.CENTER:
-						x += (bounds.width - x - extent.x) / 2;
-						break;
-				}
-			}
-		}  else {
-			if (table.getColumnCount() == 0) {
-				x += 5; 
-			} else {
-				int alignmnent = column.getAlignment();
-				switch (alignmnent) {
-					case SWT.LEFT:
-						x += 5;
-						break;
-					case SWT.RIGHT:
-						x = bounds.width- extent.x - 2;
-						break;
-					case SWT.CENTER:
-						x += (bounds.width - x - extent.x) / 2 + 2;
-						break;
-				}
+		if (table.getColumnCount() == 0) {
+			x += 5;
+		} else {
+			int alignmnent = column.getAlignment();
+			switch (alignmnent) {
+				case SWT.LEFT:
+					x += 5;
+					break;
+				case SWT.RIGHT:
+					x = bounds.width- extent.x - 2;
+					break;
+				case SWT.CENTER:
+					x += (bounds.width - x - extent.x) / 2 + 2;
+					break;
 			}
 		}
 		int textY = (size.y - extent.y) / 2;
@@ -600,7 +580,7 @@ public void setVisible(boolean visible) {
  *
  * @see SelectionListener
  * @see #addSelectionListener(SelectionListener)
- * 
+ *
  * @since 3.0
  */
 public void removeSelectionListener(SelectionListener listener) {
@@ -609,7 +589,7 @@ public void removeSelectionListener(SelectionListener listener) {
 		SWT.error(SWT.ERROR_NULL_ARGUMENT);
 	}
 	removeListener(SWT.Selection, listener);
-	removeListener(SWT.DefaultSelection, listener);	
+	removeListener(SWT.DefaultSelection, listener);
 }
 
 void _resize() {
@@ -683,7 +663,7 @@ public TableItem getRow() {
  * @param color the new color (or null)
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li> 
+ *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -705,7 +685,7 @@ public void setBackground (Color color) {
  * @param color the new color (or null)
  *
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li> 
+ *    <li>ERROR_INVALID_ARGUMENT - if the argument has been disposed</li>
  * </ul>
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -718,7 +698,7 @@ public void setForeground (Color color) {
 	redraw();
 }
 /**
- * Positions the TableCursor over the cell at the given row and column in the parent table. 
+ * Positions the TableCursor over the cell at the given row and column in the parent table.
  *
  * @param row the index of the row for the cell to select
  * @param column the index of column for the cell to select
@@ -741,7 +721,7 @@ public void setSelection(int row, int column) {
 	setRowColumn(row, column, false);
 }
 /**
- * Positions the TableCursor over the cell at the given row and column in the parent table. 
+ * Positions the TableCursor over the cell at the given row and column in the parent table.
  *
  * @param row the TableItem of the row for the cell to select
  * @param column the index of column for the cell to select
