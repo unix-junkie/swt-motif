@@ -32,19 +32,23 @@ SWT_LIBS = -L$(MOTIF_HOME)/lib -lXm -L/usr/lib -L/usr/X11R6/lib \
 #NATIVE_STATS = -DNATIVE_STATS
 
 CFLAGS = -O -Wall -DSWT_VERSION=$(SWT_VERSION) $(NATIVE_STATS) -DUSE_ASSEMBLER -DLINUX -DMOTIF -DNO_XPRINTING_EXTENSIONS -fpic \
-	-I$(JAVA_HOME)/include -I$(MOTIF_HOME)/include -I/usr/X11R6/include
+	-I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -I$(MOTIF_HOME)/include -I/usr/X11R6/include
 
 # Do not use pkg-config to get libs because it includes unnecessary dependencies (i.e. pangoxft-1.0)
 GNOME_PREFIX = swt-gnome
 GNOME_LIB = lib$(GNOME_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
 GNOME_OBJECTS = swt.o gnome.o gnome_structs.o gnome_stats.o
-GNOME_CFLAGS = -O -Wall -DSWT_VERSION=$(SWT_VERSION) $(NATIVE_STATS) -DLINUX -DGTK -I$(JAVA_HOME)/include `pkg-config --cflags gnome-vfs-module-2.0 libgnome-2.0 libgnomeui-2.0`
+GNOME_CFLAGS = -O -Wall -DSWT_VERSION=$(SWT_VERSION) $(NATIVE_STATS) -DLINUX -DGTK -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux `pkg-config --cflags gnome-vfs-module-2.0 libgnome-2.0 libgnomeui-2.0`
 GNOME_LIBS = -shared -fpic -fPIC `pkg-config --libs-only-L gnome-vfs-module-2.0 libgnome-2.0 libgnomeui-2.0` -lgnomevfs-2 -lgnome-2 -lgnomeui-2
 
 AWT_PREFIX = swt-awt
 AWT_LIB = lib$(AWT_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
 AWT_OBJS = swt_awt.o
-AWT_LIBS = -L$(JAVA_HOME)/jre/bin -ljawt -shared
+JVM_ARCH = $(shell uname -m || arch)
+ifeq ($(JVM_ARCH),x86_64)
+JVM_ARCH = amd64
+endif
+AWT_LIBS = -L$(JAVA_HOME)/lib -L$(JAVA_HOME)/lib/$(JVM_ARCH) -ljawt -shared
 
 GTK_PREFIX = swt-gtk
 GTK_LIB = lib$(GTK_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
