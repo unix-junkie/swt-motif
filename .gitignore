@@ -1,2 +1,11 @@
 /.idea/
 /target/
+
+# Object files
+*.o
+
+# Shared libraries
+*.so
+
+# Backup files
+*~
