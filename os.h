@@ -21,7 +21,9 @@
 #include <X11/Shell.h>
 #include <X11/keysym.h>
 #include <X11/extensions/shape.h>
+#ifndef NO_XPRINTING_EXTENSIONS
 #include <X11/extensions/Print.h>
+#endif // NO_XPRINTING_EXTENSIONS
 #if !(defined _HPUX || defined AIX)
 #include <X11/extensions/Xrender.h>
 #else
