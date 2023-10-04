@@ -58,7 +58,7 @@ CAIROLIBS = -shared -fpic -fPIC `pkg-config --libs-only-L cairo` -lcairo
 GLX_PREFIX = swt-glx
 GLX_LIB = lib$(GLX_PREFIX)-$(WS_PREFIX)-$(SWT_VERSION).so
 GLX_OBJECTS = swt.o glx.o glx_structs.o glx_stats.o
-GLXCFLAGS = 
+GLXCFLAGS =
 GLXLIBS = -shared -fpic -fPIC -L/usr/X11R6/lib -lGL -lGLU -lm
 
 ifndef NO_STRIP
@@ -66,7 +66,7 @@ ifndef NO_STRIP
 	CAIROLIBS := $(CAIROLIBS) -s
 endif
 
-all: make_swt make_awt make_gtk make_glx
+all: make_swt make_awt make_gtk make_cairo make_glx
 
 make_swt: $(SWT_LIB)
 
