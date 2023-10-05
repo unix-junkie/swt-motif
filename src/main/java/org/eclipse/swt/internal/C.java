@@ -13,11 +13,6 @@ package org.eclipse.swt.internal;
 public class C extends Platform {
 
 	static {
-		if ("Linux".equals (System.getProperty ("os.name"))) { //$NON-NLS-1$ //$NON-NLS-2$
-			try {
-				Library.loadLibrary ("libXm.so.2", false); //$NON-NLS-1$
-			} catch (Throwable ex) {}
-		}
 		Library.loadLibrary ("swt"); //$NON-NLS-1$
 	}
 
