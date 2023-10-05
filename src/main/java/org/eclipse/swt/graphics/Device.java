@@ -33,11 +33,11 @@ public abstract class Device implements Drawable {
 	 * within the packages provided by SWT. It is not available on all
 	 * platforms and should never be accessed from application code.
 	 * </p>
-	 * 
+	 *
 	 * @noreference This field is not intended to be referenced by clients.
 	 */
 	public int xDisplay;
-	
+
 	/**
 	 * whether the XLFD resolution should match the
 	 * resolution of the device when fonts are created
@@ -48,12 +48,12 @@ public abstract class Device implements Drawable {
 	 * within the packages provided by SWT. It is not available on all
 	 * platforms and should never be accessed from application code.
 	 * </p>
-	 * 
+	 *
 	 * @noreference This field is not intended to be referenced by clients.
 	 */
 	// TEMPORARY CODE
 	public boolean setDPI;
-	
+
 	/* Debugging */
 	public static boolean DEBUG;
 	boolean debug = DEBUG;
@@ -66,19 +66,19 @@ public abstract class Device implements Drawable {
 	String display_name;
 	String application_name;
 	String application_class;
-		
+
 	/* Colormap and reference count for this display */
 	XColor [] xcolors;
 	int [] colorRefCount;
-	
+
 	/* System Colors */
 	Color COLOR_BLACK, COLOR_DARK_RED, COLOR_DARK_GREEN, COLOR_DARK_YELLOW, COLOR_DARK_BLUE;
 	Color COLOR_DARK_MAGENTA, COLOR_DARK_CYAN, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_RED;
 	Color COLOR_GREEN, COLOR_YELLOW, COLOR_BLUE, COLOR_MAGENTA, COLOR_CYAN, COLOR_WHITE;
-	
+
 	/* System Font */
 	Font systemFont;
-	
+
 	int shellHandle;
 
 	boolean useXRender;
@@ -96,7 +96,7 @@ public abstract class Device implements Drawable {
 	 * within the packages provided by SWT. It is not available on all
 	 * platforms and should never be accessed from application code.
 	 * </p>
-	 * 
+	 *
 	 * @noreference This field is not intended to be referenced by clients.
 	 */
 	// TEMPORARY CODE
@@ -105,8 +105,8 @@ public abstract class Device implements Drawable {
 	/* Xt Warning and Error Handlers */
 	boolean warnings = true;
 	Callback xtWarningCallback, xtErrorCallback;
-	int xtWarningProc, xtErrorProc, xtNullWarningProc, xtNullErrorProc;	
-	
+	int xtWarningProc, xtErrorProc, xtNullWarningProc, xtNullErrorProc;
+
 	/* X Warning and Error Handlers */
 	static Callback XErrorCallback, XIOErrorCallback;
 	static int XErrorProc, XIOErrorProc, XNullErrorProc, XNullIOErrorProc;
@@ -121,7 +121,7 @@ public abstract class Device implements Drawable {
 //		OS.XtToolkitThreadInitialize ();
 		OS.XtToolkitInitialize ();
 	}
-	
+
 	/*
 	* TEMPORARY CODE. When a graphics object is
 	* created and the device parameter is null,
@@ -138,10 +138,10 @@ public abstract class Device implements Drawable {
 		try {
 			Class.forName ("org.eclipse.swt.widgets.Display");
 		} catch (ClassNotFoundException e) {}
-	}	
+	}
 
-/* 
-* TEMPORARY CODE 
+/*
+* TEMPORARY CODE
 */
 static synchronized Device getDevice () {
 	if (DeviceFinder != null) DeviceFinder.run();
@@ -153,12 +153,12 @@ static synchronized Device getDevice () {
 /**
  * Constructs a new instance of this class.
  * <p>
- * You must dispose the device when it is no longer required. 
+ * You must dispose the device when it is no longer required.
  * </p>
  *
  * @see #create
  * @see #init
- * 
+ *
  * @since 3.1
  */
 public Device() {
@@ -168,7 +168,7 @@ public Device() {
 /**
  * Constructs a new instance of this class.
  * <p>
- * You must dispose the device when it is no longer required. 
+ * You must dispose the device when it is no longer required.
  * </p>
  *
  * @param data the DeviceData which describes the receiver
@@ -194,7 +194,7 @@ public Device(DeviceData data) {
 		create (data);
 		init ();
 		register (this);
-		
+
 		/* Initialize the system font slot */
 		systemFont = getSystemFont ();
 	}
@@ -208,12 +208,6 @@ void checkCairo() {
 		int /*long*/ libcairo = OS.dlopen(buffer, OS.RTLD_LAZY);
 		if (libcairo != 0) {
 			OS.dlclose(libcairo);
-		} else {
-			try {
-				System.loadLibrary("cairo-swt");
-			} catch (UnsatisfiedLinkError e) {
-				/* Ignore problems loading the fallback library */
-			}
 		}
 		Class.forName("org.eclipse.swt.internal.cairo.Cairo");
 		CAIRO_LOADED = true;
@@ -356,7 +350,7 @@ public Rectangle getBounds () {
 /**
  * Returns a rectangle which describes the area of the
  * receiver which is capable of displaying data.
- * 
+ *
  * @return the client area
  *
  * @exception SWTException <ul>
@@ -372,7 +366,7 @@ public Rectangle getClientArea () {
 /**
  * Returns the bit depth of the screen, which is the number of
  * bits it takes to represent the number of unique colors that
- * the screen is currently capable of displaying. This number 
+ * the screen is currently capable of displaying. This number
  * will typically be one of 1, 8, 15, 16, 24 or 32.
  *
  * @return the depth of the screen
@@ -471,7 +465,7 @@ public Point getDPI () {
  *    <li>ERROR_DEVICE_DISPOSED - if the receiver has been disposed</li>
  * </ul>
  */
-public FontData [] getFontList (String faceName, boolean scalable) {	
+public FontData [] getFontList (String faceName, boolean scalable) {
 	checkDevice ();
 	String xlfd;
 	if (faceName == null) {
@@ -613,7 +607,7 @@ boolean _getWarnings () {
  * If subclasses reimplement this method, they must
  * call the <code>super</code> implementation.
  * </p>
- * 
+ *
  * @see #create
  */
 protected void init () {
@@ -625,7 +619,7 @@ protected void init () {
 		OS.XRenderQueryVersion (xDisplay, major_versionp, minor_versionp);
 		useXRender = major_versionp[0] > 0 || (major_versionp[0] == 0 && minor_versionp[0] >= 8);
 	}
-		
+
 	/* Create the warning and error callbacks */
 	Class clazz = getClass ();
 	synchronized (clazz) {
@@ -651,7 +645,7 @@ protected void init () {
 	int xtContext = OS.XtDisplayToApplicationContext (xDisplay);
 	xtWarningProc = OS.XtAppSetWarningHandler (xtContext, xtNullWarningProc);
 	xtErrorProc = OS.XtAppSetErrorHandler (xtContext, xtNullErrorProc);
-	
+
 	/* Only use palettes for <= 8 bpp default visual */
 	int xScreenPtr = OS.XDefaultScreenOfDisplay (xDisplay);
 	int defaultDepth = OS.XDefaultDepthOfScreen (xScreenPtr);
@@ -660,7 +654,7 @@ protected void init () {
 		colorRefCount = new int [numColors];
 		xcolors = new XColor [numColors];
 	}
-	
+
 	/*
 	* The following colors are listed in the Windows
 	* Programmer's Reference as the colors in the default
@@ -690,17 +684,17 @@ protected void init () {
 	/* Create the parsing tables */
 	byte[] tabBuffer = {(byte) '\t', 0};
 	tabPointer = OS.XtMalloc (tabBuffer.length);
-	OS.memmove (tabPointer, tabBuffer, tabBuffer.length);		
+	OS.memmove (tabPointer, tabBuffer, tabBuffer.length);
 	int tabString = OS.XmStringComponentCreate(OS.XmSTRING_COMPONENT_TAB, 0, null);
 	int [] argList = {
 		OS.XmNpattern, tabPointer,
 		OS.XmNsubstitute, tabString,
 	};
 	tabMapping = OS.XmParseMappingCreate(argList, argList.length / 2);
-	OS.XmStringFree(tabString);	
+	OS.XmStringFree(tabString);
 	byte[] crBuffer = {(byte) '\n', 0};
-	crPointer = OS.XtMalloc (crBuffer.length);		
-	OS.memmove (crPointer, crBuffer, crBuffer.length);		
+	crPointer = OS.XtMalloc (crBuffer.length);
+	OS.memmove (crPointer, crBuffer, crBuffer.length);
 	int crString = OS.XmStringComponentCreate(OS.XmSTRING_COMPONENT_SEPARATOR, 0, null);
 	argList = new int[] {
 		OS.XmNpattern, crPointer,
@@ -710,7 +704,7 @@ protected void init () {
 	OS.XmStringFree(crString);
 }
 
-/**	 
+/**
  * Invokes platform specific functionality to allocate a new GC handle.
  * <p>
  * <b>IMPORTANT:</b> This method is <em>not</em> part of the public
@@ -720,14 +714,14 @@ protected void init () {
  * application code.
  * </p>
  *
- * @param data the platform specific GC data 
+ * @param data the platform specific GC data
  * @return the platform specific GC handle
- * 
+ *
  * @noreference This method is not intended to be referenced by clients.
  */
 public abstract int internal_new_GC (GCData data);
 
-/**	 
+/**
  * Invokes platform specific functionality to dispose a GC handle.
  * <p>
  * <b>IMPORTANT:</b> This method is <em>not</em> part of the public
@@ -738,8 +732,8 @@ public abstract int internal_new_GC (GCData data);
  * </p>
  *
  * @param hDC the platform specific GC handle
- * @param data the platform specific GC data 
- * 
+ * @param data the platform specific GC data
+ *
  * @noreference This method is not intended to be referenced by clients.
  */
 public abstract void internal_dispose_GC (int handle, GCData data);
@@ -773,7 +767,7 @@ public boolean isDisposed () {
  * </ul>
  *
  * @see Font
- * 
+ *
  * @since 3.3
  */
 public boolean loadFont (String path) {
@@ -810,7 +804,7 @@ public boolean loadFont (String path) {
 //	OS.XFree (pathPtr);
 //	return true;
 }
-	
+
 void new_Object (Object object) {
 	synchronized (trackingLock) {
 		for (int i=0; i<objects.length; i++) {
@@ -899,7 +893,7 @@ protected void release () {
 	}
 	xcolors = null;
 	colorRefCount = null;
-	
+
 	if (COLOR_BLACK != null) COLOR_BLACK.dispose();
 	if (COLOR_DARK_RED != null) COLOR_DARK_RED.dispose();
 	if (COLOR_DARK_GREEN != null) COLOR_DARK_GREEN.dispose();
@@ -919,18 +913,18 @@ protected void release () {
 	COLOR_BLACK = COLOR_DARK_RED = COLOR_DARK_GREEN = COLOR_DARK_YELLOW =
 	COLOR_DARK_BLUE = COLOR_DARK_MAGENTA = COLOR_DARK_CYAN = COLOR_GRAY = COLOR_DARK_GRAY = COLOR_RED =
 	COLOR_GREEN = COLOR_YELLOW = COLOR_BLUE = COLOR_MAGENTA = COLOR_CYAN = COLOR_WHITE = null;
-	
+
 	/* Free the Xt error handler */
 	int xtContext = OS.XtDisplayToApplicationContext (xDisplay);
 	OS.XtAppSetErrorHandler (xtContext, xtErrorProc);
 	xtErrorCallback.dispose (); xtErrorCallback = null;
 	xtNullErrorProc = xtErrorProc = 0;
-	
+
 	/* Free the Xt Warning handler */
 	OS.XtAppSetWarningHandler (xtContext, xtWarningProc);
 	xtWarningCallback.dispose (); xtWarningCallback = null;
 	xtNullWarningProc = xtWarningProc = 0;
-	
+
 	int count = 0;
 	for (int i = 0; i < Devices.length; i++){
 		if (Devices [i] != null) count++;
@@ -940,7 +934,7 @@ protected void release () {
 		OS.XSetIOErrorHandler (XIOErrorProc);
 		XIOErrorCallback.dispose (); XIOErrorCallback = null;
 		XNullIOErrorProc = XIOErrorProc = 0;
-		
+
 		/* Free the X error handler */
 		/*
 		* Bug in Motif.  For some reason, when a pixmap is
@@ -1024,7 +1018,7 @@ int xtWarningProc (int message) {
 			new SWTError ().printStackTrace ();
 		}
 		OS.Call (xtWarningProc, message, 0);
-	}	
+	}
 	return 0;
 }
 
